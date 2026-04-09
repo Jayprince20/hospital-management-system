@@ -1,0 +1,121 @@
+'use client';
+
+import Link from 'next/link';
+import Image from 'next/image';
+import { usePathname } from 'next/navigation';
+import { useAuth } from '@/context/auth-context';
+import { useLanguage } from '@/context/language-context';
+import { navigationItems, hasPermission, roleColors, UserRole } from '@/lib/rbac';
+
+// Map navigation labels to translation keys
+const navTranslationKeys: Record<string, string> = {
+  'Dashboard': 'nav.dashboard',
+  'Patients': 'nav.patients',
+  'Doctors': 'nav.doctors',
+  'Appointments': 'nav.appointments',
+  'Departments': 'nav.departments',
+  'Medical Records': 'nav.records',
+  'Pharmacy': 'nav.pharmacy',
+  'Laboratory': 'nav.laboratory',
+  'Billing': 'nav.billing',
+  'Payments': 'nav.payments',
+  'Inventory': 'nav.inventory',
+  'Reports': 'nav.reports',
+  'Users': 'nav.users',
+  'Notifications': 'nav.notifications',
+  'Settings': 'nav.settings',
+};
+
+export function Sidebar() {
+  const pathname = usePathname();
+  const { user, getRoleDisplayName } = useAuth();
+  const { t } = useLanguage();
+
+  // Filter navigation items based on user permissions
+  const filteredNavItems = navigationItems.filter((item) => {
+    if (!item.permission) return true;
+    return hasPermission(user?.role, item.permission);
+  });
+
+  // Get translated label for nav item
+  const getNavLabel = (label: string) => {
+    const key = navTranslationKeys[label];
+    return key ? t(key) : label;
+  };
+
+  return (
+    <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-transform">
+      {/* Logo */}
+      <div className="flex items-center justify-center px-6 py-5 border-b border-gray-200 dark:border-gray-700">
+        <Image
+          src="/images/logo-bbdt.png"
+          alt="BB Diagnostics"
+          width={180}
+          height={60}
+          className="object-contain"
+          priority
+        />
+      </div>
+
+      {/* Navigation */}
+      <nav className="px-3 py-4 overflow-y-auto h-[calc(100vh-180px)]">
+        <ul className="space-y-1">
+          {filteredNavItems.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[#f4f9ec] dark:bg-[#1e280d] text-[#8DC63F] dark:text-[#a1cb64]'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <svg
+                    className={`w-5 h-5 ${
+                      isActive ? 'text-[#8DC63F] dark:text-[#a1cb64]' : 'text-gray-400'
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d={item.icon}
+                    />
+                  </svg>
+                  {getNavLabel(item.label)}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      {/* User Section */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-[#f4f9ec] dark:bg-[#1e280d] flex items-center justify-center">
+            <span className="text-[#8DC63F] dark:text-[#a1cb64] font-medium text-sm">
+              {user?.firstName?.[0]}
+              {user?.lastName?.[0]}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+              {user?.firstName} {user?.lastName}
+            </p>
+            <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${
+              roleColors[user?.role as UserRole] || 'bg-gray-100 text-gray-800'
+            }`}>
+              {getRoleDisplayName()}
+            </span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}

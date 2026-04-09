@@ -1,26 +1,81 @@
 @import "tailwindcss";
 
+/* Enable class-based dark mode for Tailwind v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* BB Diagnostics Brand Colors */
+  --primary-50: #f4f9ec;
+  --primary-100: #e8f3d9;
+  --primary-200: #d1e7b3;
+  --primary-300: #b8d98a;
+  --primary-400: #a1cb64;
+  --primary-500: #8DC63F;
+  --primary-600: #71a032;
+  --primary-700: #557826;
+  --primary-800: #3a5019;
+  --primary-900: #1e280d;
+
+  --secondary-50: #f5f5f5;
+  --secondary-100: #e8e8e9;
+  --secondary-200: #d1d1d3;
+  --secondary-300: #b0b1b3;
+  --secondary-400: #8e8f91;
+  --secondary-500: #6D6E71;
+  --secondary-600: #57585a;
+  --secondary-700: #414244;
+  --secondary-800: #2b2c2d;
+  --secondary-900: #161617;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary-500);
+  --color-primary-dark: var(--primary-600);
+  --color-secondary: var(--secondary-500);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Dark mode variables when .dark class is applied */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Light mode body */
+body {
+  background-color: #ffffff;
+  color: #171717;
+}
+
+/* Dark mode body */
+.dark body {
+  background-color: #0a0a0a;
+  color: #ededed;
+}
+
+/* Toast animation */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
 }
