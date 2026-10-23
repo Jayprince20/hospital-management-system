@@ -303,6 +303,10 @@ interface PatientLabResult {
     name: string;
     result: string;
     isAbnormal: boolean;
+    /** Only RELEASED values are final; older servers don't send it */
+    status?: LabResultStatus;
+    flag?: string | null;
+    unit?: string | null;
   }[];
 }
 
@@ -729,6 +733,31 @@ interface LabTest {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  // Structured results (lab workflow); absent on older servers
+  resultType?: LabResultType;
+  options?: string[];
+  container?: string | null;
+  refLow?: number | string | null;
+  refHigh?: number | string | null;
+  criticalLow?: number | string | null;
+  criticalHigh?: number | string | null;
+  decimals?: number;
+  referenceRanges?: LabReferenceRange[];
+}
+
+type LabResultType = 'NUMERIC' | 'TEXT' | 'OPTION';
+type LabResultStatus = 'PENDING' | 'ENTERED' | 'VALIDATED' | 'RELEASED';
+
+interface LabReferenceRange {
+  id?: string;
+  sex?: 'MALE' | 'FEMALE' | null;
+  ageMinYears?: number | null;
+  ageMaxYears?: number | null;
+  low?: number | string | null;
+  high?: number | string | null;
+  criticalLow?: number | string | null;
+  criticalHigh?: number | string | null;
+  label?: string | null;
 }
 
 interface LabTestsResponse {
@@ -764,10 +793,132 @@ interface LabOrder {
     category: string;
     result?: string;
     isAbnormal?: boolean;
+    status?: LabResultStatus;
+    flag?: string | null;
+    isCritical?: boolean;
+    unit?: string | null;
   }>;
+  number?: string | null;
   collectedAt?: string;
   completedAt?: string;
+  releasedAt?: string | null;
   createdAt: string;
+}
+
+type LabSampleStatus = 'COLLECTED' | 'RECEIVED' | 'REJECTED';
+
+interface LabSample {
+  id: string;
+  barcode: string;
+  container: string;
+  sampleType: string;
+  status: LabSampleStatus;
+  collectedAt: string;
+  collectedByName?: string | null;
+  receivedAt?: string | null;
+  receivedByName?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
+  rejectionNote?: string | null;
+}
+
+/** GET /api/lab-orders/:id (the detail is richer than the list item) */
+interface LabOrderDetail {
+  id: string;
+  number?: string | null;
+  patient: {
+    id: string;
+    patientId: string;
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phoneNumber?: string;
+    dateOfBirth?: string;
+    gender?: string;
+  };
+  doctor: { id: string; firstName: string; lastName: string; department?: string };
+  consultation?: { id: string; chiefComplaint?: string; diagnosis?: string[] | string } | null;
+  admissionId?: string | null;
+  clinicalInfo?: string | null;
+  status: LabOrderStatus;
+  priority: 'ROUTINE' | 'URGENT' | 'STAT';
+  notes?: string | null;
+  collectedAt?: string | null;
+  collectedBy?: string | null;
+  completedAt?: string | null;
+  releasedAt?: string | null;
+  createdAt: string;
+  invoice?: { id: string; invoiceNumber: string; status: string } | null;
+  invoiceId?: string | null;
+  chargedToStay?: boolean;
+  samples?: LabSample[];
+  items: LabOrderDetailItem[];
+  totalPrice: number;
+}
+
+interface LabOrderDetailItem {
+  id: string;
+  labTest: LabTest;
+  result?: string | null;
+  unit?: string | null;
+  normalRange?: string | null;
+  isAbnormal?: boolean | null;
+  notes?: string | null;
+  status?: LabResultStatus;
+  sampleId?: string | null;
+  numericValue?: number | string | null;
+  flag?: string | null;
+  isCritical?: boolean;
+  refLow?: number | string | null;
+  refHigh?: number | string | null;
+  enteredAt?: string | null;
+  enteredByName?: string | null;
+  validatedAt?: string | null;
+  validatedByName?: string | null;
+  criticalCalledAt?: string | null;
+  criticalCalledTo?: string | null;
+  rerunCount?: number;
+}
+
+interface LabWorklistOrder {
+  id: string;
+  number?: string | null;
+  priority: 'ROUTINE' | 'URGENT' | 'STAT';
+  status: LabOrderStatus;
+  patient: { name: string; patientId: string; sex?: string | null; age?: number | null };
+  doctorName: string;
+  createdAt: string;
+  collectedAt?: string | null;
+  samples: Array<{ barcode: string; container: string; status: LabSampleStatus }>;
+  counts: { pending: number; entered: number; validated: number; released: number };
+  hasCritical: boolean;
+  toCollect?: number | null;
+}
+
+interface LabWorklist {
+  orders: LabWorklistOrder[];
+  counts?: Partial<Record<'toCollect' | 'toReceive' | 'toEnter' | 'toValidate' | 'released', number>>;
+}
+
+interface LabStats {
+  received: number;
+  released: number;
+  rejected: number;
+  avgTurnaroundHours: number | null;
+  criticalToday: number;
+  pendingValidation: number;
+}
+
+interface LabSampleLookup {
+  sample: LabSample;
+  order: { id: string; number?: string | null; priority: string; status: LabOrderStatus; patient?: { name?: string; firstName?: string; lastName?: string; patientId?: string } ; patientName?: string };
+  items: Array<{ id: string; labTest?: { code: string; name: string }; name?: string; code?: string; status?: LabResultStatus }>;
+}
+
+interface LabHistoryEntry {
+  date: string;
+  value: string;
+  flag?: string | null;
 }
 
 interface LabOrdersResponse {
@@ -2954,8 +3105,15 @@ class ApiClient {
   }
 
   async enableMfa(code: string): Promise<{ recoveryCodes: string[] }> {
-    const response = await this.request<{ recoveryCodes: string[] }>('/api/auth/mfa/enable', { method: 'POST', body: JSON.stringify({ code }) });
-    if (response.success && response.data) return response.data;
+    const response = await this.request<{ recoveryCodes: string[]; tokens?: { accessToken: string; refreshToken: string } }>(
+      '/api/auth/mfa/enable',
+      { method: 'POST', body: JSON.stringify({ code }) }
+    );
+    if (response.success && response.data) {
+      // Until enrolment the API only accepted the 2FA setup: switch to the full session now
+      if (response.data.tokens) this.setTokens(response.data.tokens.accessToken, response.data.tokens.refreshToken);
+      return response.data;
+    }
     throw new Error(response.message || response.error || 'Two-factor setup failed');
   }
 
@@ -3712,7 +3870,7 @@ class ApiClient {
     throw new Error('Failed to fetch lab order');
   }
 
-  async createLabOrder(data: { patientId: string; doctorId: string; consultationId?: string; priority?: string; notes?: string; tests: { labTestId: string }[] }): Promise<LabOrder> {
+  async createLabOrder(data: { patientId: string; doctorId: string; consultationId?: string; admissionId?: string; clinicalInfo?: string; priority?: string; notes?: string; tests: { labTestId: string }[] }): Promise<LabOrder> {
     const response = await this.request<LabOrder>('/api/lab-orders', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -3739,6 +3897,107 @@ class ApiClient {
     if (!response.success) {
       throw new Error('Failed to cancel lab order');
     }
+  }
+
+  // ---- Lab workflow: samples, results, validation ----
+
+  async getLabOrderDetail(id: string): Promise<LabOrderDetail> {
+    return this.data<LabOrderDetail>(`/api/lab-orders/${id}`);
+  }
+
+  async getLabWorklist(filters: { date?: string; priority?: string } = {}): Promise<LabWorklist> {
+    const params = new URLSearchParams();
+    if (filters.date) params.append('date', filters.date);
+    if (filters.priority) params.append('priority', filters.priority);
+    return this.data<LabWorklist>(`/api/lab/worklist?${params.toString()}`);
+  }
+
+  async getLabStats(date?: string): Promise<LabStats> {
+    return this.data<LabStats>(`/api/lab/stats${date ? `?date=${date}` : ''}`);
+  }
+
+  async collectLabSamples(orderId: string): Promise<LabSample[]> {
+    const data = await this.data<{ samples: LabSample[] } | LabSample[]>(`/api/lab-orders/${orderId}/samples`, { method: 'POST', body: '{}' });
+    return Array.isArray(data) ? data : data.samples;
+  }
+
+  async lookupLabSample(barcode: string): Promise<LabSampleLookup> {
+    return this.data<LabSampleLookup>(`/api/lab-samples/${encodeURIComponent(barcode)}`);
+  }
+
+  async receiveLabSample(barcode: string): Promise<LabSample> {
+    return this.data<LabSample>(`/api/lab-samples/${encodeURIComponent(barcode)}/receive`, { method: 'POST', body: '{}' });
+  }
+
+  async rejectLabSample(barcode: string, reason: string, note?: string): Promise<LabSample> {
+    return this.data<LabSample>(`/api/lab-samples/${encodeURIComponent(barcode)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason, ...(note ? { note } : {}) }),
+    });
+  }
+
+  async saveLabResults(orderId: string, results: Array<{ itemId: string; value: string; notes?: string }>): Promise<LabOrderDetail> {
+    return this.data<LabOrderDetail>(`/api/lab-orders/${orderId}/results`, { method: 'POST', body: JSON.stringify({ results }) });
+  }
+
+  async rerunLabItem(orderId: string, itemId: string, reason: string): Promise<LabOrderDetail> {
+    return this.data<LabOrderDetail>(`/api/lab-orders/${orderId}/rerun`, { method: 'POST', body: JSON.stringify({ itemId, reason }) });
+  }
+
+  async validateLabResults(orderId: string, body: { itemIds?: string[]; criticalCall?: { calledTo: string } } = {}): Promise<LabOrderDetail> {
+    return this.data<LabOrderDetail>(`/api/lab-orders/${orderId}/validate`, { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async documentLabCriticalCall(orderId: string, itemId: string, calledTo: string): Promise<LabOrderDetail> {
+    return this.data<LabOrderDetail>(`/api/lab-orders/${orderId}/critical-call`, { method: 'POST', body: JSON.stringify({ itemId, calledTo }) });
+  }
+
+  async getLabItemHistory(orderId: string, itemId: string): Promise<LabHistoryEntry[]> {
+    const data = await this.data<{ history: LabHistoryEntry[] } | LabHistoryEntry[]>(`/api/lab-orders/${orderId}/history?itemId=${encodeURIComponent(itemId)}`);
+    return Array.isArray(data) ? data : data.history ?? [];
+  }
+
+  async billLabOrder(orderId: string): Promise<{ invoice: { id: string; invoiceNumber: string } }> {
+    return this.data<{ invoice: { id: string; invoiceNumber: string } }>(`/api/lab-orders/${orderId}/bill`, { method: 'POST', body: '{}' });
+  }
+
+  async saveLabTestRanges(id: string, data: Partial<LabTest>): Promise<LabTest> {
+    return this.data<LabTest>(`/api/lab-tests/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  /** Sample labels (one small page per tube) to print */
+  async openLabLabels(orderId: string, sampleIds?: string[]): Promise<void> {
+    const query = sampleIds && sampleIds.length ? `?ids=${sampleIds.map(encodeURIComponent).join(',')}` : '';
+    await this.openProtectedPdf(`/api/lab-orders/${orderId}/samples/labels.pdf${query}`, `etiquettes-${orderId}.pdf`);
+  }
+
+  /** Released results report */
+  async openLabReportPdf(orderId: string, lang: 'fr' | 'en' = 'fr'): Promise<void> {
+    await this.openProtectedPdf(`/api/lab-orders/${orderId}/pdf?lang=${lang}`, `analyses-${orderId}.pdf`);
+  }
+
+  /** Fetch a PDF with the session token and open it in a new tab (download if pop-ups are blocked) */
+  private async openProtectedPdf(path: string, fallbackName: string): Promise<void> {
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, { headers: this.authHeaders() });
+    } catch {
+      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new ApiError(localizeServerMessage(data.error || data.message || 'Request failed'), response.status);
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const opened = window.open(url, '_blank');
+    if (!opened) {
+      const fileName = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '')?.[1] || fallbackName;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
   // ---- Insurer billing (tiers payant) ----
@@ -5079,6 +5338,18 @@ class ApiClient {
 
 export const api = new ApiClient(API_URL);
 export type {
+  LabResultType,
+  LabResultStatus,
+  LabReferenceRange,
+  LabSample,
+  LabSampleStatus,
+  LabOrderDetail,
+  LabOrderDetailItem,
+  LabWorklistOrder,
+  LabWorklist,
+  LabStats,
+  LabSampleLookup,
+  LabHistoryEntry,
   ProxyRelationship,
   ProxyAccessLevel,
   ProxyStatus,

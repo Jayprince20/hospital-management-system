@@ -5,6 +5,7 @@ import { useAuth } from '@/context/auth-context';
 import { api, PatientDetail, type Invoice } from '@/lib/api';
 import { MobileMoneyPayment } from '@/components/payments';
 import { useLanguage } from '@/context/language-context';
+import { useLabPdf } from '@/components/lab/ui';
 import { MyConsents } from '@/components/consent';
 import { isInsured, patientDue } from '@/lib/insurance';
 import { MyTicketCard } from '@/components/queue';
@@ -518,6 +519,9 @@ function VitalsTab({ vitals }: { vitals: PatientDetail['vitals'] }) {
 // Lab Results Tab Component
 function LabResultsTab({ labResults }: { labResults: PatientDetail['labResults'] }) {
   const { t, tEnum, formatDate, formatCurrency } = useLanguage();
+  const pdf = useLabPdf();
+  // Only results validated by the biologist are final; older servers send no status
+  const isFinal = (test: { status?: string }) => !test.status || test.status === 'RELEASED';
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       ORDERED: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
@@ -554,33 +558,50 @@ function LabResultsTab({ labResults }: { labResults: PatientDetail['labResults']
                 {t(result.tests.length === 1 ? 'admin.health.testsOne' : 'admin.health.testsOther', { count: result.tests.length })}
               </p>
             </div>
-            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(result.status)}`}>
-              {tEnum(result.status)}
-            </span>
+            <div className="flex items-center gap-2">
+              {result.tests.some((test) => test.status === 'RELEASED') && (
+                <button
+                  type="button"
+                  onClick={() => pdf.report(result.id)}
+                  disabled={pdf.busy !== null}
+                  className="px-3 py-1 rounded-lg text-xs font-medium border border-lime-600 text-lime-700 dark:text-lime-400 hover:bg-lime-50 dark:hover:bg-lime-900/20 disabled:opacity-50"
+                >
+                  {t('labw.portal.pdf')}
+                </button>
+              )}
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(result.status)}`}>
+                {tEnum(result.status)}
+              </span>
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {result.tests.map((test, idx) => (
-              <div
-                key={idx}
-                className={`p-3 rounded-lg ${
-                  test.isAbnormal
-                    ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-                    : 'bg-white dark:bg-gray-800'
-                }`}
-              >
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{test.name}</p>
-                <p className={`text-lg font-bold ${
-                  test.isAbnormal
-                    ? 'text-red-600 dark:text-red-400'
-                    : 'text-gray-900 dark:text-white'
-                }`}>
-                  {test.result || t('admin.health.pending')}
-                </p>
-                {test.isAbnormal && (
-                  <span className="text-xs text-red-600 dark:text-red-400">{t('admin.health.abnormal')}</span>
-                )}
-              </div>
-            ))}
+            {result.tests.map((test, idx) => {
+              const final = isFinal(test) && !!test.result;
+              const abnormal = final && (test.isAbnormal || (!!test.flag && test.flag !== 'N'));
+              return (
+                <div
+                  key={idx}
+                  className={`p-3 rounded-lg ${
+                    abnormal
+                      ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                      : 'bg-white dark:bg-gray-800'
+                  }`}
+                >
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{test.name}</p>
+                  {final ? (
+                    <p className={`text-lg font-bold ${abnormal ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
+                      {test.result}
+                      {test.unit ? <span className="text-sm font-normal text-gray-500 dark:text-gray-400"> {test.unit}</span> : null}
+                    </p>
+                  ) : (
+                    <p className="text-lg font-medium text-gray-500 dark:text-gray-400">{test.status ? t('labw.portal.inProgress') : t('admin.health.pending')}</p>
+                  )}
+                  {abnormal && (
+                    <span className="text-xs text-red-600 dark:text-red-400">{t('admin.health.abnormal')}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}

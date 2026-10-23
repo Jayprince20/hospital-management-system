@@ -60,6 +60,9 @@ describe('localizeServerMessage', () => {
     'An exam can have at most 20 files',
     'Invalid modality: SCANNER',
     'Invalid priority: HIGH',
+    'Invalid numeric result for Hémoglobine',
+    'A result is required for Potassium',
+    'Invalid result for Goutte épaisse: expected one of Négative, Positive',
   ];
 
   it('has a sample for every message pattern', () => {

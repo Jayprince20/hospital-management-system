@@ -26,6 +26,9 @@ function NewLabOrderForm() {
   const searchParams = useSearchParams();
   const patientIdParam = searchParams.get('patientId');
   const consultationId = searchParams.get('consultationId');
+  // Ordered from a hospital stay: the tests are charged to the stay
+  const admissionId = searchParams.get('admissionId');
+  const clinicalParam = searchParams.get('clinicalInfo');
 
   const { user } = useAuth();
   const { t, tEnum, formatCurrency } = useLanguage();
@@ -50,6 +53,7 @@ function NewLabOrderForm() {
 
   const [priority, setPriority] = useState<Priority>('ROUTINE');
   const [notes, setNotes] = useState('');
+  const [clinicalInfo, setClinicalInfo] = useState(clinicalParam ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -139,6 +143,8 @@ function NewLabOrderForm() {
       priority,
       notes: notes.trim() || undefined,
       consultationId: consultationId || undefined,
+      admissionId: admissionId || undefined,
+      clinicalInfo: clinicalInfo.trim() || undefined,
       tests: selectedTestIds.map((labTestId) => ({ labTestId })),
     };
 
@@ -390,6 +396,19 @@ function NewLabOrderForm() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="lab-clinical" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('labw.new.clinical')}</label>
+            <textarea
+              id="lab-clinical"
+              value={clinicalInfo}
+              onChange={(e) => setClinicalInfo(e.target.value)}
+              rows={2}
+              placeholder={t('labw.new.clinicalPlaceholder')}
+              className={inputClass}
+            />
+            {admissionId && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('labw.new.stayCharge')}</p>}
           </div>
 
           <div>

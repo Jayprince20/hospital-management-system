@@ -121,6 +121,14 @@ export default function AdmissionPage() {
               </>
             )}
             {admitted && isDoctor && (
+              <Link
+                href={`/dashboard/laboratory/orders/new?patientId=${admission.patient.id}&admissionId=${admission.id}${admission.provisionalDiagnosis ? `&clinicalInfo=${encodeURIComponent(admission.provisionalDiagnosis)}` : ''}`}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
+              >
+                {t('labw.fromStay')}
+              </Link>
+            )}
+            {admitted && isDoctor && (
               <button type="button" onClick={() => setDialog('imaging')} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">{t('img.order.fromStay')}</button>
             )}
             {admission.status === 'DISCHARGED' && (

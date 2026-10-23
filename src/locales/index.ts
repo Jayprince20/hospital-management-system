@@ -18,9 +18,10 @@ import pharmacyPos from './pharmacy-pos';
 import documentsMedical from './documents-medical';
 import imaging from './imaging';
 import patientExtras from './patient-extras';
+import labWorkflow from './lab-workflow';
 
 // Register feature dictionaries here. Later entries override earlier ones.
-const dictionaries: LocaleDictionary[] = [common, lab, patients, appointments, pharmacy, clinical, admin, audit, privacy, security, ops, payments, insurance, queue, inpatient, pharmacyPos, documentsMedical, imaging, patientExtras];
+const dictionaries: LocaleDictionary[] = [common, lab, patients, appointments, pharmacy, clinical, admin, audit, privacy, security, ops, payments, insurance, queue, inpatient, pharmacyPos, documentsMedical, imaging, patientExtras, labWorkflow];
 
 export const extraTranslations: LocaleDictionary = dictionaries.reduce<LocaleDictionary>(
   (acc, dict) => ({ en: { ...acc.en, ...dict.en }, fr: { ...acc.fr, ...dict.fr } }),

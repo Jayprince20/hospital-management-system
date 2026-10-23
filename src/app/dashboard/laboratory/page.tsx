@@ -7,6 +7,8 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { useToast } from '@/components/toast';
 import { PermissionGate } from '@/components/permission-gate';
 import { useLanguage } from '@/context/language-context';
+import { useAuth } from '@/context/auth-context';
+import { LabWorklist } from '@/components/lab/worklist';
 import {
   PieChart,
   Pie,
@@ -59,6 +61,9 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function LaboratoryPage() {
+  const { user } = useAuth();
+  // Lab staff start on the bench worklist; others (doctors, desk) on the order history
+  const [view, setView] = useState<'worklist' | 'overview'>(user?.role === 'LAB_TECH' || user?.role === 'ADMIN' ? 'worklist' : 'overview');
   const [activeTab, setActiveTab] = useState<'orders' | 'tests'>('orders');
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
   const [labTests, setLabTests] = useState<LabTest[]>([]);
@@ -401,6 +406,29 @@ export default function LaboratoryPage() {
         </div>
       </div>
 
+      <div role="tablist" className="flex gap-2">
+        {(['worklist', 'overview'] as const).map((v) => (
+          <button
+            key={v}
+            role="tab"
+            aria-selected={view === v}
+            onClick={() => setView(v)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium border ${
+              view === v ? 'bg-lime-600 border-lime-600 text-white' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            {t(`labw.view.${v}`)}
+          </button>
+        ))}
+        <Link href="/dashboard/laboratory/tests" className="ml-auto px-4 py-2 text-sm text-lime-700 dark:text-lime-400 hover:underline">
+          {t('labw.catalogue.link')}
+        </Link>
+      </div>
+
+      {view === 'worklist' ? (
+        <LabWorklist />
+      ) : (
+        <>
       {/* Status Summary */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {statusOptions.slice(1).map((opt) => (
@@ -795,6 +823,9 @@ export default function LaboratoryPage() {
           </div>
         )}
       </div>
+
+        </>
+      )}
 
       {/* Create Modal */}
       {showCreateModal && (

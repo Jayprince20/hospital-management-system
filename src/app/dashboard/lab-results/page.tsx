@@ -66,6 +66,9 @@ export default function LabResultsPage() {
   const summarize = (order: LabOrder) => {
     const withResult = order.tests.filter((test) => test.result);
     if (withResult.length === 0) return { text: t('lab.results.awaiting'), className: 'text-gray-500 dark:text-gray-400' };
+    // Critical values come first: they are called in to the prescriber
+    const critical = withResult.filter((test) => test.isCritical).length;
+    if (critical > 0) return { text: t('labw.list.criticalCount', { n: critical }), className: 'text-red-700 dark:text-red-400 font-bold' };
     const abnormal = withResult.filter((test) => test.isAbnormal).length;
     if (abnormal === 0) return { text: t('lab.results.allNormal'), className: 'text-green-700 dark:text-green-400' };
     return {
@@ -154,7 +157,7 @@ export default function LabResultsPage() {
                     <tr
                       key={order.id}
                       onClick={() => router.push(`/dashboard/laboratory/orders/${order.id}`)}
-                      className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                      className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 ${order.tests.some((test) => test.isCritical) ? 'bg-red-50/60 dark:bg-red-900/10' : ''}`}
                     >
                       <td className="px-4 py-3">
                         <p className="font-medium text-gray-900 dark:text-white">{order.patientName}</p>
@@ -174,6 +177,8 @@ export default function LabResultsPage() {
                               }`}
                             >
                               {test.name}
+                              {test.isCritical && <span className="ml-1 font-bold">!!</span>}
+                              {test.result && test.status === 'ENTERED' && <span className="ml-1 italic">({t('labw.results.notValidatedShort')})</span>}
                             </span>
                           ))}
                         </div>

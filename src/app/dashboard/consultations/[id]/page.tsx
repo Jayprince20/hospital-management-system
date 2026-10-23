@@ -187,6 +187,14 @@ export default function ConsultationDetailPage() {
               {t('img.order.fromConsultation')}
             </button>
           )}
+          <PermissionGate permission="laboratory:create_orders">
+            <Link
+              href={`/dashboard/laboratory/orders/new?consultationId=${consultation.id}&patientId=${consultation.patient.id}${consultation.chiefComplaint ? `&clinicalInfo=${encodeURIComponent(consultation.chiefComplaint)}` : ''}`}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              {t('labw.fromConsultation')}
+            </Link>
+          </PermissionGate>
           <PermissionGate permission="prescriptions:create">
             <Link
               href={`/dashboard/prescriptions/new?consultationId=${consultation.id}&patientId=${consultation.patient.id}`}
