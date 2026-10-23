@@ -8,6 +8,7 @@ import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth-context';
 import { PermissionGate } from '@/components/permission-gate';
 import { useLanguage } from '@/context/language-context';
+import { NewDocumentDialog } from '@/components/documents';
 
 interface ConsultationDetail {
   id: string;
@@ -78,6 +79,8 @@ export default function ConsultationDetailPage() {
   const { t, tEnum, formatDate: formatLocaleDate, formatDateTime } = useLanguage();
 
   const [consultation, setConsultation] = useState<ConsultationDetail | null>(null);
+  const [documentDialog, setDocumentDialog] = useState(false);
+  const canIssueDocuments = user?.role === 'DOCTOR' || user?.role === 'ADMIN';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -164,6 +167,15 @@ export default function ConsultationDetailPage() {
               {formatDateTime(consultation.createdAt)}
             </p>
           </div>
+          {canIssueDocuments && (
+            <button
+              type="button"
+              onClick={() => setDocumentDialog(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              {t('mdoc.new.fromConsultation')}
+            </button>
+          )}
           <PermissionGate permission="prescriptions:create">
             <Link
               href={`/dashboard/prescriptions/new?consultationId=${consultation.id}&patientId=${consultation.patient.id}`}
@@ -509,6 +521,25 @@ export default function ConsultationDetailPage() {
           </div>
         </div>
       </div>
+      {documentDialog && (
+        <NewDocumentDialog
+          patient={{ id: consultation.patient.id, patientId: consultation.patient.hospitalId, name: consultation.patient.name }}
+          consultationId={consultation.id}
+          prefill={{
+            reason: consultation.diagnosis.length > 0 ? consultation.diagnosis.join(', ') : consultation.chiefComplaint,
+            clinicalSummary: [
+              consultation.chiefComplaint,
+              consultation.symptoms.length > 0 ? consultation.symptoms.join(', ') : '',
+              consultation.examination ?? '',
+              consultation.diagnosis.length > 0 ? `${t('mdoc.prefill.diagnosis')} : ${consultation.diagnosis.join(', ')}` : '',
+            ]
+              .filter(Boolean)
+              .join('\n'),
+            currentTreatment: consultation.treatmentPlan ?? '',
+          }}
+          onClose={() => setDocumentDialog(false)}
+        />
+      )}
     </div>
   );
 }

@@ -375,6 +375,20 @@ export const navigationItems: NavItem[] = [
     roles: ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'], // Hospital stays
   },
   {
+    label: 'Medical Documents',
+    href: '/dashboard/documents',
+    icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+    permission: 'dashboard:view',
+    roles: ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'], // Certificates, sick leave, referral letters
+  },
+  {
+    label: 'Referrals',
+    href: '/dashboard/referrals',
+    icon: 'M13 7l5 5m0 0l-5 5m5-5H6',
+    permission: 'dashboard:view',
+    roles: ['ADMIN', 'DOCTOR', 'RECEPTIONIST'], // Referral follow-up (contre-référence)
+  },
+  {
     label: 'Medication Round',
     href: '/dashboard/mar-round',
     icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
@@ -608,6 +622,8 @@ export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/wards': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
   '/dashboard/admissions': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST'],
   '/dashboard/mar-round': ['NURSE', 'ADMIN', 'DOCTOR'],
+  '/dashboard/documents': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
+  '/dashboard/referrals': ['ADMIN', 'DOCTOR', 'RECEPTIONIST'],
   '/dashboard/pharmacy/pos': ['ADMIN', 'PHARMACIST'],
   '/dashboard/pharmacy/prescriptions': ['ADMIN', 'PHARMACIST'],
   '/dashboard/pharmacy/sales': ['ADMIN', 'PHARMACIST'],
@@ -661,6 +677,13 @@ export function canAccessRoute(userRole: UserRole | string | undefined, pathname
 
   // If no permission required, allow access
   if (!requiredPermission) return true;
+
+  // One patient's record (/dashboard/patients/<id>, not the list or /new): clinical staff who
+  // see medical records open it too — doctors reach it from "Mes patients", the queue and stays.
+  // The API still checks what each role may read or change.
+  if (/^\/dashboard\/patients\/(?!new(\/|$))[^/]+$/.test(pathname) && hasPermission(userRole, 'patients:view_records')) {
+    return true;
+  }
 
   return hasPermission(userRole, requiredPermission);
 }

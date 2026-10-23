@@ -54,6 +54,7 @@ describe('localizeServerMessage', () => {
     'Paracétamol 500mg is no longer sold',
     'Quantity exceeds the prescribed quantity for Amoxicilline 500mg',
     'A prescription is required for Amoxicilline 500mg',
+    'Invalid document type: LETTER',
   ];
 
   it('has a sample for every message pattern', () => {

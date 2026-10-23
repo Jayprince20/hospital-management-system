@@ -69,3 +69,12 @@ describe('navigation', () => {
     expect(getNavigationForRole(undefined)).toEqual([]);
   });
 });
+
+describe('patient record page', () => {
+  it('opens for clinical staff, while the list and creation keep their own rules', () => {
+    expect(allowedRoles('/dashboard/patients/abc-123')).toEqual(expect.arrayContaining(['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST']));
+    expect(allowedRoles('/dashboard/patients/abc-123')).not.toContain('PATIENT');
+    expect(allowedRoles('/dashboard/patients')).not.toContain('DOCTOR');
+    expect(allowedRoles('/dashboard/patients/new')).not.toContain('NURSE');
+  });
+});

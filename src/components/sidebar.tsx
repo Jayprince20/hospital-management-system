@@ -24,6 +24,8 @@ const navTranslationKeys: Record<string, string> = {
   'Beds': 'nav.beds',
   'Admissions': 'nav.admissions',
   'Medication Round': 'nav.marRound',
+  'Medical Documents': 'nav.medicalDocuments',
+  'Referrals': 'nav.referrals',
   'Departments': 'nav.departments',
   'Medical Records': 'nav.records',
   'Pharmacy': 'nav.pharmacy',

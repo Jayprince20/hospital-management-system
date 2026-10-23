@@ -17,6 +17,7 @@ import { useAuth } from '@/context/auth-context';
 import { PatientConsentsPanel, PatientDataProtection } from '@/components/consent';
 import { PatientCoveragePanel } from '@/components/insurance';
 import { AdmissionDialog } from '@/components/inpatient';
+import { PatientDocumentsPanel } from '@/components/documents';
 
 type TabType = 'overview' | 'appointments' | 'prescriptions' | 'lab-results' | 'vitals' | 'billing' | 'coverage' | 'documents' | 'consents';
 
@@ -75,7 +76,7 @@ export default function PatientDetailPage() {
     { id: 'vitals', label: t('patientDetail.tabVitals'), icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
     { id: 'billing', label: t('patientDetail.tabBilling'), icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
     { id: 'coverage', label: t('ins.coverage.tab'), icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
-    { id: 'documents', label: t('patientDetail.tabDocuments'), icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
+    { id: 'documents', label: t('mdoc.panel.tab'), icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
     { id: 'consents', label: t('privacy.tab'), icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
   ];
 
@@ -757,26 +758,9 @@ export default function PatientDetailPage() {
           </div>
         )}
 
-        {/* Documents Tab */}
+        {/* Medical documents: certificates, sick leave, referral letters */}
         {activeTab === 'documents' && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-            <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 dark:text-white">{t('patientDetail.documents')}</h3>
-              <button className="inline-flex items-center gap-2 px-3 py-1.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                {t('patientDetail.upload')}
-              </button>
-            </div>
-            <div className="p-8 text-center">
-              <svg className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-              <p className="text-gray-500 dark:text-gray-400 font-medium">{t('patientDetail.noDocuments')}</p>
-              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">{t('patientDetail.uploadHelp')}</p>
-            </div>
-          </div>
+          <PatientDocumentsPanel patient={{ id: patient.id, patientId: patient.patientId, name: `${patient.firstName} ${patient.lastName}` }} />
         )}
         {activeTab === 'coverage' && (
           <PatientCoveragePanel patientId={patient.id} canManage={user?.role === 'ADMIN' || user?.role === 'RECEPTIONIST'} />

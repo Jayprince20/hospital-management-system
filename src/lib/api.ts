@@ -2286,6 +2286,135 @@ interface PharmacyDailyReport {
   grossMargin: number | null;
 }
 
+// Medical documents: certificates, sick leave, referral letters
+type MedicalDocumentType = 'SICK_LEAVE' | 'MEDICAL_CERTIFICATE' | 'REFERRAL';
+type MedicalDocumentStatus = 'ISSUED' | 'REVOKED';
+type ReferralStatus = 'SENT' | 'ACKNOWLEDGED' | 'COMPLETED' | 'CANCELLED';
+type ReferralUrgency = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+type CertificateKind = 'GOOD_HEALTH' | 'FITNESS' | 'SPORT' | 'INJURY_REPORT' | 'OTHER';
+
+interface MedicalDocument {
+  id: string;
+  number: string;
+  type: MedicalDocumentType;
+  status: MedicalDocumentStatus;
+  patient: { id: string; patientId: string; name: string; dateOfBirth?: string | null; gender?: string | null };
+  doctor: { id: string; name: string; specialization?: string | null; department?: string | null };
+  consultationId: string | null;
+  admissionId: string | null;
+  verificationCode: string;
+  issuedAt: string;
+  validFrom: string | null;
+  validUntil: string | null;
+  leaveDays: number | null;
+  leaveKind: 'INITIAL' | 'EXTENSION' | null;
+  outingsAllowed: boolean | null;
+  certificateKind: CertificateKind | null;
+  purpose: string | null;
+  findings: string | null;
+  conclusion: string | null;
+  direction: 'OUTGOING' | 'INCOMING' | null;
+  referralStatus: ReferralStatus | null;
+  urgency: ReferralUrgency | null;
+  toFacility: string | null;
+  toSpecialty: string | null;
+  toDoctor: string | null;
+  fromFacility: string | null;
+  fromDoctor: string | null;
+  reason?: string | null;
+  clinicalSummary: string | null;
+  investigations: string | null;
+  currentTreatment: string | null;
+  question: string | null;
+  acknowledgedAt: string | null;
+  feedbackAt: string | null;
+  feedback: string | null;
+  feedbackFrom: string | null;
+  revokedAt: string | null;
+  revokedByName: string | null;
+  revokeReason: string | null;
+  /** Why a referral was cancelled (revokeReason is for revoked documents) */
+  cancelReason?: string | null;
+  createdAt: string;
+  /** Present on the pending-referrals list */
+  daysWaiting?: number;
+}
+
+interface CreateMedicalDocumentInput {
+  type: MedicalDocumentType;
+  patientId: string;
+  doctorId?: string;
+  consultationId?: string;
+  admissionId?: string;
+  // Sick leave
+  validFrom?: string;
+  leaveDays?: number;
+  leaveKind?: 'INITIAL' | 'EXTENSION';
+  outingsAllowed?: boolean;
+  // Certificate
+  certificateKind?: CertificateKind;
+  purpose?: string;
+  findings?: string;
+  conclusion?: string;
+  validUntil?: string;
+  // Referral
+  direction?: 'OUTGOING' | 'INCOMING';
+  urgency?: ReferralUrgency;
+  toFacility?: string;
+  toSpecialty?: string;
+  toDoctor?: string;
+  fromFacility?: string;
+  fromDoctor?: string;
+  reason?: string;
+  clinicalSummary?: string;
+  investigations?: string;
+  currentTreatment?: string;
+  question?: string;
+}
+
+interface MedicalDocumentFilters {
+  type?: MedicalDocumentType;
+  patientId?: string;
+  doctorId?: string;
+  status?: MedicalDocumentStatus;
+  referralStatus?: ReferralStatus;
+  direction?: 'OUTGOING' | 'INCOMING';
+  from?: string;
+  to?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+interface MedicalDocumentsResponse {
+  documents: MedicalDocument[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+interface PendingReferrals {
+  referrals: MedicalDocument[];
+  counts: { sent: number; acknowledged: number; overdue: number };
+}
+
+interface DocumentVerification {
+  valid: boolean;
+  status: MedicalDocumentStatus;
+  type: MedicalDocumentType;
+  number: string;
+  issuedAt: string;
+  validFrom: string | null;
+  validUntil: string | null;
+  doctorName: string;
+  facility: string;
+  patientInitials: string;
+  patientBirthYear: number | null;
+  certificateKind?: CertificateKind | null;
+  direction?: 'OUTGOING' | 'INCOMING' | null;
+  /** Genuine but past its validity date (valid stays true) */
+  expired?: boolean;
+  revokedAt?: string | null;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -3677,6 +3806,90 @@ class ApiClient {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
+  // Medical documents
+  async createMedicalDocument(data: CreateMedicalDocumentInput): Promise<MedicalDocument> {
+    return this.data<MedicalDocument>('/api/documents', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getMedicalDocuments(filters: MedicalDocumentFilters = {}): Promise<MedicalDocumentsResponse> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== '') params.append(key, String(value));
+    return this.data<MedicalDocumentsResponse>(`/api/documents?${params.toString()}`);
+  }
+
+  async getMedicalDocument(id: string): Promise<MedicalDocument> {
+    return this.data<MedicalDocument>(`/api/documents/${id}`);
+  }
+
+  async getMyMedicalDocuments(): Promise<MedicalDocument[]> {
+    return (await this.data<{ documents: MedicalDocument[] }>('/api/documents/mine')).documents;
+  }
+
+  async revokeMedicalDocument(id: string, reason: string): Promise<MedicalDocument> {
+    return this.data<MedicalDocument>(`/api/documents/${id}/revoke`, { method: 'POST', body: JSON.stringify({ reason }) });
+  }
+
+  async acknowledgeReferral(id: string, note?: string): Promise<MedicalDocument> {
+    return this.data<MedicalDocument>(`/api/documents/${id}/acknowledge`, { method: 'POST', body: JSON.stringify(note ? { note } : {}) });
+  }
+
+  async recordReferralFeedback(id: string, data: { feedback: string; feedbackFrom?: string; receivedAt?: string }): Promise<MedicalDocument> {
+    return this.data<MedicalDocument>(`/api/documents/${id}/feedback`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async cancelReferral(id: string, reason: string): Promise<MedicalDocument> {
+    return this.data<MedicalDocument>(`/api/documents/${id}/referral-status`, { method: 'POST', body: JSON.stringify({ status: 'CANCELLED', reason }) });
+  }
+
+  async getPendingReferrals(): Promise<PendingReferrals> {
+    const data = await this.data<PendingReferrals | (MedicalDocument[] & { counts?: PendingReferrals['counts'] })>('/api/documents/referrals/pending');
+    // Accept either { referrals, counts } or a bare list
+    if (Array.isArray(data)) return { referrals: data, counts: data.counts ?? { sent: 0, acknowledged: 0, overdue: 0 } };
+    return { referrals: data.referrals ?? [], counts: data.counts ?? { sent: 0, acknowledged: 0, overdue: 0 } };
+  }
+
+  /** Public: check a certificate's verification code (no session token sent) */
+  async verifyMedicalDocument(code: string): Promise<DocumentVerification> {
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/api/documents/verify/${encodeURIComponent(code)}`);
+    } catch {
+      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
+    }
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || !body.success) {
+      throw new ApiError(localizeServerMessage(body.error || body.message || 'Request failed'), response.status);
+    }
+    return body.data as DocumentVerification;
+  }
+
+  /** Open a document's PDF (sick leave: employer copy without the medical reason, or patient copy) */
+  async openMedicalDocumentPdf(id: string, options: { lang?: 'fr' | 'en'; copy?: 'patient' | 'employer' } = {}): Promise<void> {
+    const params = new URLSearchParams({ lang: options.lang ?? 'fr' });
+    if (options.copy) params.append('copy', options.copy);
+    const token = this.getAccessToken();
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/api/documents/${id}/pdf?${params.toString()}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch {
+      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new ApiError(localizeServerMessage(data.error || data.message || 'Request failed'), response.status);
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const opened = window.open(url, '_blank');
+    if (!opened) {
+      const fileName = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '')?.[1] || `document-${id}.pdf`;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
   // Invoice methods
   async getInvoices(filters: { search?: string; status?: InvoiceStatus; patientId?: string; payerId?: string; insured?: boolean; startDate?: string; endDate?: string; page?: number; limit?: number } = {}): Promise<InvoicesResponse> {
     const params = new URLSearchParams();
@@ -4254,6 +4467,17 @@ class ApiClient {
 
 export const api = new ApiClient(API_URL);
 export type {
+  MedicalDocument,
+  MedicalDocumentType,
+  MedicalDocumentStatus,
+  ReferralStatus,
+  ReferralUrgency,
+  CertificateKind,
+  CreateMedicalDocumentInput,
+  MedicalDocumentFilters,
+  MedicalDocumentsResponse,
+  PendingReferrals,
+  DocumentVerification,
   SalePaymentMethod,
   PharmacySaleStatus,
   StockMovementType,
