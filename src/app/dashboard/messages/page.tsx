@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Modal } from '@/components/ui';
 import { useToast } from '@/components/toast';
+import { SimulateSmsReply } from '@/components/confirmation';
 import { api, type MessageChannel, type MessageStatus, type MessagesResponse, type OutboundMessage } from '@/lib/api';
 import { useLanguage } from '@/context/language-context';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -173,6 +174,9 @@ export default function MessagesPage() {
           </p>
         </div>
       )}
+
+      {/* Not live: play a patient's SMS reply to a reminder (confirm / cancel) */}
+      {data && data.mode !== 'live' && <SimulateSmsReply onDone={() => setReload((n) => n + 1)} />}
 
       {/* Counts per status: click to filter */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

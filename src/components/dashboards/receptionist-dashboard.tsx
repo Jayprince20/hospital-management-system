@@ -6,6 +6,7 @@ import { api, type AppointmentType } from '@/lib/api';
 import { useToast } from '@/components/toast';
 import { useLanguage } from '@/context/language-context';
 import { toLocalDateString } from '@/lib/formatters';
+import { ConfirmationBadge, SimulateSmsReply, TomorrowConfirmations } from '@/components/confirmation';
 
 interface Appointment {
   id: string;
@@ -27,6 +28,8 @@ interface Appointment {
   status: string;
   type: string;
   reason?: string;
+  confirmedAt?: string | null;
+  confirmationChannel?: string | null;
 }
 
 interface Patient {
@@ -326,6 +329,12 @@ export function ReceptionistDashboard() {
         </div>
       </div>
 
+      {/* Tomorrow: who confirmed (SMS reply, link, portal) and who to call */}
+      <TomorrowConfirmations />
+
+      {/* Test tool: a patient's SMS reply, without an operator (never shown in production builds) */}
+      {process.env.NODE_ENV !== 'production' && <SimulateSmsReply collapsible onDone={fetchData} />}
+
       {/* Appointments Ready for Check-in */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="p-4 border-b border-gray-100 dark:border-gray-700">
@@ -376,9 +385,12 @@ export function ReceptionistDashboard() {
                       {tEnum(apt.type)}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(apt.status)}`}>
-                        {tEnum(apt.status)}
-                      </span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(apt.status)}`}>
+                          {tEnum(apt.status)}
+                        </span>
+                        <ConfirmationBadge appointment={apt} />
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">

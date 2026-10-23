@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { api, Patient, Doctor, AppointmentType, DoctorAvailability } from '@/lib/api';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
+import { useActingPatient } from '@/context/acting-patient-context';
 
 // Local calendar date as YYYY-MM-DD (toISOString would shift to UTC)
 const toLocalDateString = (date: Date) =>
@@ -38,6 +39,8 @@ const initialFormData: AppointmentFormData = {
 export default function NewAppointmentPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
+  // Family access: booking for the relative being acted for
+  const { acting } = useActingPatient();
   const { t, tEnum, formatDate, formatTime, formatCurrency } = useLanguage();
   const getDayName = (dayOfWeek: number) => t(`appointmentForm.dayShort${dayOfWeek}`);
   const [reasonTouched, setReasonTouched] = useState(false);
@@ -100,6 +103,18 @@ export default function NewAppointmentPage() {
       if (!isPatientUser || !user?.email || selectedPatient) return;
 
       setIsAutoSelectingPatient(true);
+      if (acting) {
+        try {
+          const relative = await api.getPatient(acting.patientId);
+          setSelectedPatient(relative);
+          setFormData(prev => ({ ...prev, patientId: relative.id }));
+        } catch (error) {
+          console.error('Failed to load the relative being acted for:', error);
+        } finally {
+          setIsAutoSelectingPatient(false);
+        }
+        return;
+      }
       try {
         // Search for patient by email
         const response = await api.getPatients({ search: user.email, limit: 1 });
@@ -142,7 +157,7 @@ export default function NewAppointmentPage() {
     };
 
     autoSelectPatient();
-  }, [isPatientUser, user, selectedPatient]);
+  }, [isPatientUser, user, selectedPatient, acting]);
 
   // Pre-select the patient when coming from a patient's page (?patientId=...)
   useEffect(() => {
@@ -654,10 +669,10 @@ export default function NewAppointmentPage() {
                     </div>
                     <div>
                       <p className="text-sm text-green-800 dark:text-green-200">
-                        Booking appointment for: <span className="font-medium">{selectedPatient.firstName} {selectedPatient.lastName}</span>
+                        {t('fam.booking.for')} <span className="font-medium">{selectedPatient.firstName} {selectedPatient.lastName}</span>
                       </p>
                       {selectedPatient.patientId && (
-                        <p className="text-xs text-green-600 dark:text-green-400">Patient ID: {selectedPatient.patientId}</p>
+                        <p className="text-xs text-green-600 dark:text-green-400">{t('fam.booking.patientId', { id: selectedPatient.patientId })}</p>
                       )}
                     </div>
                     <svg className="w-5 h-5 text-green-600 dark:text-green-400 ml-auto" fill="currentColor" viewBox="0 0 20 20">

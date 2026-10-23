@@ -9,6 +9,9 @@ import { AccessDenied } from '@/components/permission-gate';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { LoadingState } from '@/components/ui';
 import { useLanguage } from '@/context/language-context';
+import { ActingPatientProvider, useActingPatient } from '@/context/acting-patient-context';
+import { ActingBanner, OwnerOnlyNotice } from '@/components/family';
+import { isOwnerOnlyPath } from '@/lib/patient-extras';
 
 export default function DashboardLayout({
   children,
@@ -51,17 +54,34 @@ export default function DashboardLayout({
   const hasAccess = canAccess(pathname || '/dashboard');
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <SessionTimeout />
-      <Sidebar />
-      <div className="ml-64">
-        <Header />
-        <main className="p-6">
-          <ErrorBoundary>
-            {hasAccess ? children : <AccessDenied />}
-          </ErrorBoundary>
-        </main>
+    <ActingPatientProvider>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <SessionTimeout />
+        <Sidebar />
+        <div className="ml-64">
+          <Header />
+          <DashboardMain pathname={pathname} hasAccess={hasAccess}>
+            {children}
+          </DashboardMain>
+        </div>
       </div>
-    </div>
+    </ActingPatientProvider>
+  );
+}
+
+/**
+ * Page area. While a patient acts for a relative: a banner on every page, owner-only pages
+ * replaced by a notice, and the page re-mounted on every switch so it re-reads its data.
+ */
+function DashboardMain({ pathname, hasAccess, children }: { pathname: string | null; hasAccess: boolean; children: React.ReactNode }) {
+  const { acting } = useActingPatient();
+  const ownerOnly = Boolean(acting) && isOwnerOnlyPath(pathname);
+  return (
+    <main className="p-6">
+      <ActingBanner />
+      <ErrorBoundary>
+        <div key={acting?.patientId ?? 'self'}>{!hasAccess ? <AccessDenied /> : ownerOnly ? <OwnerOnlyNotice /> : children}</div>
+      </ErrorBoundary>
+    </main>
   );
 }

@@ -12,12 +12,18 @@ import { MyAdmissionCard } from '@/components/inpatient';
 import { MyPharmacyPurchases } from '@/components/pharmacy/my-purchases';
 import { MyMedicalDocuments } from '@/components/documents';
 import { MyImaging } from '@/components/imaging';
+import { MyFeedbackCard } from '@/components/feedback';
+import { ConfirmPresenceButton } from '@/components/confirmation';
+import { useActingPatient } from '@/context/acting-patient-context';
+import { isLegalRepresentative, visiblePortalTab } from '@/lib/patient-extras';
 
 type TabType = 'overview' | 'appointments' | 'vitals' | 'lab-results' | 'imaging' | 'prescriptions' | 'consultations' | 'documents' | 'billing' | 'privacy';
 
 export default function MyHealthPage() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  // Family access: the relative's record when acting for one, else one's own
+  const { effectivePatientId, isActing, acting, level, canSeeClinical } = useActingPatient();
   const [patientData, setPatientData] = useState<PatientDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,9 +43,9 @@ export default function MyHealthPage() {
 
         // First, try to find patient ID
         // Check if user has patientId, otherwise search by email
-        let patientId = user.patientId;
+        let patientId = effectivePatientId ?? user.patientId;
 
-        if (!patientId && user.email) {
+        if (!patientId && !isActing && user.email) {
           try {
             const patientsRes = await api.getPatients({ search: user.email, limit: 1 });
             if (patientsRes.data && patientsRes.data.length > 0) {
@@ -68,9 +74,9 @@ export default function MyHealthPage() {
     };
 
     fetchPatientData();
-  }, [user, t, refreshKey]);
+  }, [user, t, refreshKey, effectivePatientId, isActing]);
 
-  const tabs: { id: TabType; label: string; icon: string }[] = [
+  const allTabs: { id: TabType; label: string; icon: string }[] = [
     { id: 'overview', label: t('admin.health.tab.overview'), icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
     { id: 'appointments', label: t('admin.health.tab.appointments'), icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
     { id: 'vitals', label: t('admin.health.tab.vitals'), icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
@@ -82,6 +88,10 @@ export default function MyHealthPage() {
     { id: 'billing', label: t('admin.health.tab.billing'), icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
     { id: 'privacy', label: t('privacy.portal.title'), icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' },
   ];
+
+  // A relative's record: consents/export only for a parent or guardian with full access;
+  // appointments-and-billing access: no clinical tabs
+  const tabs = allTabs.filter((tab) => visiblePortalTab(tab.id, level, acting?.relationship));
 
   if (isLoading) {
     return (
@@ -132,7 +142,8 @@ export default function MyHealthPage() {
       </div>
 
       <MyTicketCard />
-      <MyAdmissionCard />
+      {canSeeClinical && <MyAdmissionCard />}
+      <MyFeedbackCard />
 
       {/* Tabs */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -159,7 +170,7 @@ export default function MyHealthPage() {
 
         <div className="p-6">
           {activeTab === 'overview' && <OverviewTab patientData={patientData} />}
-          {activeTab === 'appointments' && <AppointmentsTab appointments={patientData?.appointments || []} />}
+          {activeTab === 'appointments' && <AppointmentsTab appointments={patientData?.appointments || []} onChanged={() => setRefreshKey((n) => n + 1)} />}
           {activeTab === 'vitals' && <VitalsTab vitals={patientData?.vitals || []} />}
           {activeTab === 'lab-results' && <LabResultsTab labResults={patientData?.labResults || []} />}
           {activeTab === 'prescriptions' && <PrescriptionsTab prescriptions={patientData?.prescriptions || []} />}
@@ -175,7 +186,7 @@ export default function MyHealthPage() {
               </div>
             </>
           )}
-          {activeTab === 'privacy' && patientData?.id && <MyConsents patientId={patientData.id} />}
+          {activeTab === 'privacy' && (!isActing || isLegalRepresentative(acting?.relationship, level)) && patientData?.id && <MyConsents patientId={patientData.id} />}
         </div>
       </div>
     </div>
@@ -370,7 +381,7 @@ function OverviewTab({ patientData }: { patientData: PatientDetail | null }) {
 }
 
 // Appointments Tab Component
-function AppointmentsTab({ appointments }: { appointments: PatientDetail['appointments'] }) {
+function AppointmentsTab({ appointments, onChanged }: { appointments: PatientDetail['appointments']; onChanged: () => void }) {
   const { t, tEnum, formatDate, formatCurrency } = useLanguage();
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -431,13 +442,14 @@ function AppointmentsTab({ appointments }: { appointments: PatientDetail['appoin
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(appointment.status)}`}>
                 {tEnum(appointment.status)}
               </span>
               <span className="px-3 py-1 bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-full text-xs font-medium">
                 {tEnum(appointment.type)}
               </span>
+              <ConfirmPresenceButton appointment={appointment} onConfirmed={onChanged} />
             </div>
           </div>
         </div>

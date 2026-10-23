@@ -1,5 +1,6 @@
 import { backendErrorsFr, backendErrorPatternsFr } from '@/locales/backend-errors';
 import { extraTranslations } from '@/locales';
+import { actingHeaders, readActingProfile, writeActingProfile, ACTING_CHANGE_EVENT } from '@/lib/patient-extras';
 
 function getApiUrl(): string {
   if (typeof window !== 'undefined') {
@@ -233,6 +234,8 @@ interface User {
 interface Patient {
   id: string;
   patientId: string;
+  /** The patient's portal account (when the server includes it) */
+  userId?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -271,6 +274,8 @@ interface PatientAppointment {
   type: AppointmentType;
   status: AppointmentStatus;
   reason: string;
+  confirmedAt?: string | null;
+  confirmationChannel?: string | null;
   doctor: {
     id: string;
     name: string;
@@ -483,6 +488,9 @@ interface Appointment {
   completedAt?: string;
   cancelledAt?: string;
   cancellationReason?: string;
+  /** Set when the patient (SMS reply, link, portal) or the desk confirmed the appointment */
+  confirmedAt?: string | null;
+  confirmationChannel?: string | null;
   createdAt: string;
   patient: {
     id: string;
@@ -2550,6 +2558,214 @@ interface ImagingStats {
   criticalToday: number;
 }
 
+
+// ---------- Patient extras: family access, visit feedback, appointment confirmation ----------
+
+type ProxyRelationship = 'PARENT' | 'GUARDIAN' | 'CHILD' | 'SPOUSE' | 'CAREGIVER' | 'OTHER';
+type ProxyAccessLevel = 'FULL' | 'APPOINTMENTS_BILLING';
+type ProxyStatus = 'ACTIVE' | 'REVOKED' | 'EXPIRED';
+
+interface ProxyPatientSummary {
+  id: string;
+  patientId: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+}
+
+/** A relative's record the signed-in patient may act for */
+interface ActingForLink {
+  linkId: string;
+  patient: ProxyPatientSummary;
+  relationship: ProxyRelationship;
+  accessLevel: ProxyAccessLevel;
+  validUntil: string | null;
+}
+
+/** Someone who may act for the signed-in patient's record */
+interface GrantedToLink {
+  linkId: string;
+  proxyUser: { id: string; firstName: string; lastName: string; email?: string | null; phone?: string | null };
+  relationship: ProxyRelationship;
+  accessLevel: ProxyAccessLevel;
+  status: ProxyStatus;
+  validUntil: string | null;
+  grantedBy: string; // STAFF | PATIENT
+  createdAt: string;
+}
+
+interface MyProxies {
+  actingFor: ActingForLink[];
+  grantedTo: GrantedToLink[];
+}
+
+interface GrantProxyInput {
+  email?: string;
+  phone?: string;
+  relationship: ProxyRelationship;
+  accessLevel: ProxyAccessLevel;
+}
+
+/** A family-access link as the desk sees it */
+interface ProxyLink {
+  id: string;
+  patientId: string;
+  patient?: ProxyPatientSummary | null;
+  proxyUser: { id: string; firstName: string; lastName: string; email?: string | null; phone?: string | null; phoneNumber?: string | null };
+  relationship: ProxyRelationship;
+  accessLevel: ProxyAccessLevel;
+  status: ProxyStatus;
+  validUntil: string | null;
+  grantedBy: string;
+  grantedByName?: string | null;
+  verificationNote?: string | null;
+  revokedAt?: string | null;
+  revokeReason?: string | null;
+  createdAt: string;
+}
+
+interface CreateProxyInput {
+  patientId: string;
+  /** The account that will act: its user id, or the patient record behind it */
+  proxyUserId?: string;
+  proxyPatientId?: string;
+  relationship: ProxyRelationship;
+  accessLevel: ProxyAccessLevel;
+  verificationNote: string;
+  validUntil?: string | null;
+}
+
+type FeedbackStatus = 'NEW' | 'IN_REVIEW' | 'RESOLVED' | 'CLOSED';
+type FeedbackVisitKind = 'CONSULTATION' | 'STAY';
+
+interface FeedbackVisit {
+  kind: FeedbackVisitKind;
+  date: string | null;
+  department: string | null;
+  doctorName: string | null;
+}
+
+/** Public survey reached from the link sent after a visit */
+interface FeedbackSurvey {
+  status: 'OPEN' | 'SUBMITTED' | 'EXPIRED';
+  visit: FeedbackVisit;
+  patientFirstName: string | null;
+}
+
+interface FeedbackSurveyInput {
+  overall: number;
+  waitTime?: number;
+  staffCourtesy?: number;
+  explanations?: number;
+  cleanliness?: number;
+  recommend?: number;
+  comment?: string;
+  isComplaint?: boolean;
+  complaintCategory?: string;
+  contactBack?: boolean;
+}
+
+/** A survey of the acting patient (portal) */
+interface MyFeedbackItem {
+  id?: string;
+  token: string | null;
+  visit: FeedbackVisit | null;
+  sentAt?: string | null;
+  expiresAt?: string | null;
+  submittedAt?: string | null;
+  overall?: number | null;
+}
+
+interface MyFeedback {
+  pending: MyFeedbackItem[];
+  submitted: MyFeedbackItem[];
+}
+
+interface FeedbackEntry {
+  id: string;
+  patient?: { id: string; patientId?: string; name: string } | null;
+  visit?: FeedbackVisit | null;
+  department?: { id: string; name: string } | string | null;
+  doctor?: { id: string; name: string } | string | null;
+  sentAt?: string | null;
+  submittedAt: string | null;
+  overall: number | null;
+  waitTime?: number | null;
+  staffCourtesy?: number | null;
+  explanations?: number | null;
+  cleanliness?: number | null;
+  recommend?: number | null;
+  comment?: string | null;
+  isComplaint: boolean;
+  complaintCategory?: string | null;
+  contactBack?: boolean;
+  status: FeedbackStatus;
+  assignedToId?: string | null;
+  assignedTo?: { id: string; name: string } | null;
+  response?: string | null;
+  respondedAt?: string | null;
+  respondedByName?: string | null;
+}
+
+interface FeedbackFilters {
+  from?: string;
+  to?: string;
+  departmentId?: string;
+  doctorId?: string;
+  complaint?: boolean;
+  status?: FeedbackStatus | '';
+  minOverall?: number;
+  maxOverall?: number;
+  /** Include surveys sent but not answered (submitted only by default) */
+  includePending?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+interface FeedbackListResponse {
+  feedbacks: FeedbackEntry[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+interface FeedbackAverages {
+  overall: number | null;
+  waitTime: number | null;
+  staffCourtesy: number | null;
+  explanations: number | null;
+  cleanliness: number | null;
+}
+
+interface FeedbackSummary {
+  responses: number;
+  sent: number;
+  responseRate: number | null; // 0..1 or 0..100 (normalised by the page)
+  averages: FeedbackAverages;
+  nps: { score: number | null; promoters: number; passives: number; detractors: number };
+  byDepartment: Array<{ department: string; departmentId?: string; responses: number; overall: number | null; nps: number | null }>;
+  byDoctor?: Array<{ doctor: string; doctorId?: string; responses: number; overall: number | null; nps: number | null }>;
+  complaints: { open: number; resolved: number; byCategory: Record<string, number> };
+  trend: Array<{ week: string; responses: number; overall: number | null }>;
+}
+
+interface AppointmentConfirmationInfo {
+  appointment: {
+    date: string;
+    startTime: string;
+    doctorName: string | null;
+    department: string | null;
+    status: string;
+    patientFirstName: string | null;
+  };
+}
+
+interface InboundSmsResult {
+  action?: string | null; // CONFIRMED, CANCELLED, UNRECOGNISED, NO_MATCH, ALREADY_DONE
+  matchedId?: string | null;
+  matchedType?: string | null;
+  reply?: string | null;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -2576,8 +2792,8 @@ class ApiClient {
   }
 
   private setTokens(accessToken: string, refreshToken: string, _rememberMe: boolean = true): void {
-    // Clear any existing tokens first
-    this.clearTokens();
+    // Clear any existing tokens first (the acting profile survives a token refresh)
+    this.removeTokens();
 
     // Always use localStorage for dashboard to persist across refreshes
     localStorage.setItem('accessToken', accessToken);
@@ -2585,13 +2801,38 @@ class ApiClient {
     localStorage.setItem('rememberMe', 'true');
   }
 
-  clearTokens(): void {
+  private removeTokens(): void {
     // Clear from both storages
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('rememberMe');
     sessionStorage.removeItem('accessToken');
     sessionStorage.removeItem('refreshToken');
+  }
+
+  /** End of session: tokens and the relative being acted for are forgotten */
+  clearTokens(): void {
+    this.removeTokens();
+    this.clearActingProfile();
+  }
+
+  /** Stop acting for a relative (logout, new login, or the link is gone) */
+  clearActingProfile(): void {
+    if (typeof window === 'undefined') return;
+    writeActingProfile(window.sessionStorage, null);
+    window.dispatchEvent(new Event(ACTING_CHANGE_EVENT));
+  }
+
+  /** Header naming the relative a patient account acts for (family access), if any */
+  private actingHeader(): Record<string, string> {
+    if (typeof window === 'undefined') return {};
+    return actingHeaders(readActingProfile(window.sessionStorage));
+  }
+
+  /** Session token plus family-access header, for requests made outside request() */
+  private authHeaders(): Record<string, string> {
+    const token = this.getAccessToken();
+    return { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...this.actingHeader() };
   }
 
   private async request<T>(
@@ -2602,6 +2843,7 @@ class ApiClient {
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      ...this.actingHeader(),
       ...options.headers,
     };
 
@@ -2683,6 +2925,7 @@ class ApiClient {
       if ('mfaRequired' in response.data) return response.data;
       // Tokens are nested inside response.data.tokens
       const { tokens } = response.data;
+      this.clearActingProfile();
       this.setTokens(tokens.accessToken, tokens.refreshToken, rememberMe || true);
       return response.data;
     }
@@ -2697,6 +2940,7 @@ class ApiClient {
       body: JSON.stringify(data),
     });
     if (response.success && response.data) {
+      this.clearActingProfile();
       this.setTokens(response.data.tokens.accessToken, response.data.tokens.refreshToken, true);
       return response.data;
     }
@@ -2750,11 +2994,10 @@ class ApiClient {
 
   /** Download everything held about a patient as a JSON file; resolves to the file name */
   async exportPatientData(patientId: string): Promise<string> {
-    const token = this.getAccessToken();
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}/api/patients/${patientId}/export`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: this.authHeaders(),
       });
     } catch {
       throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
@@ -3591,11 +3834,10 @@ class ApiClient {
 
   /** Download the bordereau as CSV or PDF in the current UI language */
   async downloadClaimExport(id: string, format: 'csv' | 'pdf', lang: 'fr' | 'en'): Promise<string> {
-    const token = this.getAccessToken();
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}/api/claims/${id}/export?format=${format}&lang=${lang}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: this.authHeaders(),
       });
     } catch {
       throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
@@ -3740,11 +3982,10 @@ class ApiClient {
 
   /** Download the discharge summary PDF in the current UI language; resolves to the file name */
   async downloadDischargeSummary(id: string, lang: 'fr' | 'en'): Promise<string> {
-    const token = this.getAccessToken();
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}/api/admissions/${id}/discharge-summary?format=pdf&lang=${lang}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: this.authHeaders(),
       });
     } catch {
       throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
@@ -3917,10 +4158,9 @@ class ApiClient {
   /** Fetch a pharmacy PDF (receipt, Z report) with the session token and open it in a new tab */
   async openPharmacyPdf(kind: 'receipt' | 'session-report', id: string, lang: 'fr' | 'en' = 'fr'): Promise<void> {
     const path = kind === 'receipt' ? `/api/pharmacy/sales/${id}/receipt?format=pdf&lang=${lang}` : `/api/pharmacy/sessions/${id}/report?format=pdf&lang=${lang}`;
-    const token = this.getAccessToken();
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      response = await fetch(`${this.baseUrl}${path}`, { headers: this.authHeaders() });
     } catch {
       throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
     }
@@ -4002,10 +4242,9 @@ class ApiClient {
   async openMedicalDocumentPdf(id: string, options: { lang?: 'fr' | 'en'; copy?: 'patient' | 'employer' } = {}): Promise<void> {
     const params = new URLSearchParams({ lang: options.lang ?? 'fr' });
     if (options.copy) params.append('copy', options.copy);
-    const token = this.getAccessToken();
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}/api/documents/${id}/pdf?${params.toString()}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      response = await fetch(`${this.baseUrl}/api/documents/${id}/pdf?${params.toString()}`, { headers: this.authHeaders() });
     } catch {
       throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
     }
@@ -4088,8 +4327,7 @@ class ApiClient {
       if (caption) form.append('caption', caption);
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${this.baseUrl}/api/imaging/orders/${orderId}/attachments`);
-      const token = this.getAccessToken();
-      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      for (const [name, value] of Object.entries(this.authHeaders())) xhr.setRequestHeader(name, value);
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
       };
@@ -4115,10 +4353,9 @@ class ApiClient {
 
   /** Fetch a protected file (image, PDF) with the session token as an object URL */
   async fetchImagingBlobUrl(path: string): Promise<string> {
-    const token = this.getAccessToken();
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      response = await fetch(`${this.baseUrl}${path}`, { headers: this.authHeaders() });
     } catch {
       throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
     }
@@ -4719,10 +4956,153 @@ class ApiClient {
     }
     return response.data || { count: 0 };
   }
+
+  /** Public request (no session token, no family header) for pages reached from an SMS link */
+  private async publicData<T>(path: string, init: RequestInit = {}): Promise<T> {
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+      });
+    } catch {
+      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
+    }
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body.success === false) {
+      throw new ApiError(localizeServerMessage(body.error || body.message || 'Request failed'), response.status);
+    }
+    return body.data as T;
+  }
+
+  // Family access (proxy)
+  async getMyProxies(): Promise<MyProxies> {
+    const data = await this.data<Partial<MyProxies>>('/api/proxies/mine');
+    return { actingFor: data.actingFor ?? [], grantedTo: data.grantedTo ?? [] };
+  }
+
+  async grantMyRecordAccess(data: GrantProxyInput): Promise<GrantedToLink> {
+    return this.data<GrantedToLink>('/api/proxies/mine', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async removeMyProxyLink(linkId: string): Promise<void> {
+    await this.request(`/api/proxies/mine/${linkId}`, { method: 'DELETE' });
+  }
+
+  async getProxyLinks(filters: { patientId?: string; proxyUserId?: string; status?: ProxyStatus } = {}): Promise<ProxyLink[]> {
+    const params = new URLSearchParams();
+    if (filters.patientId) params.append('patientId', filters.patientId);
+    if (filters.proxyUserId) params.append('proxyUserId', filters.proxyUserId);
+    if (filters.status) params.append('status', filters.status);
+    const data = await this.data<{ links?: ProxyLink[]; proxies?: ProxyLink[] } | ProxyLink[]>(`/api/proxies?${params.toString()}`);
+    if (Array.isArray(data)) return data;
+    return data.links ?? data.proxies ?? [];
+  }
+
+  async createProxyLink(data: CreateProxyInput): Promise<ProxyLink> {
+    return this.data<ProxyLink>('/api/proxies', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async revokeProxyLink(id: string, reason: string): Promise<ProxyLink> {
+    return this.data<ProxyLink>(`/api/proxies/${id}/revoke`, { method: 'POST', body: JSON.stringify({ reason }) });
+  }
+
+  // Visit feedback
+  async getFeedbackSurvey(token: string): Promise<FeedbackSurvey> {
+    return this.publicData<FeedbackSurvey>(`/api/feedback/survey/${encodeURIComponent(token)}`);
+  }
+
+  async submitFeedbackSurvey(token: string, data: FeedbackSurveyInput): Promise<void> {
+    await this.publicData<unknown>(`/api/feedback/survey/${encodeURIComponent(token)}`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getMyFeedback(): Promise<MyFeedback> {
+    const data = await this.data<Partial<MyFeedback> & { feedbacks?: MyFeedbackItem[] } | MyFeedbackItem[]>('/api/feedback/mine');
+    // Accept { pending, submitted }, { feedbacks } or a bare list
+    const list = Array.isArray(data) ? data : data.feedbacks;
+    if (list) {
+      return { pending: list.filter((f) => !f.submittedAt), submitted: list.filter((f) => Boolean(f.submittedAt)) };
+    }
+    const shaped = data as Partial<MyFeedback>;
+    return { pending: shaped.pending ?? [], submitted: shaped.submitted ?? [] };
+  }
+
+  async getFeedbacks(filters: FeedbackFilters = {}): Promise<FeedbackListResponse> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== null && value !== '') params.append(key, String(value));
+    }
+    const data = await this.data<Partial<FeedbackListResponse>>(`/api/feedback?${params.toString()}`);
+    return {
+      feedbacks: data.feedbacks ?? [],
+      pagination: data.pagination ?? { page: 1, limit: data.feedbacks?.length ?? 0, total: data.feedbacks?.length ?? 0, totalPages: 1 },
+    };
+  }
+
+  async getFeedbackSummary(filters: { from?: string; to?: string; departmentId?: string } = {}): Promise<FeedbackSummary> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value) params.append(key, value);
+    return this.data<FeedbackSummary>(`/api/feedback/summary?${params.toString()}`);
+  }
+
+  async getFeedback(id: string): Promise<FeedbackEntry> {
+    return this.data<FeedbackEntry>(`/api/feedback/${id}`);
+  }
+
+  async updateFeedback(id: string, data: { status?: FeedbackStatus; assignedToId?: string | null; response?: string }): Promise<FeedbackEntry> {
+    return this.data<FeedbackEntry>(`/api/feedback/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  // Appointment confirmation
+  async getAppointmentConfirmation(token: string): Promise<AppointmentConfirmationInfo> {
+    return this.publicData<AppointmentConfirmationInfo>(`/api/appointments/confirm/${encodeURIComponent(token)}`);
+  }
+
+  async respondToAppointmentConfirmation(token: string, action: 'confirm' | 'cancel', reason?: string): Promise<AppointmentConfirmationInfo | null> {
+    const data = await this.publicData<AppointmentConfirmationInfo | null>(`/api/appointments/confirm/${encodeURIComponent(token)}`, {
+      method: 'POST',
+      body: JSON.stringify(reason ? { action, reason } : { action }),
+    });
+    return data ?? null;
+  }
+
+  /** Patient (or family) confirms from the portal; the desk records a phone or desk confirmation */
+  async confirmAppointment(id: string, channel?: 'PHONE' | 'DESK'): Promise<void> {
+    await this.request(`/api/appointments/${id}/confirm`, { method: 'POST', body: JSON.stringify(channel ? { channel } : {}) });
+  }
+
+  /** Test tool (not in live messaging mode): play a patient's SMS reply */
+  async simulateInboundSms(data: { from: string; text: string }): Promise<InboundSmsResult> {
+    return (await this.data<InboundSmsResult | null>('/api/dev/messages/inbound', { method: 'POST', body: JSON.stringify(data) })) ?? {};
+  }
 }
 
 export const api = new ApiClient(API_URL);
 export type {
+  ProxyRelationship,
+  ProxyAccessLevel,
+  ProxyStatus,
+  ProxyPatientSummary,
+  ActingForLink,
+  GrantedToLink,
+  MyProxies,
+  GrantProxyInput,
+  ProxyLink,
+  CreateProxyInput,
+  FeedbackStatus,
+  FeedbackVisitKind,
+  FeedbackVisit,
+  FeedbackSurvey,
+  FeedbackSurveyInput,
+  MyFeedbackItem,
+  MyFeedback,
+  FeedbackEntry,
+  FeedbackFilters,
+  FeedbackListResponse,
+  FeedbackAverages,
+  FeedbackSummary,
+  AppointmentConfirmationInfo,
+  InboundSmsResult,
   ImagingModality,
   ImagingOrderStatus,
   ImagingPriority,

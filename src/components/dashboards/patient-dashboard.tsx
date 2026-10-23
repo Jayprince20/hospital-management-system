@@ -9,6 +9,10 @@ import { useLanguage } from '@/context/language-context';
 import { toLocalDateString } from '@/lib/formatters';
 import { MyTicketCard } from '@/components/queue';
 import { MyAdmissionCard } from '@/components/inpatient';
+import { MyFeedbackCard } from '@/components/feedback';
+import { ConfirmPresenceButton } from '@/components/confirmation';
+import { useActingPatient } from '@/context/acting-patient-context';
+import { ClinicalAccessNotice } from '@/components/family';
 
 interface PatientAppointment {
   id: string;
@@ -64,6 +68,8 @@ interface PatientConsultation {
 export function PatientDashboard() {
   const { user } = useAuth();
   const { t, tEnum, formatDate, formatTime } = useLanguage();
+  // Family access: a relative's record when acting for one; clinical blocks only with full access
+  const { effectivePatientId, isActing, acting, canSeeClinical } = useActingPatient();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [upcomingAppointments, setUpcomingAppointments] = useState<PatientAppointment[]>([]);
@@ -84,9 +90,9 @@ export function PatientDashboard() {
 
       // First, we need to find the patient ID
       // Try to search for patient by email if patientId is not available
-      let patientId = user.patientId;
+      let patientId = effectivePatientId ?? user.patientId;
 
-      if (!patientId && user.email) {
+      if (!patientId && !isActing && user.email) {
         try {
           const patientsRes = await api.getPatients({ search: user.email, limit: 1 });
           if (patientsRes.data && patientsRes.data.length > 0) {
@@ -131,7 +137,7 @@ export function PatientDashboard() {
       }
 
       // Fetch patient details including vitals
-      try {
+      if (canSeeClinical) try {
         const patientDetail = await api.getPatient(patientId);
         setRecentVitals((patientDetail.vitals || []).slice(0, 5).map((v, index) => ({
           id: `${v.date}-${index}`,
@@ -146,7 +152,7 @@ export function PatientDashboard() {
       }
 
       // Fetch active prescriptions
-      try {
+      if (canSeeClinical) try {
         const rxRes = await api.getPrescriptions({ patientId: patientId, limit: 5 });
         setActivePrescriptions((rxRes.prescriptions || []).map((rx) => ({
           id: rx.id,
@@ -160,7 +166,7 @@ export function PatientDashboard() {
       }
 
       // Fetch recent lab results
-      try {
+      if (canSeeClinical) try {
         const labsRes = await api.getLabOrders({ patientId: patientId, limit: 5 });
         setRecentLabResults((labsRes.labOrders || []).flatMap((order) =>
           (order.tests || []).map((item) => ({
@@ -177,7 +183,7 @@ export function PatientDashboard() {
       }
 
       // Fetch recent consultations
-      try {
+      if (canSeeClinical) try {
         const consultationsRes = await api.getConsultations({ patientId: patientId, limit: 5 });
         setRecentConsultations((consultationsRes.consultations || []).map((c) => ({
           id: c.id,
@@ -197,7 +203,7 @@ export function PatientDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [user, t]);
+  }, [user, t, effectivePatientId, isActing, canSeeClinical]);
 
   useEffect(() => {
     fetchPatientData();
@@ -234,7 +240,7 @@ export function PatientDashboard() {
       {/* Welcome Section */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {t('admin.patient.welcomeBack', { name: user?.firstName || '' })}
+          {acting ? t('fam.dashboard.title', { name: `${acting.firstName} ${acting.lastName}`.trim() }) : t('admin.patient.welcomeBack', { name: user?.firstName || '' })}
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
           {hasData
@@ -244,10 +250,20 @@ export function PatientDashboard() {
       </div>
 
       <MyTicketCard />
-      <MyAdmissionCard />
+      {canSeeClinical && <MyAdmissionCard />}
+      <div className="mb-6">
+        <MyFeedbackCard />
+      </div>
+
+      {/* Appointments-and-billing family access: no clinical summaries */}
+      {!canSeeClinical && (
+        <div className="mb-6">
+          <ClinicalAccessNotice />
+        </div>
+      )}
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 ${canSeeClinical ? '' : 'hidden'}`}>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
@@ -367,6 +383,7 @@ export function PatientDashboard() {
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${statusColors[apt.status]}`}>
                         {tEnum(apt.status)}
                       </span>
+                      <ConfirmPresenceButton appointment={apt} onConfirmed={fetchPatientData} />
                       <Link
                         href={`/dashboard/appointments/${apt.id}`}
                         className="text-lime-600 dark:text-lime-400 hover:text-lime-500 text-sm font-medium"
@@ -487,7 +504,7 @@ export function PatientDashboard() {
       </div>
 
       {/* Recent Consultations & Lab Results */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+      <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 ${canSeeClinical ? '' : 'hidden'}`}>
         {/* Recent Consultations */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">

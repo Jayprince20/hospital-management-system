@@ -6,11 +6,15 @@ import { ThemeToggle } from '@/context/theme-context';
 import { LanguageToggle, useLanguage } from '@/context/language-context';
 import { NotificationBell } from '@/components/notifications';
 import { GlobalSearch } from '@/components/global-search';
+import { ProfileSwitcher } from '@/components/family';
+import { useActingPatient } from '@/context/acting-patient-context';
 
 export function Header() {
   const { user, logout } = useAuth();
   const { t, tEnum } = useLanguage();
   const [showDropdown, setShowDropdown] = useState(false);
+  // While acting for a relative the account's own pages are out of reach
+  const { isActing } = useActingPatient();
 
   return (
     <header className="sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
@@ -22,6 +26,9 @@ export function Header() {
 
         {/* Right Section */}
         <div className="flex items-center gap-2 ml-4">
+          {/* Family access: whose record the patient is looking at */}
+          <ProfileSwitcher />
+
           {/* Language Toggle */}
           <LanguageToggle />
 
@@ -74,6 +81,7 @@ export function Header() {
                   onClick={() => setShowDropdown(false)}
                 />
                 <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+                  {!isActing && (<>
                   <a
                     href="/dashboard/profile"
                     className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -108,6 +116,7 @@ export function Header() {
                     </svg>
                     {t('nav.settings')}
                   </a>
+                  </>)}
                   <hr className="my-1 border-gray-200 dark:border-gray-700" />
                   <button
                     onClick={logout}

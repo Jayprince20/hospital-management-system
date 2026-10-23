@@ -9,6 +9,7 @@ import { useConfirm } from '@/components/confirm-modal';
 import { useLanguage } from '@/context/language-context';
 import { TableSkeleton } from '@/components/ui';
 import { getStatusColorClasses } from '@/lib/formatters';
+import { ConfirmationBadge } from '@/components/confirmation';
 import { PermissionGate } from '@/components/permission-gate';
 import {
   BarChart,
@@ -461,6 +462,9 @@ export default function AppointmentsPage() {
                             <option value="NO_SHOW">{t('status.noShow')}</option>
                           </select>
                         </PermissionGate>
+                        <div className="mt-1">
+                          <ConfirmationBadge appointment={appointment} />
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">

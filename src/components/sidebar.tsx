@@ -6,11 +6,15 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { navigationItems, isNavItemVisible, roleColors, UserRole } from '@/lib/rbac';
+import { useActingPatient } from '@/context/acting-patient-context';
+import { isOwnerOnlyPath } from '@/lib/patient-extras';
 
 // Map navigation labels to translation keys
 const navTranslationKeys: Record<string, string> = {
   'Dashboard': 'nav.dashboard',
   'My Health': 'nav.myHealth',
+  'My Family': 'nav.myFamily',
+  'Patient Feedback': 'nav.patientFeedback',
   'My Schedule': 'nav.mySchedule',
   'My Patients': 'nav.myPatients',
   'Vital Signs': 'nav.vitals',
@@ -57,8 +61,10 @@ export function Sidebar() {
   const { user } = useAuth();
   const { t, tEnum } = useLanguage();
 
-  // Filter navigation items based on user permissions
-  const filteredNavItems = navigationItems.filter((item) => isNavItemVisible(item, user?.role));
+  const { isActing } = useActingPatient();
+
+  // Filter navigation items based on user permissions (owner-only pages hidden while acting for a relative)
+  const filteredNavItems = navigationItems.filter((item) => isNavItemVisible(item, user?.role) && !(isActing && isOwnerOnlyPath(item.href)));
 
   // Get translated label for nav item
   const getNavLabel = (label: string) => {
