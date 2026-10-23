@@ -420,6 +420,27 @@ export const navigationItems: NavItem[] = [
     permission: 'billing:view_all', // Only admin/receptionist who manage billing
   },
   {
+    label: 'Insurers',
+    href: '/dashboard/insurers',
+    icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+    permission: 'billing:view_all',
+    roles: ['ADMIN', 'RECEPTIONIST'], // Admin configures payers; the desk reads them
+  },
+  {
+    label: 'Claims',
+    href: '/dashboard/claims',
+    icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+    permission: 'billing:view_all',
+    roles: ['ADMIN', 'RECEPTIONIST'], // Bordereaux sent to insurers
+  },
+  {
+    label: 'Receivables',
+    href: '/dashboard/receivables',
+    icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+    permission: 'billing:view_all',
+    roles: ['ADMIN', 'RECEPTIONIST'], // What insurers still owe, by age
+  },
+  {
     label: 'Payments',
     href: '/dashboard/payments',
     icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
@@ -501,6 +522,9 @@ export const routePermissions: Record<string, Permission> = {
   '/dashboard/laboratory/orders': 'laboratory:view', // Order detail for anyone with lab access
   '/dashboard/lab-results': 'laboratory:view_patient_results', // Doctors, nurses, lab techs
   '/dashboard/billing': 'billing:view_all', // Admin, receptionist only
+  '/dashboard/insurers': 'billing:view_all', // Tiers payant: payers (admin edits)
+  '/dashboard/claims': 'billing:view_all', // Bordereaux
+  '/dashboard/receivables': 'billing:view_all', // Insurer receivables ageing
   '/dashboard/inventory': 'inventory:manage', // Admin, pharmacist only
   '/dashboard/reports': 'reports:view_all', // Admin only
   '/dashboard/users': 'users:view_all', // Admin only
@@ -516,6 +540,9 @@ export const routePermissions: Record<string, Permission> = {
 export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/schedule': ['DOCTOR'],
   '/dashboard/my-patients': ['DOCTOR'],
+  '/dashboard/insurers': ['ADMIN', 'RECEPTIONIST'],
+  '/dashboard/claims': ['ADMIN', 'RECEPTIONIST'],
+  '/dashboard/receivables': ['ADMIN', 'RECEPTIONIST'],
 };
 
 // Helper functions

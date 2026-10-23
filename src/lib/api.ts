@@ -316,6 +316,8 @@ interface PatientBilling {
   description: string;
   amount: number;
   status: string;
+  /** Left for the patient to pay (absent from older backends) */
+  balance?: number;
 }
 
 interface VitalSign {
@@ -795,6 +797,18 @@ interface Invoice {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  // Tiers payant split (absent on servers that predate insurer billing)
+  payerId?: string | null;
+  payer?: { id: string; name: string; code: string } | null;
+  coverage?: { id: string; memberNumber: string } | null;
+  preAuth?: { id: string; number: string } | null;
+  claim?: { id: string; number: string; status: ClaimStatus } | null;
+  insurerShare?: number;
+  patientShare?: number;
+  insurerPaid?: number;
+  patientPaid?: number;
+  patientBalance?: number;
+  insurerBalance?: number;
 }
 
 interface InvoiceItem {
@@ -804,6 +818,8 @@ interface InvoiceItem {
   unitPrice: number;
   total: number;
   category: string;
+  coveredAmount?: number;
+  patientAmount?: number;
 }
 
 interface Payment {
@@ -814,6 +830,9 @@ interface Payment {
   notes?: string;
   processedBy: string;
   processedAt: string;
+  /** Who paid: the patient (desk, mobile money) or the insurer (claim settlement) */
+  source?: 'PATIENT' | 'INSURER';
+  claimId?: string | null;
 }
 
 interface PaymentWithDetails extends Payment {
@@ -1333,6 +1352,230 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+// ---- Insurer billing (tiers payant) ----
+type PayerType = 'PRIVATE_INSURER' | 'CSU' | 'MUTUAL' | 'EMPLOYER';
+type BillingCategory = 'consultation' | 'medication' | 'lab' | 'procedure' | 'other';
+type CoverageRelationship = 'SELF' | 'SPOUSE' | 'CHILD' | 'OTHER';
+type PreAuthStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'USED' | 'CANCELLED';
+type ClaimStatus = 'DRAFT' | 'SUBMITTED' | 'PARTIALLY_PAID' | 'PAID' | 'CLOSED';
+type ClaimLineStatus = 'PENDING' | 'ACCEPTED' | 'PARTIALLY_ACCEPTED' | 'REJECTED' | 'PAID';
+
+interface PayerCoverageRule {
+  id?: string;
+  category: BillingCategory;
+  coveragePercent: number;
+  excluded: boolean;
+  maxAmountPerItem: number | null;
+}
+
+interface Payer {
+  id: string;
+  name: string;
+  code: string;
+  type: PayerType;
+  contactName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  defaultCoveragePercent: number;
+  requiresPreAuth: boolean;
+  preAuthThreshold: number | null;
+  paymentTermsDays: number;
+  isActive: boolean;
+  notes?: string | null;
+  coverageRules: PayerCoverageRule[];
+  counts?: { coverages: number; openClaims: number };
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PayerInput {
+  name: string;
+  code: string;
+  type: PayerType;
+  contactName?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  defaultCoveragePercent: number;
+  requiresPreAuth: boolean;
+  preAuthThreshold: number | null;
+  paymentTermsDays: number;
+  notes?: string;
+  isActive?: boolean;
+  coverageRules: Array<Omit<PayerCoverageRule, 'id'>>;
+}
+
+interface PatientCoverage {
+  id: string;
+  patientId: string;
+  payerId: string;
+  payer: { id: string; name: string; code: string; type: PayerType; defaultCoveragePercent: number; requiresPreAuth: boolean; preAuthThreshold: number | null };
+  memberNumber: string;
+  policyNumber?: string | null;
+  holderName?: string | null;
+  relationship: CoverageRelationship;
+  coveragePercent: number | null;
+  effectivePercent: number;
+  validFrom: string;
+  validUntil: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
+  isValidToday: boolean;
+  notes?: string | null;
+}
+
+interface PatientCoverageInput {
+  payerId: string;
+  memberNumber: string;
+  policyNumber?: string;
+  holderName?: string;
+  relationship?: CoverageRelationship;
+  coveragePercent?: number | null;
+  validFrom: string;
+  validUntil?: string | null;
+  isPrimary?: boolean;
+  isActive?: boolean;
+  notes?: string;
+}
+
+interface PreAuthorization {
+  id: string;
+  number: string;
+  patientId: string;
+  patientName: string;
+  patientHospitalId: string;
+  coverageId: string;
+  payerId: string;
+  payer: { id: string; name: string; code: string };
+  memberNumber: string;
+  payerReference?: string | null;
+  status: PreAuthStatus;
+  services: string;
+  requestedAmount: number;
+  approvedAmount: number | null;
+  requestedAt: string;
+  decidedAt: string | null;
+  validUntil: string | null;
+  rejectionReason?: string | null;
+  notes?: string | null;
+  invoices: Array<{ id: string; invoiceNumber: string }>;
+}
+
+type PreAuthAction =
+  | { action: 'approve'; approvedAmount: number; payerReference?: string; validUntil?: string }
+  | { action: 'reject'; rejectionReason: string }
+  | { action: 'cancel' };
+
+interface InvoiceItemInput {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  category: string;
+}
+
+interface CoveragePreview {
+  coverage: PatientCoverage | null;
+  lines: Array<{ index: number; total: number; coveredAmount: number; patientAmount: number; percent: number; excluded: boolean }>;
+  subtotal: number;
+  total: number;
+  insurerShare: number;
+  patientShare: number;
+  preAuthRequired: boolean;
+  /** Why a prise en charge is needed: the payer always asks, or the total is above its threshold */
+  preAuthReason?: 'ALWAYS' | 'ABOVE_THRESHOLD';
+  eligiblePreAuths: PreAuthorization[];
+}
+
+interface ClaimSummary {
+  id: string;
+  number: string;
+  payer: { id: string; name: string; code: string };
+  periodStart: string;
+  periodEnd: string;
+  status: ClaimStatus;
+  lineCount: number;
+  totalClaimed: number;
+  totalApproved: number | null;
+  totalPaid: number;
+  outstanding: number;
+  submittedAt: string | null;
+  dueDate: string | null;
+  isOverdue: boolean;
+  createdAt: string;
+}
+
+interface ClaimLine {
+  id: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  patientName: string;
+  patientHospitalId: string;
+  memberNumber: string | null;
+  preAuthNumber: string | null;
+  amountClaimed: number;
+  amountApproved: number | null;
+  amountPaid: number;
+  insurerBalance?: number;
+  status: ClaimLineStatus;
+  rejectionReason: string | null;
+}
+
+interface ClaimDetail extends Omit<ClaimSummary, 'payer'> {
+  notes?: string | null;
+  closedAt?: string | null;
+  payer: Payer;
+  lines: ClaimLine[];
+  payments: Array<{ id: string; invoiceId?: string; amount: number; method: PaymentMethod; referenceNumber?: string | null; processedAt: string; processedBy: string }>;
+}
+
+interface EligibleClaimInvoice {
+  id: string;
+  invoiceNumber: string;
+  patientName: string;
+  patientHospitalId: string;
+  memberNumber: string | null;
+  createdAt: string;
+  total: number;
+  insurerShare: number;
+  insurerPaid: number;
+  insurerBalance: number;
+  preAuthNumber: string | null;
+}
+
+type ClaimAction =
+  | { action: 'submit' }
+  | { action: 'remove-line'; lineId: string }
+  | { action: 'add-invoices'; invoiceIds: string[] }
+  | { action: 'close' }
+  | { action: 'transfer-rejected'; lineId: string }
+  | { notes: string };
+
+interface ClaimSettlementInput {
+  paidAt?: string;
+  method?: 'BANK_TRANSFER' | 'CASH' | 'CARD' | 'MOBILE_WALLET';
+  referenceNumber?: string;
+  notes?: string;
+  lines: Array<{ lineId: string; amountApproved: number; amountPaid: number; rejectionReason?: string }>;
+}
+
+interface AgeingBuckets {
+  outstanding: number;
+  current: number;
+  d31_60: number;
+  d61_90: number;
+  d90plus: number;
+  unbilled: number;
+}
+
+interface Receivables {
+  asOf: string;
+  totals: AgeingBuckets;
+  payers: Array<AgeingBuckets & { payerId: string; name: string; code: string; openClaims: number; oldestClaimDate: string | null }>;
+  patient: { outstanding: number; invoiceCount: number };
 }
 
 class ApiClient {
@@ -2283,9 +2526,131 @@ class ApiClient {
     }
   }
 
-  // Invoice methods
-  async getInvoices(filters: { search?: string; status?: InvoiceStatus; patientId?: string; startDate?: string; endDate?: string; page?: number; limit?: number } = {}): Promise<InvoicesResponse> {
+  // ---- Insurer billing (tiers payant) ----
+
+  private async data<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const response = await this.request<T>(endpoint, options);
+    if (response.success && response.data !== undefined) return response.data;
+    throw new Error(response.message || response.error || 'Request failed');
+  }
+
+  async getPayers(filters: { active?: boolean; search?: string } = {}): Promise<Payer[]> {
     const params = new URLSearchParams();
+    if (filters.active !== undefined) params.append('active', String(filters.active));
+    if (filters.search) params.append('search', filters.search);
+    return (await this.data<{ payers: Payer[] }>(`/api/payers?${params.toString()}`)).payers;
+  }
+
+  async getPayer(id: string): Promise<Payer> {
+    return this.data<Payer>(`/api/payers/${id}`);
+  }
+
+  async createPayer(data: PayerInput): Promise<Payer> {
+    return this.data<Payer>('/api/payers', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updatePayer(id: string, data: Partial<PayerInput>): Promise<Payer> {
+    return this.data<Payer>(`/api/payers/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async getPatientCoverages(patientId: string): Promise<PatientCoverage[]> {
+    return (await this.data<{ coverages: PatientCoverage[] }>(`/api/patients/${patientId}/coverages`)).coverages;
+  }
+
+  async createPatientCoverage(patientId: string, data: PatientCoverageInput): Promise<PatientCoverage> {
+    return this.data<PatientCoverage>(`/api/patients/${patientId}/coverages`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updatePatientCoverage(patientId: string, coverageId: string, data: Partial<PatientCoverageInput>): Promise<PatientCoverage> {
+    return this.data<PatientCoverage>(`/api/patients/${patientId}/coverages/${coverageId}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async previewCoverage(data: { patientId: string; coverageId?: string | null; items: InvoiceItemInput[]; tax?: number; discount?: number }): Promise<CoveragePreview> {
+    return this.data<CoveragePreview>('/api/invoices/coverage-preview', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getPreAuthorizations(filters: { patientId?: string; payerId?: string; status?: PreAuthStatus } = {}): Promise<PreAuthorization[]> {
+    const params = new URLSearchParams();
+    if (filters.patientId) params.append('patientId', filters.patientId);
+    if (filters.payerId) params.append('payerId', filters.payerId);
+    if (filters.status) params.append('status', filters.status);
+    return (await this.data<{ preAuthorizations: PreAuthorization[] }>(`/api/pre-authorizations?${params.toString()}`)).preAuthorizations;
+  }
+
+  async createPreAuthorization(data: { patientId: string; coverageId: string; services: string; requestedAmount: number; notes?: string }): Promise<PreAuthorization> {
+    return this.data<PreAuthorization>('/api/pre-authorizations', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updatePreAuthorization(id: string, data: PreAuthAction): Promise<PreAuthorization> {
+    return this.data<PreAuthorization>(`/api/pre-authorizations/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async getClaims(filters: { payerId?: string; status?: ClaimStatus } = {}): Promise<ClaimSummary[]> {
+    const params = new URLSearchParams();
+    if (filters.payerId) params.append('payerId', filters.payerId);
+    if (filters.status) params.append('status', filters.status);
+    return (await this.data<{ claims: ClaimSummary[] }>(`/api/claims?${params.toString()}`)).claims;
+  }
+
+  async getEligibleClaimInvoices(filters: { payerId: string; periodStart: string; periodEnd: string }): Promise<EligibleClaimInvoice[]> {
+    const params = new URLSearchParams(filters);
+    return (await this.data<{ invoices: EligibleClaimInvoice[] }>(`/api/claims/eligible?${params.toString()}`)).invoices;
+  }
+
+  async createClaim(data: { payerId: string; periodStart: string; periodEnd: string; invoiceIds?: string[]; notes?: string }): Promise<ClaimDetail> {
+    return this.data<ClaimDetail>('/api/claims', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getClaim(id: string): Promise<ClaimDetail> {
+    return this.data<ClaimDetail>(`/api/claims/${id}`);
+  }
+
+  async updateClaim(id: string, data: ClaimAction): Promise<ClaimDetail> {
+    return this.data<ClaimDetail>(`/api/claims/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async deleteClaim(id: string): Promise<void> {
+    await this.request(`/api/claims/${id}`, { method: 'DELETE' });
+  }
+
+  async recordClaimSettlement(id: string, data: ClaimSettlementInput): Promise<ClaimDetail> {
+    return this.data<ClaimDetail>(`/api/claims/${id}/settlement`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  /** Download the bordereau as CSV or PDF in the current UI language */
+  async downloadClaimExport(id: string, format: 'csv' | 'pdf', lang: 'fr' | 'en'): Promise<string> {
+    const token = this.getAccessToken();
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/api/claims/${id}/export?format=${format}&lang=${lang}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch {
+      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new ApiError(localizeServerMessage(data.error || data.message || 'Request failed'), response.status);
+    }
+    const fileName = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '')?.[1] || `bordereau-${id}.${format}`;
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+    return fileName;
+  }
+
+  async getReceivables(): Promise<Receivables> {
+    return this.data<Receivables>('/api/receivables');
+  }
+
+  // Invoice methods
+  async getInvoices(filters: { search?: string; status?: InvoiceStatus; patientId?: string; payerId?: string; insured?: boolean; startDate?: string; endDate?: string; page?: number; limit?: number } = {}): Promise<InvoicesResponse> {
+    const params = new URLSearchParams();
+    if (filters.payerId) params.append('payerId', filters.payerId);
+    if (filters.insured !== undefined) params.append('insured', String(filters.insured));
     if (filters.search) params.append('search', filters.search);
     if (filters.status) params.append('status', filters.status);
     if (filters.patientId) params.append('patientId', filters.patientId);
@@ -2309,7 +2674,7 @@ class ApiClient {
     throw new Error('Failed to fetch invoice');
   }
 
-  async createInvoice(data: { patientId: string; items: Array<{ description: string; quantity: number; unitPrice: number; category: string }>; tax?: number; discount?: number; dueDate?: string; notes?: string }): Promise<Invoice> {
+  async createInvoice(data: { patientId: string; items: InvoiceItemInput[]; tax?: number; discount?: number; dueDate?: string; notes?: string; coverageId?: string | null; useCoverage?: boolean; preAuthId?: string }): Promise<Invoice> {
     const response = await this.request<Invoice>('/api/invoices', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -2858,6 +3223,29 @@ class ApiClient {
 
 export const api = new ApiClient(API_URL);
 export type {
+  PayerType,
+  BillingCategory,
+  CoverageRelationship,
+  PreAuthStatus,
+  ClaimStatus,
+  ClaimLineStatus,
+  PayerCoverageRule,
+  Payer,
+  PayerInput,
+  PatientCoverage,
+  PatientCoverageInput,
+  PreAuthorization,
+  PreAuthAction,
+  InvoiceItemInput,
+  CoveragePreview,
+  ClaimSummary,
+  ClaimLine,
+  ClaimDetail,
+  EligibleClaimInvoice,
+  ClaimAction,
+  ClaimSettlementInput,
+  AgeingBuckets,
+  Receivables,
   MobileMoneyProvider,
   MobileMoneyStatus,
   MobileMoneyTransaction,

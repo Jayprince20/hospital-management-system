@@ -25,6 +25,8 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Doctors and patients have their own dashboards; the hospital stats are for the other staff
+  const ownDashboard = user?.role === 'DOCTOR' || user?.role === 'PATIENT';
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -41,11 +43,12 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (!user || ownDashboard) return;
     fetchDashboardData();
     // Refresh every 30 seconds
     const interval = setInterval(fetchDashboardData, 30000);
     return () => clearInterval(interval);
-  }, [fetchDashboardData]);
+  }, [fetchDashboardData, user, ownDashboard]);
 
   const formatGrowth = (value: number) => {
     if (value > 0) return `+${value}%`;
@@ -70,6 +73,9 @@ export default function DashboardPage() {
   };
 
   // formatTime, formatRelativeTime, and formatAppointmentStatus imported from @/lib/formatters
+
+  if (user?.role === 'DOCTOR') return <DoctorDashboard />;
+  if (user?.role === 'PATIENT') return <PatientDashboard />;
 
   if (loading && !data) {
     return <LoadingState label={t('common.loading')} minHeight="h-96" />;

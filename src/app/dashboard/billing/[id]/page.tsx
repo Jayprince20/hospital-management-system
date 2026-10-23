@@ -7,6 +7,7 @@ import { api, InvoiceDetail, PaymentMethod } from '@/lib/api';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { MobileMoneyPayment, MobileMoneyHistory } from '@/components/payments';
+import { isInsured, patientDue } from '@/lib/insurance';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -118,7 +119,7 @@ export default function BillingDetailPage() {
       fetchInvoice(); // Refresh data
     } catch (err) {
       console.error('Error adding payment:', err);
-      alert(t('admin.invoice.addPaymentFailed'));
+      alert(err instanceof Error && err.message ? err.message : t('admin.invoice.addPaymentFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -141,6 +142,10 @@ export default function BillingDetailPage() {
     }
   };
 
+
+  const insured = invoice ? isInsured(invoice) : false;
+  const dueFromPatient = invoice ? patientDue(invoice) : 0;
+  const canTakePatientPayment = Boolean(invoice) && invoice!.status !== 'PAID' && invoice!.status !== 'CANCELLED' && dueFromPatient > 0;
 
   if (loading) {
     return (
@@ -220,7 +225,7 @@ export default function BillingDetailPage() {
             )}
             {t('admin.invoice.downloadPdf')}
           </button>
-          {invoice.status !== 'PAID' && invoice.status !== 'CANCELLED' && invoice.balance > 0 && (
+          {canTakePatientPayment && (
             <button
               onClick={() => setShowMobileMoney(true)}
               className="inline-flex items-center gap-2 px-4 py-2 border border-amber-400 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
@@ -229,10 +234,10 @@ export default function BillingDetailPage() {
               {t('pay.title')}
             </button>
           )}
-          {invoice.status !== 'PAID' && invoice.status !== 'CANCELLED' && (
+          {canTakePatientPayment && (
             <button
               onClick={() => {
-                setPaymentForm({ ...initialPaymentForm, amount: invoice.balance });
+                setPaymentForm({ ...initialPaymentForm, amount: dueFromPatient });
                 setShowPaymentModal(true);
               }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors"
@@ -288,6 +293,59 @@ export default function BillingDetailPage() {
             </div>
           </div>
 
+          {/* Tiers payant */}
+          {insured && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-blue-200 dark:border-blue-900 p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('ins.invoice.title')}</h2>
+                  {invoice.payer && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {invoice.payer.name}
+                      {invoice.coverage ? ` · ${t('ins.coverage.member')} ${invoice.coverage.memberNumber}` : ''}
+                      {invoice.preAuth ? ` · ${t('ins.preAuth.short')} ${invoice.preAuth.number}` : ''}
+                    </p>
+                  )}
+                </div>
+                {invoice.claim ? (
+                  <Link href={`/dashboard/claims/${invoice.claim.id}`} className="text-sm font-medium text-blue-700 dark:text-blue-400 hover:underline">
+                    {t('ins.invoice.onClaim', { number: invoice.claim.number, status: t(`ins.claimStatus.${invoice.claim.status}`) })}
+                  </Link>
+                ) : (
+                  (invoice.insurerBalance ?? 0) > 0 && (
+                    <span className="text-sm text-amber-700 dark:text-amber-400">{t('ins.invoice.notClaimed')}</span>
+                  )
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('ins.insurerShare')}</p>
+                  <p className="font-semibold text-blue-700 dark:text-blue-400">{formatCurrency(invoice.insurerShare ?? 0)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('ins.insurerPaid')}</p>
+                  <p className="font-semibold text-green-600 dark:text-green-400">{formatCurrency(invoice.insurerPaid ?? 0)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('ins.insurerBalance')}</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(invoice.insurerBalance ?? 0)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('ins.patientShare')}</p>
+                  <p className="font-semibold text-lime-700 dark:text-lime-400">{formatCurrency(invoice.patientShare ?? 0)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('ins.patientPaid')}</p>
+                  <p className="font-semibold text-green-600 dark:text-green-400">{formatCurrency(invoice.patientPaid ?? 0)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('ins.patientBalance')}</p>
+                  <p className={`font-semibold ${dueFromPatient > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>{formatCurrency(dueFromPatient)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Invoice Items */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
             <div className="p-4 border-b border-gray-100 dark:border-gray-700">
@@ -302,6 +360,12 @@ export default function BillingDetailPage() {
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.invoice.qty')}</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.invoice.unitPrice')}</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.invoice.total')}</th>
+                    {insured && (
+                      <>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('ins.insurerShare')}</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('ins.patientShare')}</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -312,6 +376,12 @@ export default function BillingDetailPage() {
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-right">{item.quantity}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-right">{formatCurrency(item.unitPrice)}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white text-right">{formatCurrency(item.total)}</td>
+                      {insured && (
+                        <>
+                          <td className="px-4 py-3 text-sm text-blue-700 dark:text-blue-400 text-right">{formatCurrency(item.coveredAmount ?? 0)}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-right">{formatCurrency(item.patientAmount ?? item.total)}</td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -347,7 +417,16 @@ export default function BillingDetailPage() {
                     {invoice.payments.map((payment) => (
                       <tr key={payment.id}>
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{formatDateTime(payment.processedAt)}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{tEnum(payment.method)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                          {tEnum(payment.method)}
+                          {payment.source === 'INSURER' && (
+                            <span className="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
+                              {payment.claimId ? (
+                                <Link href={`/dashboard/claims/${payment.claimId}`} className="hover:underline">{t('ins.payment.insurer')}</Link>
+                              ) : t('ins.payment.insurer')}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{payment.referenceNumber || '-'}</td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{payment.processedBy}</td>
                         <td className="px-4 py-3 text-sm font-medium text-green-600 dark:text-green-400 text-right">+{formatCurrency(payment.amount)}</td>
@@ -393,6 +472,18 @@ export default function BillingDetailPage() {
                 <span>{t('admin.invoice.paid')}</span>
                 <span>{formatCurrency(invoice.paidAmount)}</span>
               </div>
+              {insured && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">{t('ins.insurerBalance')}</span>
+                  <span className="text-blue-700 dark:text-blue-400">{formatCurrency(invoice.insurerBalance ?? 0)}</span>
+                </div>
+              )}
+              {insured && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">{t('ins.patientBalance')}</span>
+                  <span className="text-gray-900 dark:text-white">{formatCurrency(dueFromPatient)}</span>
+                </div>
+              )}
               <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
                 <div className="flex justify-between font-bold text-lg">
                   <span className={invoice.balance > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
@@ -439,7 +530,7 @@ export default function BillingDetailPage() {
           invoice={{
             id: invoice.id,
             invoiceNumber: invoice.invoiceNumber,
-            balance: invoice.balance,
+            balance: dueFromPatient,
             patientName: `${invoice.patient.firstName} ${invoice.patient.lastName}`,
             patientPhone: invoice.patient.phoneNumber,
           }}
@@ -477,14 +568,16 @@ export default function BillingDetailPage() {
                   type="number"
                   step="1"
                   min="1"
-                  max={invoice.balance}
+                  max={dueFromPatient}
                   value={paymentForm.amount}
                   onChange={(e) => setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) || 0 })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                   required
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {t('admin.invoice.balanceDueValue', { amount: formatCurrency(invoice.balance) })}
+                  {insured
+                    ? t('ins.payment.patientDueValue', { amount: formatCurrency(dueFromPatient) })
+                    : t('admin.invoice.balanceDueValue', { amount: formatCurrency(invoice.balance) })}
                 </p>
               </div>
 
@@ -504,7 +597,6 @@ export default function BillingDetailPage() {
                   <option value="MTN_MOMO">{tEnum('MTN_MOMO')}</option>
                   <option value="ORANGE_MONEY">{tEnum('ORANGE_MONEY')}</option>
                   <option value="MOBILE_WALLET">{tEnum('MOBILE_WALLET')}</option>
-                  <option value="INSURANCE">{tEnum('INSURANCE')}</option>
                 </select>
               </div>
 

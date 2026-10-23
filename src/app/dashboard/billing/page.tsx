@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { api, Invoice, InvoiceStatus, PaymentMethod, Patient } from '@/lib/api';
+import { api, CoveragePreview, Invoice, InvoiceStatus, Payer, PaymentMethod, Patient } from '@/lib/api';
+import { InvoiceCoveragePanel, CoverageChoice, initialCoverageChoice, coverageRequestFields } from '@/components/insurance/invoice-coverage-panel';
+import { isInsured, patientDue } from '@/lib/insurance';
 import { PermissionGate } from '@/components/permission-gate';
 import { MobileMoneyPayment, MobileMoneyReconciliationPanel } from '@/components/payments';
 import { useAuth } from '@/context/auth-context';
@@ -60,6 +62,11 @@ export default function BillingPage() {
   const [totals, setTotals] = useState({ totalBilled: 0, totalPaid: 0, totalOutstanding: 0 });
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  // '' = all, 'insured' = any payer, 'self' = patient pays everything, else a payer id
+  const [payerFilter, setPayerFilter] = useState('');
+  const [payers, setPayers] = useState<Payer[]>([]);
+  const [coverageChoice, setCoverageChoice] = useState<CoverageChoice>(initialCoverageChoice);
+  const [coveragePreview, setCoveragePreview] = useState<CoveragePreview | null>(null);
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -125,6 +132,8 @@ export default function BillingPage() {
       const response = await api.getInvoices({
         search,
         status: status || undefined,
+        insured: payerFilter === 'insured' ? true : payerFilter === 'self' ? false : undefined,
+        payerId: payerFilter && payerFilter !== 'insured' && payerFilter !== 'self' ? payerFilter : undefined,
         page,
         limit: 10,
       });
@@ -137,11 +146,15 @@ export default function BillingPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, status, page]);
+  }, [search, status, page, payerFilter]);
 
   useEffect(() => {
     fetchInvoices();
   }, [fetchInvoices]);
+
+  useEffect(() => {
+    api.getPayers().then(setPayers).catch(() => setPayers([]));
+  }, []);
 
   // Fetch patients for invoice creation
   const fetchPatients = useCallback(async (searchTerm: string) => {
@@ -173,6 +186,8 @@ export default function BillingPage() {
     setSelectedPatient(null);
     setPatientSearch('');
     setPatients([]);
+    setCoverageChoice(initialCoverageChoice);
+    setCoveragePreview(null);
     setError('');
     setShowCreateModal(true);
   };
@@ -190,7 +205,7 @@ export default function BillingPage() {
     setSelectedInvoice(invoice);
     setPaymentForm({
       ...initialPaymentForm,
-      amount: invoice.balance,
+      amount: patientDue(invoice),
     });
     setError('');
     setShowPaymentModal(true);
@@ -238,6 +253,8 @@ export default function BillingPage() {
   // Select patient
   const selectPatient = (patient: Patient) => {
     setSelectedPatient(patient);
+    setCoverageChoice(initialCoverageChoice);
+    setCoveragePreview(null);
     setInvoiceForm({ ...invoiceForm, patientId: patient.id });
     setPatients([]);
     setPatientSearch('');
@@ -253,6 +270,11 @@ export default function BillingPage() {
       setError(t('admin.billing.fillItems'));
       return;
     }
+    const coverageFields = coverageRequestFields(coverageChoice);
+    if (coverageFields.useCoverage && coveragePreview?.coverage && coveragePreview.preAuthRequired && !coverageChoice.preAuthId) {
+      setError(t('ins.invoice.preAuthMissing'));
+      return;
+    }
 
     try {
       setSaving(true);
@@ -264,6 +286,7 @@ export default function BillingPage() {
         discount: invoiceForm.discount,
         dueDate: invoiceForm.dueDate || undefined,
         notes: invoiceForm.notes || undefined,
+        ...coverageFields,
       });
       closeModals();
       fetchInvoices();
@@ -281,7 +304,7 @@ export default function BillingPage() {
       setError(t('admin.billing.amountPositive'));
       return;
     }
-    if (paymentForm.amount > selectedInvoice.balance) {
+    if (paymentForm.amount > patientDue(selectedInvoice)) {
       setError(t('admin.billing.amountExceeds'));
       return;
     }
@@ -412,6 +435,19 @@ export default function BillingPage() {
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
+            <select
+              value={payerFilter}
+              onChange={(e) => { setPayerFilter(e.target.value); setPage(1); }}
+              aria-label={t('ins.filter.label')}
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="">{t('ins.filter.all')}</option>
+              <option value="insured">{t('ins.filter.insured')}</option>
+              <option value="self">{t('ins.filter.self')}</option>
+              {payers.map((payer) => (
+                <option key={payer.id} value={payer.id}>{payer.name}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -449,6 +485,11 @@ export default function BillingPage() {
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white">{invoice.patientName}</p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">{invoice.patientHospitalId}</p>
+                        {isInsured(invoice) && invoice.payer && (
+                          <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300" title={invoice.payer.name}>
+                            {invoice.payer.code}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
@@ -462,6 +503,11 @@ export default function BillingPage() {
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-orange-600">
                       {formatCurrency(invoice.balance)}
+                      {isInsured(invoice) && invoice.balance > 0 && (
+                        <p className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                          {t('ins.list.patientDue', { amount: formatCurrency(patientDue(invoice)) })}
+                        </p>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(invoice.status)}`}>
@@ -491,7 +537,7 @@ export default function BillingPage() {
                           )}
                           PDF
                         </button>
-                        {invoice.balance > 0 && (
+                        {patientDue(invoice) > 0 && (
                           <PermissionGate permission="billing:process_payments">
                             <button
                               onClick={() => openPaymentModal(invoice)}
@@ -691,6 +737,19 @@ export default function BillingPage() {
                 </div>
               </div>
 
+              {/* Tiers payant: who pays what */}
+              {selectedPatient && (
+                <InvoiceCoveragePanel
+                  patientId={selectedPatient.id}
+                  items={invoiceForm.items}
+                  tax={invoiceForm.tax}
+                  discount={invoiceForm.discount}
+                  value={coverageChoice}
+                  onChange={setCoverageChoice}
+                  onPreview={setCoveragePreview}
+                />
+              )}
+
               {/* Tax, Discount, Due Date */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -763,6 +822,12 @@ export default function BillingPage() {
                   <span className="font-semibold text-gray-900 dark:text-white">{t('admin.billing.total')}</span>
                   <span className="font-bold text-lg text-lime-600">{formatCurrency(calculateTotal())}</span>
                 </div>
+                {coverageChoice.coverage !== 'none' && coveragePreview?.coverage && (
+                  <div className="flex justify-between text-sm mt-2">
+                    <span className="text-gray-600 dark:text-gray-400">{t('ins.patientPays')}</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(coveragePreview.patientShare)}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -792,7 +857,7 @@ export default function BillingPage() {
           invoice={{
             id: mobileMoneyInvoice.id,
             invoiceNumber: mobileMoneyInvoice.invoiceNumber,
-            balance: mobileMoneyInvoice.balance,
+            balance: patientDue(mobileMoneyInvoice),
             patientName: mobileMoneyInvoice.patientName,
           }}
           canSimulate={user?.role === 'ADMIN' || user?.role === 'RECEPTIONIST'}
@@ -832,9 +897,15 @@ export default function BillingPage() {
                   <span className="text-gray-600 dark:text-gray-400">{t('admin.billing.alreadyPaid')}</span>
                   <span className="text-green-600">{formatCurrency(selectedInvoice.paidAmount)}</span>
                 </div>
+                {isInsured(selectedInvoice) && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">{t('ins.insurerShare')}</span>
+                    <span className="text-blue-700 dark:text-blue-400">{formatCurrency(selectedInvoice.insurerShare ?? 0)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between border-t border-gray-200 dark:border-gray-600 pt-2 mt-2">
-                  <span className="font-semibold text-gray-900 dark:text-white">{t('admin.billing.balanceDue')}</span>
-                  <span className="font-bold text-orange-600">{formatCurrency(selectedInvoice.balance)}</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{isInsured(selectedInvoice) ? t('ins.patientBalance') : t('admin.billing.balanceDue')}</span>
+                  <span className="font-bold text-orange-600">{formatCurrency(patientDue(selectedInvoice))}</span>
                 </div>
               </div>
 
@@ -846,7 +917,7 @@ export default function BillingPage() {
                   type="number"
                   value={paymentForm.amount}
                   onChange={(e) => setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) || 0 })}
-                  max={selectedInvoice.balance}
+                  max={patientDue(selectedInvoice)}
                   min="1"
                   step="1"
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -868,7 +939,6 @@ export default function BillingPage() {
                   <option value="MTN_MOMO">{tEnum('MTN_MOMO')}</option>
                   <option value="ORANGE_MONEY">{tEnum('ORANGE_MONEY')}</option>
                   <option value="MOBILE_WALLET">{tEnum('MOBILE_WALLET')}</option>
-                  <option value="INSURANCE">{tEnum('INSURANCE')}</option>
                 </select>
               </div>
 

@@ -6,6 +6,7 @@ import { api, PatientDetail, type Invoice } from '@/lib/api';
 import { MobileMoneyPayment } from '@/components/payments';
 import { useLanguage } from '@/context/language-context';
 import { MyConsents } from '@/components/consent';
+import { isInsured, patientDue } from '@/lib/insurance';
 
 type TabType = 'overview' | 'appointments' | 'vitals' | 'lab-results' | 'prescriptions' | 'consultations' | 'billing' | 'privacy';
 
@@ -733,7 +734,7 @@ function PayInvoices({ patientId, phone, onPaid }: { patientId: string; phone?: 
     api
       .getInvoices({ patientId, limit: 50 })
       .then((res) => {
-        if (!cancelled) setInvoices(res.invoices.filter((inv) => inv.balance > 0 && inv.status !== 'CANCELLED' && inv.status !== 'DRAFT'));
+        if (!cancelled) setInvoices(res.invoices.filter((inv) => patientDue(inv) > 0 && inv.status !== 'CANCELLED' && inv.status !== 'DRAFT'));
       })
       .catch(() => {
         if (!cancelled) setInvoices([]);
@@ -761,9 +762,14 @@ function PayInvoices({ patientId, phone, onPaid }: { patientId: string; phone?: 
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {formatDate(inv.createdAt)} · {tEnum(inv.status)}
                 </p>
+                {isInsured(inv) && inv.payer && (
+                  <p className="text-xs text-blue-700 dark:text-blue-400">
+                    {t('ins.portal.covered', { payer: inv.payer.name, amount: formatCurrency(inv.insurerShare ?? 0) })}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-3">
-                <span className="font-semibold text-orange-600">{formatCurrency(inv.balance)}</span>
+                <span className="font-semibold text-orange-600">{formatCurrency(patientDue(inv))}</span>
                 <button
                   type="button"
                   onClick={() => setPaying(inv)}
@@ -780,7 +786,7 @@ function PayInvoices({ patientId, phone, onPaid }: { patientId: string; phone?: 
         <MobileMoneyPayment
           isOpen
           payerIsUser
-          invoice={{ id: paying.id, invoiceNumber: paying.invoiceNumber, balance: paying.balance, patientPhone: phone }}
+          invoice={{ id: paying.id, invoiceNumber: paying.invoiceNumber, balance: patientDue(paying), patientPhone: phone }}
           onFinished={() => {
             setReload((n) => n + 1);
             onPaid?.();
@@ -821,7 +827,7 @@ function BillingTab({ billing }: { billing: PatientDetail['billing'] }) {
 
   const totalOutstanding = billing
     .filter(bill => bill.status === 'PENDING' || bill.status === 'OVERDUE' || bill.status === 'PARTIALLY_PAID')
-    .reduce((sum, bill) => sum + bill.amount, 0);
+    .reduce((sum, bill) => sum + Number(bill.balance ?? bill.amount), 0);
 
   return (
     <div className="space-y-6">

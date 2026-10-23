@@ -31,6 +31,7 @@ describe('localizeServerMessage', () => {
   const samples = [
     'Cannot delete medication with existing prescriptions. This medication has been used in 3 prescription items. Consider deactivating it instead.',
     'Payment amount (50000) exceeds invoice balance (34345.5)',
+    'Payment amount (5000) exceeds patient balance (3000)',
     'Cannot reschedule an appointment with status: COMPLETED',
     'Maximum reschedule limit (3) reached. Please cancel and create a new appointment.',
     'Cannot delete department with associated staff. This department has 1 doctors, 0 nurses, and 2 other staff members.',
@@ -41,6 +42,7 @@ describe('localizeServerMessage', () => {
     'MTN MoMo is not configured for live payments (missing MTN_MOMO_API_KEY)',
     'Orange Money refused the payment request (HTTP 502)',
     'REVIEW: provider confirmed 9000 XAF instead of 10000 XAF',
+    'Payment exceeds the insurer balance of invoice INV-2026-00012',
   ];
 
   it('has a sample for every message pattern', () => {
