@@ -1731,6 +1731,307 @@ interface MyQueueTicket {
   calledAt: string | null;
 }
 
+// ---- Inpatient care (hospitalisation) ----
+type WardType = 'GENERAL' | 'SURGICAL' | 'MATERNITY' | 'PAEDIATRIC' | 'ICU' | 'ISOLATION';
+type WardGender = 'ANY' | 'MALE' | 'FEMALE';
+type BedStatus = 'AVAILABLE' | 'OCCUPIED' | 'CLEANING' | 'MAINTENANCE' | 'RESERVED';
+type AdmissionSource = 'EMERGENCY' | 'OUTPATIENT' | 'REFERRAL' | 'ELECTIVE' | 'BIRTH';
+type AdmissionStatus = 'ADMITTED' | 'DISCHARGED' | 'CANCELLED';
+type DischargeType = 'HOME' | 'TRANSFER' | 'AGAINST_ADVICE' | 'DECEASED';
+type ProgressNoteType = 'DOCTOR_ROUND' | 'NURSING' | 'HANDOVER';
+type MedicationOrderStatus = 'ACTIVE' | 'STOPPED' | 'COMPLETED';
+type AdministrationStatus = 'GIVEN' | 'REFUSED' | 'HELD' | 'MISSED';
+/** A scheduled dose on the medication administration record: recorded, or due/overdue/upcoming */
+type DoseStatus = 'DUE' | 'OVERDUE' | 'UPCOMING' | AdministrationStatus;
+type ChargeCategory = 'BED' | 'PROCEDURE' | 'MEDICATION' | 'LAB' | 'CONSUMABLE' | 'OTHER';
+type MedicationRoute = 'PO' | 'IV' | 'IM' | 'SC' | 'INH' | 'TOP' | 'PR' | 'SL' | 'OTHER';
+
+interface BedOccupant {
+  admissionId: string;
+  number: string;
+  patientName: string;
+  patientHospitalId: string;
+  gender: 'MALE' | 'FEMALE' | 'OTHER';
+  age: number | null;
+  admittedAt: string;
+  days: number;
+  attendingDoctorName: string;
+}
+
+interface WardBed {
+  id: string;
+  label: string;
+  status: BedStatus;
+  dailyRate: number | null;
+  isActive: boolean;
+  notes: string | null;
+  occupant: BedOccupant | null;
+}
+
+interface WardCounts {
+  total: number;
+  available: number;
+  occupied: number;
+  cleaning: number;
+  maintenance: number;
+  reserved: number;
+}
+
+interface Ward {
+  id: string;
+  name: string;
+  code: string;
+  type: WardType;
+  gender: WardGender;
+  department: { id: string; name: string } | null;
+  floor: string | null;
+  dailyRate: number;
+  isActive: boolean;
+  notes: string | null;
+  beds: WardBed[];
+  counts: WardCounts;
+  occupancyPct: number;
+}
+
+interface WardBoard {
+  wards: Ward[];
+  totals: { beds: number; available: number; occupied: number; occupancyPct: number };
+}
+
+interface WardInput {
+  name: string;
+  code: string;
+  type: WardType;
+  gender?: WardGender;
+  departmentId?: string | null;
+  floor?: string | null;
+  dailyRate: number;
+  notes?: string | null;
+  beds?: string[];
+}
+
+interface InpatientVitals {
+  bloodPressureSys?: number | null;
+  bloodPressureDia?: number | null;
+  heartRate?: number | null;
+  temperature?: number | null;
+  respiratoryRate?: number | null;
+  oxygenSaturation?: number | null;
+  weight?: number | null;
+  recordedAt?: string;
+}
+
+interface AdmissionSummary {
+  id: string;
+  number: string;
+  status: AdmissionStatus;
+  patient: {
+    id: string;
+    patientId: string;
+    firstName: string;
+    lastName: string;
+    gender: 'MALE' | 'FEMALE' | 'OTHER';
+    age: number | null;
+    allergies: string[];
+  };
+  ward: { id: string; name: string; code: string };
+  bed: { id: string; label: string } | null;
+  attendingDoctor: { id: string; name: string };
+  source: AdmissionSource;
+  reason: string;
+  admittedAt: string;
+  days: number;
+  dischargedAt: string | null;
+  dischargeType: DischargeType | null;
+  dueMedications: number;
+}
+
+interface BedAssignmentEntry {
+  bed: { label: string; ward: { id?: string; name: string; code?: string } | string };
+  startAt: string;
+  endAt: string | null;
+  reason: string | null;
+  movedByName: string | null;
+}
+
+interface AdmissionDetail extends AdmissionSummary {
+  provisionalDiagnosis: string | null;
+  expectedDischargeAt: string | null;
+  queueTicket: { id: string; number: string } | null;
+  assignments: BedAssignmentEntry[];
+  finalDiagnosis: string | null;
+  diagnosisCodes: string[];
+  hospitalCourse: string | null;
+  dischargeMedications: string | null;
+  dischargeInstructions: string | null;
+  followUpDate: string | null;
+  transferDestination: string | null;
+  dischargedByName: string | null;
+  invoice: { id: string; invoiceNumber: string; status: InvoiceStatus; total: number } | null;
+  cancelReason: string | null;
+  latestVitals: InpatientVitals | null;
+  /** Set on discharge/invoice when the payer needed a prise en charge and none was approved: billed uninsured */
+  coverageWarning?: 'PRE_AUTH_REQUIRED' | null;
+}
+
+interface AdmissionsResponse {
+  admissions: AdmissionSummary[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+interface CreateAdmissionInput {
+  patientId: string;
+  bedId: string;
+  attendingDoctorId?: string;
+  source: AdmissionSource;
+  reason: string;
+  provisionalDiagnosis?: string;
+  expectedDischargeAt?: string;
+  queueTicketId?: string;
+}
+
+interface DischargeInput {
+  dischargeType: DischargeType;
+  finalDiagnosis: string;
+  diagnosisCodes?: string[];
+  hospitalCourse: string;
+  dischargeMedications?: string;
+  dischargeInstructions?: string;
+  followUpDate?: string;
+  transferDestination?: string;
+  dischargedAt?: string;
+}
+
+interface ProgressNote {
+  id: string;
+  type: ProgressNoteType;
+  note: string;
+  author: { id: string; name: string; role: string };
+  vitals: InpatientVitals | null;
+  createdAt: string;
+}
+
+interface MedicationOrder {
+  id: string;
+  medication: { id: string; name: string; strength: string } | null;
+  drugName: string;
+  dose: string;
+  route: MedicationRoute | string;
+  times: string[];
+  asNeeded: boolean;
+  startAt: string;
+  endAt: string | null;
+  instructions: string | null;
+  status: MedicationOrderStatus;
+  prescribedByName: string | null;
+  stoppedByName: string | null;
+  stoppedAt: string | null;
+  stopReason: string | null;
+  lastGiven: { at: string; status: AdministrationStatus; byName: string } | null;
+  allergyWarning: string | null;
+}
+
+interface CreateMedicationOrderInput {
+  medicationId?: string;
+  drugName?: string;
+  dose: string;
+  route: MedicationRoute;
+  times?: string[];
+  asNeeded?: boolean;
+  startAt?: string;
+  endAt?: string;
+  instructions?: string;
+  overrideAllergy?: boolean;
+  allergyOverrideReason?: string;
+}
+
+interface MarAdministration {
+  id: string;
+  recordedAt: string;
+  status: AdministrationStatus;
+  doseGiven: string | null;
+  reason: string | null;
+  givenByName: string | null;
+}
+
+interface MarDose {
+  scheduledAt: string;
+  time: string;
+  status: DoseStatus;
+  administration: MarAdministration | null;
+}
+
+interface MarDay {
+  date: string;
+  rows: Array<{ order: MedicationOrder; doses: MarDose[] }>;
+  prn: Array<{ order: MedicationOrder; administrations: MarAdministration[] }>;
+}
+
+interface RecordAdministrationInput {
+  orderId: string;
+  scheduledAt: string | null;
+  status: AdministrationStatus;
+  doseGiven?: string;
+  reason?: string;
+}
+
+interface WardMarItem {
+  admissionId: string;
+  number: string;
+  patientName: string;
+  bedLabel: string | null;
+  orderId: string;
+  drugName: string;
+  dose: string;
+  route: string;
+  scheduledAt: string;
+  time: string;
+  status: DoseStatus;
+}
+
+interface WardMar {
+  now: string;
+  items: WardMarItem[];
+}
+
+interface AdmissionCharge {
+  id: string;
+  category: ChargeCategory;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  chargedAt: string;
+  addedByName: string | null;
+  invoiced: boolean;
+}
+
+interface AdmissionBillLine {
+  category: ChargeCategory | string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  source: 'BED' | 'CHARGE';
+  chargeId?: string;
+}
+
+interface AdmissionBill {
+  lines: AdmissionBillLine[];
+  subtotal: number;
+  /** Coverage split, flat or nested depending on the server: read it with billSplit() */
+  insurerShare?: number;
+  patientShare?: number;
+  coverage?: PatientCoverage | null;
+  preview?: Partial<CoveragePreview> | null;
+  invoiced: boolean;
+}
+
+interface MyAdmissions {
+  current: AdmissionSummary | null;
+  past: AdmissionSummary[];
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -2863,6 +3164,145 @@ class ApiClient {
     return (await this.data<{ ticket: MyQueueTicket | null }>('/api/queue/my-ticket')).ticket;
   }
 
+  // Inpatient care: wards & beds
+  async getWards(filters: { active?: boolean } = {}): Promise<WardBoard> {
+    const params = new URLSearchParams();
+    if (filters.active !== undefined) params.append('active', String(filters.active));
+    return this.data<WardBoard>(`/api/wards?${params.toString()}`);
+  }
+
+  async createWard(data: WardInput): Promise<Ward> {
+    return this.data<Ward>('/api/wards', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateWard(id: string, data: Partial<WardInput> & { isActive?: boolean }): Promise<Ward> {
+    return this.data<Ward>(`/api/wards/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async addBeds(wardId: string, data: { labels: string[]; dailyRate?: number }): Promise<unknown> {
+    return this.data<unknown>(`/api/wards/${wardId}/beds`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateBed(id: string, data: { status?: Exclude<BedStatus, 'OCCUPIED'>; notes?: string | null; isActive?: boolean; dailyRate?: number | null }): Promise<unknown> {
+    return this.data<unknown>(`/api/beds/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  // Inpatient care: admissions
+  async getAdmissions(filters: { status?: AdmissionStatus; wardId?: string; doctorId?: string; patientId?: string; search?: string; page?: number; limit?: number } = {}): Promise<AdmissionsResponse> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== '') params.append(key, String(value));
+    }
+    return this.data<AdmissionsResponse>(`/api/admissions?${params.toString()}`);
+  }
+
+  async getMyAdmissions(): Promise<MyAdmissions> {
+    return this.data<MyAdmissions>('/api/admissions/mine');
+  }
+
+  async getAdmission(id: string): Promise<AdmissionDetail> {
+    return this.data<AdmissionDetail>(`/api/admissions/${id}`);
+  }
+
+  async createAdmission(data: CreateAdmissionInput): Promise<AdmissionDetail> {
+    return this.data<AdmissionDetail>('/api/admissions', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async transferAdmission(id: string, data: { bedId: string; reason: string }): Promise<AdmissionDetail> {
+    return this.data<AdmissionDetail>(`/api/admissions/${id}/transfer`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async dischargeAdmission(id: string, data: DischargeInput): Promise<AdmissionDetail> {
+    return this.data<AdmissionDetail>(`/api/admissions/${id}/discharge`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async cancelAdmission(id: string, reason: string): Promise<AdmissionDetail> {
+    return this.data<AdmissionDetail>(`/api/admissions/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) });
+  }
+
+  /** Download the discharge summary PDF in the current UI language; resolves to the file name */
+  async downloadDischargeSummary(id: string, lang: 'fr' | 'en'): Promise<string> {
+    const token = this.getAccessToken();
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/api/admissions/${id}/discharge-summary?format=pdf&lang=${lang}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch {
+      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new ApiError(localizeServerMessage(data.error || data.message || 'Request failed'), response.status);
+    }
+    const fileName = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '')?.[1] || `compte-rendu-sortie-${id}.pdf`;
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+    return fileName;
+  }
+
+  async getAdmissionBill(id: string): Promise<AdmissionBill> {
+    return this.data<AdmissionBill>(`/api/admissions/${id}/bill`);
+  }
+
+  async createAdmissionInvoice(id: string): Promise<AdmissionDetail> {
+    return this.data<AdmissionDetail>(`/api/admissions/${id}/invoice`, { method: 'POST', body: JSON.stringify({}) });
+  }
+
+  // Inpatient care: charting
+  async getAdmissionNotes(id: string, type?: ProgressNoteType): Promise<ProgressNote[]> {
+    const query = type ? `?type=${type}` : '';
+    return (await this.data<{ notes: ProgressNote[] }>(`/api/admissions/${id}/notes${query}`)).notes;
+  }
+
+  async addAdmissionNote(id: string, data: { type: ProgressNoteType; note: string; vitals?: InpatientVitals }): Promise<ProgressNote> {
+    return this.data<ProgressNote>(`/api/admissions/${id}/notes`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getMedicationOrders(id: string, status?: MedicationOrderStatus): Promise<MedicationOrder[]> {
+    const query = status ? `?status=${status}` : '';
+    return (await this.data<{ orders: MedicationOrder[] }>(`/api/admissions/${id}/orders${query}`)).orders;
+  }
+
+  async createMedicationOrder(id: string, data: CreateMedicationOrderInput): Promise<MedicationOrder> {
+    return this.data<MedicationOrder>(`/api/admissions/${id}/orders`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async stopMedicationOrder(id: string, orderId: string, reason: string): Promise<MedicationOrder> {
+    return this.data<MedicationOrder>(`/api/admissions/${id}/orders/${orderId}`, { method: 'PATCH', body: JSON.stringify({ action: 'stop', reason }) });
+  }
+
+  async getMar(id: string, date?: string): Promise<MarDay> {
+    const query = date ? `?date=${date}` : '';
+    return this.data<MarDay>(`/api/admissions/${id}/mar${query}`);
+  }
+
+  async recordAdministration(id: string, data: RecordAdministrationInput): Promise<MarAdministration> {
+    return this.data<MarAdministration>(`/api/admissions/${id}/administrations`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getWardMar(wardId: string, date?: string): Promise<WardMar> {
+    const params = new URLSearchParams({ wardId });
+    if (date) params.append('date', date);
+    return this.data<WardMar>(`/api/mar/ward?${params.toString()}`);
+  }
+
+  async getAdmissionCharges(id: string): Promise<{ charges: AdmissionCharge[]; total: number }> {
+    return this.data<{ charges: AdmissionCharge[]; total: number }>(`/api/admissions/${id}/charges`);
+  }
+
+  async addAdmissionCharge(id: string, data: { category: Exclude<ChargeCategory, 'BED'>; description: string; quantity: number; unitPrice: number }): Promise<AdmissionCharge> {
+    return this.data<AdmissionCharge>(`/api/admissions/${id}/charges`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async deleteAdmissionCharge(id: string, chargeId: string): Promise<unknown> {
+    return this.data<unknown>(`/api/admissions/${id}/charges/${chargeId}`, { method: 'DELETE' });
+  }
+
   async getReceivables(): Promise<Receivables> {
     return this.data<Receivables>('/api/receivables');
   }
@@ -3444,6 +3884,44 @@ class ApiClient {
 
 export const api = new ApiClient(API_URL);
 export type {
+  WardType,
+  WardGender,
+  BedStatus,
+  AdmissionSource,
+  AdmissionStatus,
+  DischargeType,
+  ProgressNoteType,
+  MedicationOrderStatus,
+  AdministrationStatus,
+  DoseStatus,
+  ChargeCategory,
+  MedicationRoute,
+  BedOccupant,
+  WardBed,
+  WardCounts,
+  Ward,
+  WardBoard,
+  WardInput,
+  InpatientVitals,
+  AdmissionSummary,
+  BedAssignmentEntry,
+  AdmissionDetail,
+  AdmissionsResponse,
+  CreateAdmissionInput,
+  DischargeInput,
+  ProgressNote,
+  MedicationOrder,
+  CreateMedicationOrderInput,
+  MarAdministration,
+  MarDose,
+  MarDay,
+  RecordAdministrationInput,
+  WardMarItem,
+  WardMar,
+  AdmissionCharge,
+  AdmissionBillLine,
+  AdmissionBill,
+  MyAdmissions,
   VisitSource,
   QueueTicketStatus,
   TriageLevel,

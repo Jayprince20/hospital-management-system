@@ -13,9 +13,10 @@ import ops from './ops';
 import payments from './payments';
 import insurance from './insurance';
 import queue from './queue';
+import inpatient from './inpatient';
 
 // Register feature dictionaries here. Later entries override earlier ones.
-const dictionaries: LocaleDictionary[] = [common, lab, patients, appointments, pharmacy, clinical, admin, audit, privacy, security, ops, payments, insurance, queue];
+const dictionaries: LocaleDictionary[] = [common, lab, patients, appointments, pharmacy, clinical, admin, audit, privacy, security, ops, payments, insurance, queue, inpatient];
 
 export const extraTranslations: LocaleDictionary = dictionaries.reduce<LocaleDictionary>(
   (acc, dict) => ({ en: { ...acc.en, ...dict.en }, fr: { ...acc.fr, ...dict.fr } }),

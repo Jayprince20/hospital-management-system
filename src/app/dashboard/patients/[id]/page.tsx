@@ -16,6 +16,7 @@ import { useLanguage } from '@/context/language-context';
 import { useAuth } from '@/context/auth-context';
 import { PatientConsentsPanel, PatientDataProtection } from '@/components/consent';
 import { PatientCoveragePanel } from '@/components/insurance';
+import { AdmissionDialog } from '@/components/inpatient';
 
 type TabType = 'overview' | 'appointments' | 'prescriptions' | 'lab-results' | 'vitals' | 'billing' | 'coverage' | 'documents' | 'consents';
 
@@ -31,6 +32,8 @@ export default function PatientDetailPage() {
   const isAdmin = user?.role === 'ADMIN';
   const [deleting, setDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [admitting, setAdmitting] = useState(false);
+  const canAdmit = user?.role === 'ADMIN' || user?.role === 'DOCTOR' || user?.role === 'RECEPTIONIST';
 
   const fetchPatient = useCallback(async () => {
     try {
@@ -170,7 +173,19 @@ export default function PatientDetailPage() {
           </div>
           {/* An anonymised record is frozen: no new visits, no edits that could bring identity back */}
           {!patient.anonymizedAt && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {canAdmit && (
+              <button
+                type="button"
+                onClick={() => setAdmitting(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg text-sm font-medium transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v11m0-4h18m0 4V9a2 2 0 00-2-2h-8v7M7 11a2 2 0 100-4 2 2 0 000 4z" />
+                </svg>
+                {t('inp.admitPatient')}
+              </button>
+            )}
             <Link
               href={`/dashboard/appointments/new?patientId=${patient.id}`}
               className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
@@ -821,6 +836,16 @@ export default function PatientDetailPage() {
             </div>
           </div>
         </div>
+      )}
+      {admitting && (
+        <AdmissionDialog
+          patient={{ id: patient.id, patientId: patient.patientId, firstName: patient.firstName, lastName: patient.lastName, gender: patient.gender, dateOfBirth: patient.dateOfBirth }}
+          onClose={() => setAdmitting(false)}
+          onAdmitted={(admission) => {
+            setAdmitting(false);
+            router.push(`/dashboard/admissions/${admission.id}`);
+          }}
+        />
       )}
     </div>
   );

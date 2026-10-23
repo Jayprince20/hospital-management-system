@@ -9,6 +9,7 @@ import { useToast } from '@/components/toast';
 import { useConfirm } from '@/components/confirm-modal';
 import { TicketCard } from '@/components/queue/ticket-card';
 import { CallDialog, CancelDialog, DisplayLinkDialog, NewTicketDialog, TransferDialog } from '@/components/queue/queue-dialogs';
+import { AdmissionDialog } from '@/components/inpatient';
 import {
   allowedActions,
   DEPARTMENT_STORAGE_KEY,
@@ -29,6 +30,7 @@ type Dialog =
   | { kind: 'transfer'; ticket: QueueTicket }
   | { kind: 'new' }
   | { kind: 'display' }
+  | { kind: 'admit'; ticket: QueueTicket }
   | null;
 
 export default function QueuePage() {
@@ -41,6 +43,8 @@ export default function QueuePage() {
   const isDoctor = role === 'DOCTOR';
   const canCallNext = role === 'DOCTOR' || role === 'NURSE' || role === 'ADMIN';
   const canShareScreen = role === 'ADMIN' || role === 'RECEPTIONIST';
+  // A doctor seeing a patient can admit them straight from the queue
+  const canAdmit = role === 'DOCTOR' || role === 'ADMIN';
 
   const [departments, setDepartments] = useState<Department[]>([]);
   // null until we know which department to show (stored choice, or the doctor's own)
@@ -212,7 +216,14 @@ export default function QueuePage() {
       <div className="space-y-2">
         {tickets.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400 px-1 py-4 text-center">{t('q.col.empty')}</p>}
         {tickets.map((ticket) => (
-          <TicketCard key={ticket.id} ticket={ticket} actions={actionsFor(ticket)} busy={busyId === ticket.id} onAction={onAction} />
+          <TicketCard
+            key={ticket.id}
+            ticket={ticket}
+            actions={actionsFor(ticket)}
+            busy={busyId === ticket.id}
+            onAction={onAction}
+            onAdmit={canAdmit ? (tk) => setDialog({ kind: 'admit', ticket: tk }) : undefined}
+          />
         ))}
       </div>
     </section>
@@ -359,6 +370,27 @@ export default function QueuePage() {
             setDialog(null);
             toast.success(t('q.new.created', { number: ticket.number }));
             load();
+          }}
+        />
+      )}
+      {dialog?.kind === 'admit' && (
+        <AdmissionDialog
+          patient={{
+            id: dialog.ticket.patient.id,
+            patientId: dialog.ticket.patient.patientId,
+            firstName: dialog.ticket.patient.firstName,
+            lastName: dialog.ticket.patient.lastName,
+            gender: dialog.ticket.patient.gender,
+            age: dialog.ticket.patient.age,
+          }}
+          queueTicketId={dialog.ticket.id}
+          defaultSource={dialog.ticket.source === 'EMERGENCY' ? 'EMERGENCY' : 'OUTPATIENT'}
+          defaultReason={dialog.ticket.latestTriage?.chiefComplaint ?? dialog.ticket.appointment?.reason ?? ''}
+          onClose={() => setDialog(null)}
+          onAdmitted={(admission) => {
+            setDialog(null);
+            toast.success(t('inp.admit.done', { number: admission.number }));
+            router.push(`/dashboard/admissions/${admission.id}`);
           }}
         />
       )}

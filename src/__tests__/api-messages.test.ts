@@ -45,6 +45,10 @@ describe('localizeServerMessage', () => {
     'Payment exceeds the insurer balance of invoice INV-2026-00012',
     'Invalid status: LOST',
     'This action is not possible for a ticket in status DONE',
+    'Patient is allergic to Pénicilline',
+    'Invalid administration time: 25:00',
+    'At most 8 administration times per day',
+    'Invalid note type: X',
   ];
 
   it('has a sample for every message pattern', () => {

@@ -30,9 +30,11 @@ interface TicketCardProps {
   actions: QueueActionName[];
   busy?: boolean;
   onAction: (action: QueueActionName, ticket: QueueTicket) => void;
+  /** Offered on a ticket in consultation: admit the patient (doctors and admin) */
+  onAdmit?: (ticket: QueueTicket) => void;
 }
 
-export function TicketCard({ ticket, actions, busy, onAction }: TicketCardProps) {
+export function TicketCard({ ticket, actions, busy, onAction, onAdmit }: TicketCardProps) {
   const { t, formatDateTime, formatTime } = useLanguage();
   const { canAccess } = useAuth();
   const patientHref = `/dashboard/patients/${ticket.patient.id}`;
@@ -140,6 +142,16 @@ export function TicketCard({ ticket, actions, busy, onAction }: TicketCardProps)
             >
               {t('q.ticket.openConsultation')}
             </Link>
+          )}
+          {ticket.status === 'IN_SERVICE' && onAdmit && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onAdmit(ticket)}
+              className="px-2.5 py-1 text-xs font-medium rounded-md border border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-900/30 disabled:opacity-50"
+            >
+              {t('inp.admitPatient')}
+            </button>
           )}
           {canAccess(patientHref) && (
             <Link href={patientHref} className="ml-auto text-xs text-lime-700 dark:text-lime-400 hover:underline">

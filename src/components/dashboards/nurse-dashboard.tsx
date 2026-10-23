@@ -8,6 +8,7 @@ import { LoadingState, ErrorState } from '@/components/ui';
 import { useLanguage } from '@/context/language-context';
 import { useToast } from '@/components/toast';
 import { TriageQueueCard } from '@/components/queue';
+import { MarRoundCard } from '@/components/inpatient';
 
 interface WaitingPatient {
   id: string;
@@ -205,6 +206,7 @@ export function NurseDashboard() {
       </div>
 
       <TriageQueueCard />
+      <MarRoundCard />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
