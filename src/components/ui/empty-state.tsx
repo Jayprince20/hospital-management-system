@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode } from 'react';
+import { useLanguage } from '@/context/language-context';
 
 type EmptyStateVariant = 'default' | 'search' | 'error' | 'success';
 
@@ -122,16 +123,17 @@ interface NoResultsProps {
 }
 
 export function NoResults({ searchTerm, onClear, className }: NoResultsProps) {
+  const { t } = useLanguage();
   return (
     <EmptyState
       variant="search"
-      title="No results found"
+      title={t('admin.ui.noResults')}
       description={
         searchTerm
-          ? `No results found for "${searchTerm}". Try adjusting your search or filters.`
-          : 'Try adjusting your search or filters to find what you are looking for.'
+          ? t('admin.ui.noResultsFor', { term: searchTerm })
+          : t('admin.ui.adjustFilters')
       }
-      action={onClear ? { label: 'Clear search', onClick: onClear } : undefined}
+      action={onClear ? { label: t('admin.ui.clearSearch'), onClick: onClear } : undefined}
       className={className}
     />
   );
@@ -145,17 +147,18 @@ interface ErrorStateProps {
 }
 
 export function ErrorState({
-  title = 'Something went wrong',
-  message = 'An error occurred while loading the data. Please try again.',
+  title,
+  message,
   onRetry,
   className,
 }: ErrorStateProps) {
+  const { t } = useLanguage();
   return (
     <EmptyState
       variant="error"
-      title={title}
-      description={message}
-      action={onRetry ? { label: 'Try again', onClick: onRetry } : undefined}
+      title={title ?? t('admin.ui.somethingWrong')}
+      description={message ?? t('admin.ui.loadErrorDesc')}
+      action={onRetry ? { label: t('admin.ui.tryAgain'), onClick: onRetry } : undefined}
       className={className}
     />
   );
@@ -171,20 +174,21 @@ interface NoDataProps {
 }
 
 export function NoData({
-  title = 'No data yet',
-  description = 'Get started by adding your first item.',
-  actionLabel = 'Add new',
+  title,
+  description,
+  actionLabel,
   onAction,
   icon,
   className,
 }: NoDataProps) {
+  const { t } = useLanguage();
   return (
     <EmptyState
       variant="default"
-      title={title}
-      description={description}
+      title={title ?? t('admin.ui.noDataYet')}
+      description={description ?? t('admin.ui.getStarted')}
       icon={icon}
-      action={onAction ? { label: actionLabel, onClick: onAction } : undefined}
+      action={onAction ? { label: actionLabel ?? t('admin.ui.addNew'), onClick: onAction } : undefined}
       className={className}
     />
   );

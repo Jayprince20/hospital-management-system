@@ -10,7 +10,7 @@ import { LoadingSpinner, NoResults } from '@/components/ui';
 
 export default function MyPatientsPage() {
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, tEnum, formatDate } = useLanguage();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +24,7 @@ export default function MyPatientsPage() {
 
   const fetchMyPatients = useCallback(async () => {
     if (!user?.doctorId) {
-      setError('Doctor profile not found. Please contact support.');
+      setError(t('myPatients.noDoctorProfile'));
       setIsLoading(false);
       return;
     }
@@ -45,7 +45,7 @@ export default function MyPatientsPage() {
       setTotalPages(response.totalPages || 1);
     } catch (err) {
       console.error('Error fetching patients:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch patients');
+      setError(err instanceof Error ? err.message : t('patientsPage.errFetch'));
     } finally {
       setIsLoading(false);
     }
@@ -76,9 +76,9 @@ export default function MyPatientsPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Patients</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('myPatients.title')}</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            View patients you have treated or have upcoming appointments with
+            {t('myPatients.subtitle')}
           </p>
         </div>
       </div>
@@ -102,7 +102,7 @@ export default function MyPatientsPage() {
             </svg>
             <input
               type="text"
-              placeholder="Search patients by name, email, or ID..."
+              placeholder={t('myPatients.searchPh')}
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -122,7 +122,7 @@ export default function MyPatientsPage() {
             onClick={fetchMyPatients}
             className="mt-2 text-sm text-red-600 dark:text-red-300 underline"
           >
-            Try again
+            {t('myPatients.tryAgain')}
           </button>
         </div>
       )}
@@ -134,25 +134,25 @@ export default function MyPatientsPage() {
             <thead className="bg-gray-50 dark:bg-gray-700/50">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Patient
+                  {t('myPatients.colPatient')}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Hospital ID
+                  {t('myPatients.colHospitalId')}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Contact
+                  {t('myPatients.colContact')}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Age / Gender
+                  {t('myPatients.colAgeGender')}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Blood Type
+                  {t('myPatients.colBloodType')}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Last Visit
+                  {t('myPatients.colLastVisit')}
                 </th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Actions
+                  {t('myPatients.colActions')}
                 </th>
               </tr>
             </thead>
@@ -206,7 +206,7 @@ export default function MyPatientsPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-900 dark:text-white">
-                          {calculateAge(patient.dateOfBirth)} yrs
+                          {t('unit.years', { count: calculateAge(patient.dateOfBirth) })}
                         </span>
                         <span className={`inline-flex items-center justify-center w-5 h-5 rounded text-xs font-medium ${
                           patient.gender === 'MALE'
@@ -215,18 +215,18 @@ export default function MyPatientsPage() {
                             ? 'bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300'
                             : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                         }`}>
-                          {patient.gender[0]}
+                          {tEnum(patient.gender).charAt(0)}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
-                        {patient.bloodType || 'N/A'}
+                        {patient.bloodType ? tEnum(patient.bloodType) : t('patientsPage.na')}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-gray-600 dark:text-gray-400">
-                        {patient.createdAt ? new Date(patient.createdAt).toLocaleDateString() : 'N/A'}
+                        {patient.createdAt ? formatDate(patient.createdAt) : t('patientsPage.na')}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -234,7 +234,7 @@ export default function MyPatientsPage() {
                         <Link
                           href={`/dashboard/patients/${patient.id}`}
                           className="p-2 text-gray-500 hover:text-lime-600 dark:text-gray-400 dark:hover:text-lime-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          title="View Patient"
+                          title={t('myPatients.viewPatient')}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -244,7 +244,7 @@ export default function MyPatientsPage() {
                         <Link
                           href={`/dashboard/appointments/new?patientId=${patient.id}`}
                           className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          title="Schedule Appointment"
+                          title={t('myPatients.schedule')}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -253,7 +253,7 @@ export default function MyPatientsPage() {
                         <Link
                           href={`/dashboard/records?patientId=${patient.id}`}
                           className="p-2 text-gray-500 hover:text-purple-600 dark:text-gray-400 dark:hover:text-purple-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          title="View Records"
+                          title={t('myPatients.viewRecords')}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -273,11 +273,11 @@ export default function MyPatientsPage() {
           <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Showing <span className="font-medium text-gray-900 dark:text-white">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+                {t('table.showing')} <span className="font-medium text-gray-900 dark:text-white">{(currentPage - 1) * itemsPerPage + 1}</span> {t('table.to')}{' '}
                 <span className="font-medium text-gray-900 dark:text-white">
                   {Math.min(currentPage * itemsPerPage, total)}
                 </span>{' '}
-                of <span className="font-medium text-gray-900 dark:text-white">{total}</span> patients
+                {t('table.ofTotal')} <span className="font-medium text-gray-900 dark:text-white">{total}</span> {t('patients.title').toLowerCase()}
               </p>
               <div className="flex items-center gap-2">
                 <button
@@ -285,7 +285,7 @@ export default function MyPatientsPage() {
                   disabled={currentPage === 1}
                   className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Previous
+                  {t('myPatients.previous')}
                 </button>
                 <div className="flex items-center gap-1">
                   {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((page) => (
@@ -307,7 +307,7 @@ export default function MyPatientsPage() {
                   disabled={currentPage === totalPages}
                   className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Next
+                  {t('myPatients.next')}
                 </button>
               </div>
             </div>
@@ -325,7 +325,7 @@ export default function MyPatientsPage() {
           </div>
           <div>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">{total}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Total Patients</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('myPatients.totalPatients')}</p>
           </div>
         </div>
       </div>

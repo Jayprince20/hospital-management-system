@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { api, PatientDetail } from '@/lib/api';
+import { api, PatientDetail, type Patient } from '@/lib/api';
+import { useLanguage } from '@/context/language-context';
+import { toLocalDateString } from '@/lib/formatters';
 
 interface PatientFormData {
   firstName: string;
@@ -64,6 +66,7 @@ const initialFormData: PatientFormData = {
 export default function EditPatientPage() {
   const router = useRouter();
   const params = useParams();
+  const { t, tEnum } = useLanguage();
   const [formData, setFormData] = useState<PatientFormData>(initialFormData);
   const [originalPatient, setOriginalPatient] = useState<PatientDetail | null>(null);
   const [errors, setErrors] = useState<Partial<Record<keyof PatientFormData, string>>>({});
@@ -108,7 +111,7 @@ export default function EditPatientPage() {
       });
       setFetchError(null);
     } catch (err) {
-      setFetchError('Failed to load patient data');
+      setFetchError(t('patientForm.errLoad'));
       console.error('Fetch error:', err);
     } finally {
       setLoading(false);
@@ -120,10 +123,10 @@ export default function EditPatientPage() {
   }, [fetchPatient]);
 
   const steps = [
-    { id: 1, name: 'Personal Info', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-    { id: 2, name: 'Contact & Address', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
-    { id: 3, name: 'Medical Info', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-    { id: 4, name: 'Insurance', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+    { id: 1, name: t('patientForm.stepPersonal'), icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+    { id: 2, name: t('patientForm.stepContact'), icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+    { id: 3, name: t('patientForm.stepMedical'), icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+    { id: 4, name: t('patientForm.stepInsurance'), icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
   ];
 
   const handleChange = (
@@ -143,35 +146,34 @@ export default function EditPatientPage() {
     const newErrors: Partial<Record<keyof PatientFormData, string>> = {};
 
     if (step === 1) {
-      if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-      if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+      if (!formData.firstName.trim()) newErrors.firstName = t('patientForm.errFirstName');
+      if (!formData.lastName.trim()) newErrors.lastName = t('patientForm.errLastName');
       if (!formData.email.trim()) {
-        newErrors.email = 'Email is required';
+        newErrors.email = t('patientForm.errEmail');
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        newErrors.email = 'Invalid email format';
+        newErrors.email = t('patientForm.errEmailFormat');
       }
-      if (!formData.phoneNumber.trim()) newErrors.phoneNumber = 'Phone number is required';
-      if (!formData.dateOfBirth) newErrors.dateOfBirth = 'Date of birth is required';
-      if (!formData.gender) newErrors.gender = 'Gender is required';
+      if (!formData.phoneNumber.trim()) newErrors.phoneNumber = t('patientForm.errPhone');
+      if (!formData.dateOfBirth) newErrors.dateOfBirth = t('patientForm.errDob');
+      if (!formData.gender) newErrors.gender = t('patientForm.errGender');
     }
 
     if (step === 2) {
-      if (!formData.address.trim()) newErrors.address = 'Address is required';
-      if (!formData.city.trim()) newErrors.city = 'City is required';
-      if (!formData.state.trim()) newErrors.state = 'State is required';
-      if (!formData.zipCode.trim()) newErrors.zipCode = 'ZIP code is required';
-      if (!formData.country.trim()) newErrors.country = 'Country is required';
-      if (!formData.emergencyName.trim()) newErrors.emergencyName = 'Emergency contact name is required';
-      if (!formData.emergencyRelation.trim()) newErrors.emergencyRelation = 'Relationship is required';
-      if (!formData.emergencyPhone.trim()) newErrors.emergencyPhone = 'Emergency phone is required';
+      if (!formData.address.trim()) newErrors.address = t('patientForm.errAddress');
+      if (!formData.city.trim()) newErrors.city = t('patientForm.errCity');
+      if (!formData.state.trim()) newErrors.state = t('patientForm.errState');
+      if (!formData.country.trim()) newErrors.country = t('patientForm.errCountry');
+      if (!formData.emergencyName.trim()) newErrors.emergencyName = t('patientForm.errEmergencyName');
+      if (!formData.emergencyRelation.trim()) newErrors.emergencyRelation = t('patientForm.errRelation');
+      if (!formData.emergencyPhone.trim()) newErrors.emergencyPhone = t('patientForm.errEmergencyPhone');
     }
 
     if (step === 4 && formData.hasInsurance) {
-      if (!formData.insuranceProvider.trim()) newErrors.insuranceProvider = 'Provider is required';
-      if (!formData.policyNumber.trim()) newErrors.policyNumber = 'Policy number is required';
-      if (!formData.insuranceValidFrom) newErrors.insuranceValidFrom = 'Valid from date is required';
-      if (!formData.insuranceValidUntil) newErrors.insuranceValidUntil = 'Valid until date is required';
-      if (!formData.coverageType) newErrors.coverageType = 'Coverage type is required';
+      if (!formData.insuranceProvider.trim()) newErrors.insuranceProvider = t('patientForm.errProvider');
+      if (!formData.policyNumber.trim()) newErrors.policyNumber = t('patientForm.errPolicy');
+      if (!formData.insuranceValidFrom) newErrors.insuranceValidFrom = t('patientForm.errValidFrom');
+      if (!formData.insuranceValidUntil) newErrors.insuranceValidUntil = t('patientForm.errValidUntil');
+      if (!formData.coverageType) newErrors.coverageType = t('patientForm.errCoverage');
     }
 
     setErrors(newErrors);
@@ -190,6 +192,10 @@ export default function EditPatientPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (currentStep < 4) {
+      handleNext();
+      return;
+    }
 
     if (!validateStep(currentStep)) return;
 
@@ -197,9 +203,9 @@ export default function EditPatientPage() {
 
     try {
       // Prepare update data
-      const updateData: any = {
+      const updateData: Parameters<typeof api.updatePatient>[1] = {
         dateOfBirth: new Date(formData.dateOfBirth).toISOString(),
-        gender: formData.gender,
+        gender: formData.gender as Patient['gender'],
         bloodType: formData.bloodType || undefined,
         address: formData.address,
         city: formData.city,
@@ -218,7 +224,7 @@ export default function EditPatientPage() {
       router.push(`/dashboard/patients/${params.id}`);
     } catch (error) {
       console.error('Error updating patient:', error);
-      setErrors({ firstName: 'Failed to update patient. Please try again.' });
+      setErrors({ firstName: t('patientForm.errUpdate') });
     } finally {
       setIsSubmitting(false);
     }
@@ -242,12 +248,12 @@ export default function EditPatientPage() {
   if (fetchError || !originalPatient) {
     return (
       <div className="flex flex-col items-center justify-center h-96">
-        <p className="text-red-600 mb-4">{fetchError || 'Patient not found'}</p>
+        <p className="text-red-600 mb-4">{fetchError || t('patientForm.notFound')}</p>
         <Link
           href="/dashboard/patients"
           className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700"
         >
-          Back to Patients
+          {t('patientForm.backToPatients')}
         </Link>
       </div>
     );
@@ -268,10 +274,10 @@ export default function EditPatientPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Edit Patient: {originalPatient.firstName} {originalPatient.lastName}
+              {t('patientForm.titleEdit', { name: `${originalPatient.firstName} ${originalPatient.lastName}` })}
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Patient ID: {originalPatient.patientId}
+              {t('patientForm.patientIdValue', { id: originalPatient.patientId })}
             </p>
           </div>
         </div>
@@ -325,12 +331,12 @@ export default function EditPatientPage() {
           {currentStep === 1 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Personal Information
+                {t('patientForm.personalInfo')}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    First Name <span className="text-red-500">*</span>
+                    {t('patientForm.firstName')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -338,18 +344,18 @@ export default function EditPatientPage() {
                     value={formData.firstName}
                     onChange={handleChange}
                     className={inputClassName('firstName')}
-                    placeholder="Enter first name"
+                    placeholder={t('patientForm.firstNamePh')}
                     disabled
                   />
                   {errors.firstName && (
                     <p className="mt-1 text-sm text-red-500">{errors.firstName}</p>
                   )}
-                  <p className="mt-1 text-xs text-gray-500">Name changes require admin approval</p>
+                  <p className="mt-1 text-xs text-gray-500">{t('patientForm.nameChangeHelp')}</p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Last Name <span className="text-red-500">*</span>
+                    {t('patientForm.lastName')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -357,7 +363,7 @@ export default function EditPatientPage() {
                     value={formData.lastName}
                     onChange={handleChange}
                     className={inputClassName('lastName')}
-                    placeholder="Enter last name"
+                    placeholder={t('patientForm.lastNamePh')}
                     disabled
                   />
                   {errors.lastName && (
@@ -367,7 +373,7 @@ export default function EditPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Email <span className="text-red-500">*</span>
+                    {t('patientForm.emailShort')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="email"
@@ -375,18 +381,18 @@ export default function EditPatientPage() {
                     value={formData.email}
                     onChange={handleChange}
                     className={inputClassName('email')}
-                    placeholder="Enter email address"
+                    placeholder={t('patientForm.emailPh')}
                     disabled
                   />
                   {errors.email && (
                     <p className="mt-1 text-sm text-red-500">{errors.email}</p>
                   )}
-                  <p className="mt-1 text-xs text-gray-500">Email changes require verification</p>
+                  <p className="mt-1 text-xs text-gray-500">{t('patientForm.emailChangeHelp')}</p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Phone Number <span className="text-red-500">*</span>
+                    {t('patientForm.phone')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="tel"
@@ -394,7 +400,7 @@ export default function EditPatientPage() {
                     value={formData.phoneNumber}
                     onChange={handleChange}
                     className={inputClassName('phoneNumber')}
-                    placeholder="Enter phone number"
+                    placeholder={t('patientForm.phonePh')}
                     disabled
                   />
                   {errors.phoneNumber && (
@@ -404,7 +410,7 @@ export default function EditPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Date of Birth <span className="text-red-500">*</span>
+                    {t('patientForm.dob')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -412,7 +418,7 @@ export default function EditPatientPage() {
                     value={formData.dateOfBirth}
                     onChange={handleChange}
                     className={inputClassName('dateOfBirth')}
-                    max={new Date().toISOString().split('T')[0]}
+                    max={toLocalDateString()}
                   />
                   {errors.dateOfBirth && (
                     <p className="mt-1 text-sm text-red-500">{errors.dateOfBirth}</p>
@@ -421,7 +427,7 @@ export default function EditPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Gender <span className="text-red-500">*</span>
+                    {t('patientForm.gender')} <span className="text-red-500">*</span>
                   </label>
                   <select
                     name="gender"
@@ -429,10 +435,10 @@ export default function EditPatientPage() {
                     onChange={handleChange}
                     className={inputClassName('gender')}
                   >
-                    <option value="">Select gender</option>
-                    <option value="MALE">Male</option>
-                    <option value="FEMALE">Female</option>
-                    <option value="OTHER">Other</option>
+                    <option value="">{t('patientForm.selectGender')}</option>
+                    <option value="MALE">{tEnum('MALE')}</option>
+                    <option value="FEMALE">{tEnum('FEMALE')}</option>
+                    <option value="OTHER">{tEnum('OTHER')}</option>
                   </select>
                   {errors.gender && (
                     <p className="mt-1 text-sm text-red-500">{errors.gender}</p>
@@ -441,7 +447,7 @@ export default function EditPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Blood Type
+                    {t('patientForm.bloodType')}
                   </label>
                   <select
                     name="bloodType"
@@ -449,7 +455,7 @@ export default function EditPatientPage() {
                     onChange={handleChange}
                     className={inputClassName('bloodType')}
                   >
-                    <option value="">Select blood type</option>
+                    <option value="">{t('patientForm.selectBloodType')}</option>
                     <option value="A_POSITIVE">A+</option>
                     <option value="A_NEGATIVE">A-</option>
                     <option value="B_POSITIVE">B+</option>
@@ -468,12 +474,12 @@ export default function EditPatientPage() {
           {currentStep === 2 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Address Information
+                {t('patientForm.addressInfo')}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Street Address <span className="text-red-500">*</span>
+                    {t('patientForm.street')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -481,7 +487,7 @@ export default function EditPatientPage() {
                     value={formData.address}
                     onChange={handleChange}
                     className={inputClassName('address')}
-                    placeholder="Enter street address"
+                    placeholder={t('patientForm.streetPh')}
                   />
                   {errors.address && (
                     <p className="mt-1 text-sm text-red-500">{errors.address}</p>
@@ -490,7 +496,7 @@ export default function EditPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    City <span className="text-red-500">*</span>
+                    {t('patientForm.city')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -498,7 +504,7 @@ export default function EditPatientPage() {
                     value={formData.city}
                     onChange={handleChange}
                     className={inputClassName('city')}
-                    placeholder="Enter city"
+                    placeholder={t('patientForm.cityPh')}
                   />
                   {errors.city && (
                     <p className="mt-1 text-sm text-red-500">{errors.city}</p>
@@ -507,7 +513,7 @@ export default function EditPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    State/Province <span className="text-red-500">*</span>
+                    {t('patientForm.state')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -515,7 +521,7 @@ export default function EditPatientPage() {
                     value={formData.state}
                     onChange={handleChange}
                     className={inputClassName('state')}
-                    placeholder="Enter state"
+                    placeholder={t('patientForm.statePh')}
                   />
                   {errors.state && (
                     <p className="mt-1 text-sm text-red-500">{errors.state}</p>
@@ -524,7 +530,7 @@ export default function EditPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    ZIP/Postal Code <span className="text-red-500">*</span>
+                    {t('patientForm.zipCode')} <span className="text-gray-400 font-normal">({t('patientForm.optional')})</span>
                   </label>
                   <input
                     type="text"
@@ -532,7 +538,7 @@ export default function EditPatientPage() {
                     value={formData.zipCode}
                     onChange={handleChange}
                     className={inputClassName('zipCode')}
-                    placeholder="Enter ZIP code"
+                    placeholder={t('patientForm.zipPh')}
                   />
                   {errors.zipCode && (
                     <p className="mt-1 text-sm text-red-500">{errors.zipCode}</p>
@@ -541,7 +547,7 @@ export default function EditPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Country <span className="text-red-500">*</span>
+                    {t('patientForm.country')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -549,7 +555,7 @@ export default function EditPatientPage() {
                     value={formData.country}
                     onChange={handleChange}
                     className={inputClassName('country')}
-                    placeholder="Enter country"
+                    placeholder={t('patientForm.countryPh')}
                   />
                   {errors.country && (
                     <p className="mt-1 text-sm text-red-500">{errors.country}</p>
@@ -558,12 +564,12 @@ export default function EditPatientPage() {
               </div>
 
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Emergency Contact
+                {t('patientForm.emergency')}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Contact Name <span className="text-red-500">*</span>
+                    {t('patientForm.contactName')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -571,7 +577,7 @@ export default function EditPatientPage() {
                     value={formData.emergencyName}
                     onChange={handleChange}
                     className={inputClassName('emergencyName')}
-                    placeholder="Enter contact name"
+                    placeholder={t('patientForm.contactNamePh')}
                   />
                   {errors.emergencyName && (
                     <p className="mt-1 text-sm text-red-500">{errors.emergencyName}</p>
@@ -580,7 +586,7 @@ export default function EditPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Relationship <span className="text-red-500">*</span>
+                    {t('patientForm.relationship')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -588,7 +594,7 @@ export default function EditPatientPage() {
                     value={formData.emergencyRelation}
                     onChange={handleChange}
                     className={inputClassName('emergencyRelation')}
-                    placeholder="e.g., Spouse, Parent"
+                    placeholder={t('patientForm.relationPh')}
                   />
                   {errors.emergencyRelation && (
                     <p className="mt-1 text-sm text-red-500">{errors.emergencyRelation}</p>
@@ -597,7 +603,7 @@ export default function EditPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Phone Number <span className="text-red-500">*</span>
+                    {t('patientForm.phone')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="tel"
@@ -605,7 +611,7 @@ export default function EditPatientPage() {
                     value={formData.emergencyPhone}
                     onChange={handleChange}
                     className={inputClassName('emergencyPhone')}
-                    placeholder="Enter phone number"
+                    placeholder={t('patientForm.phonePh')}
                   />
                   {errors.emergencyPhone && (
                     <p className="mt-1 text-sm text-red-500">{errors.emergencyPhone}</p>
@@ -619,12 +625,12 @@ export default function EditPatientPage() {
           {currentStep === 3 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Medical Information
+                {t('patientForm.medicalInfo')}
               </h2>
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Allergies
+                    {t('patientForm.allergies')}
                   </label>
                   <textarea
                     name="allergies"
@@ -632,16 +638,16 @@ export default function EditPatientPage() {
                     onChange={handleChange}
                     rows={3}
                     className={inputClassName('allergies')}
-                    placeholder="Enter allergies separated by commas (e.g., Penicillin, Peanuts, Latex)"
+                    placeholder={t('patientForm.allergiesPh')}
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Separate multiple allergies with commas
+                    {t('patientForm.allergiesHelp')}
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Chronic Conditions
+                    {t('patientForm.chronic')}
                   </label>
                   <textarea
                     name="chronicConditions"
@@ -649,16 +655,16 @@ export default function EditPatientPage() {
                     onChange={handleChange}
                     rows={3}
                     className={inputClassName('chronicConditions')}
-                    placeholder="Enter chronic conditions separated by commas (e.g., Diabetes, Hypertension)"
+                    placeholder={t('patientForm.chronicPh')}
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Separate multiple conditions with commas
+                    {t('patientForm.chronicHelp')}
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Additional Notes
+                    {t('patientForm.notes')}
                   </label>
                   <textarea
                     name="notes"
@@ -666,7 +672,7 @@ export default function EditPatientPage() {
                     onChange={handleChange}
                     rows={4}
                     className={inputClassName('notes')}
-                    placeholder="Enter any additional medical notes or information"
+                    placeholder={t('patientForm.notesPh')}
                   />
                 </div>
               </div>
@@ -677,7 +683,7 @@ export default function EditPatientPage() {
           {currentStep === 4 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Insurance Information
+                {t('patientForm.insuranceInfo')}
               </h2>
 
               <div className="mb-6">
@@ -690,7 +696,7 @@ export default function EditPatientPage() {
                     className="w-4 h-4 text-lime-600 bg-gray-100 border-gray-300 rounded focus:ring-lime-500 dark:focus:ring-lime-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                   />
                   <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Patient has insurance coverage
+                    {t('patientForm.hasCoverage')}
                   </span>
                 </label>
               </div>
@@ -699,7 +705,7 @@ export default function EditPatientPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Insurance Provider <span className="text-red-500">*</span>
+                      {t('patientForm.provider')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -707,7 +713,7 @@ export default function EditPatientPage() {
                       value={formData.insuranceProvider}
                       onChange={handleChange}
                       className={inputClassName('insuranceProvider')}
-                      placeholder="Enter insurance provider name"
+                      placeholder={t('patientForm.providerPh')}
                     />
                     {errors.insuranceProvider && (
                       <p className="mt-1 text-sm text-red-500">{errors.insuranceProvider}</p>
@@ -716,7 +722,7 @@ export default function EditPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Policy Number <span className="text-red-500">*</span>
+                      {t('patientForm.policy')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -724,7 +730,7 @@ export default function EditPatientPage() {
                       value={formData.policyNumber}
                       onChange={handleChange}
                       className={inputClassName('policyNumber')}
-                      placeholder="Enter policy number"
+                      placeholder={t('patientForm.policyPh')}
                     />
                     {errors.policyNumber && (
                       <p className="mt-1 text-sm text-red-500">{errors.policyNumber}</p>
@@ -733,7 +739,7 @@ export default function EditPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Group Number
+                      {t('patientForm.group')}
                     </label>
                     <input
                       type="text"
@@ -741,13 +747,13 @@ export default function EditPatientPage() {
                       value={formData.groupNumber}
                       onChange={handleChange}
                       className={inputClassName('groupNumber')}
-                      placeholder="Enter group number (optional)"
+                      placeholder={t('patientForm.groupPh')}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Valid From <span className="text-red-500">*</span>
+                      {t('patientForm.validFrom')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="date"
@@ -763,7 +769,7 @@ export default function EditPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Valid Until <span className="text-red-500">*</span>
+                      {t('patientForm.validUntil')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="date"
@@ -779,7 +785,7 @@ export default function EditPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Coverage Type <span className="text-red-500">*</span>
+                      {t('patientForm.coverage')} <span className="text-red-500">*</span>
                     </label>
                     <select
                       name="coverageType"
@@ -787,11 +793,11 @@ export default function EditPatientPage() {
                       onChange={handleChange}
                       className={inputClassName('coverageType')}
                     >
-                      <option value="">Select coverage type</option>
-                      <option value="Full Coverage">Full Coverage</option>
-                      <option value="Partial Coverage">Partial Coverage</option>
-                      <option value="Basic">Basic</option>
-                      <option value="Premium">Premium</option>
+                      <option value="">{t('patientForm.selectCoverage')}</option>
+                      <option value="Full Coverage">{t('patientForm.coverageFULL')}</option>
+                      <option value="Partial Coverage">{t('patientForm.coveragePARTIAL')}</option>
+                      <option value="Basic">{t('patientForm.coverageBASIC')}</option>
+                      <option value="Premium">{t('patientForm.coveragePREMIUM')}</option>
                     </select>
                     {errors.coverageType && (
                       <p className="mt-1 text-sm text-red-500">{errors.coverageType}</p>
@@ -805,8 +811,8 @@ export default function EditPatientPage() {
                   <svg className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
-                  <p>No insurance information to enter</p>
-                  <p className="text-sm mt-1">Check the box above if the patient has insurance coverage</p>
+                  <p>{t('patientForm.noInsurance')}</p>
+                  <p className="text-sm mt-1">{t('patientForm.checkCoverage')}</p>
                 </div>
               )}
             </div>
@@ -824,7 +830,7 @@ export default function EditPatientPage() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
-                  Previous
+                  {t('patientForm.previous')}
                 </button>
               )}
             </div>
@@ -834,22 +840,22 @@ export default function EditPatientPage() {
                 href={`/dashboard/patients/${params.id}`}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
               >
-                Cancel
+                {t('patientForm.cancel')}
               </Link>
 
               {currentStep < 4 ? (
-                <button
+                <button key="step-next"
                   type="button"
                   onClick={handleNext}
                   className="inline-flex items-center gap-2 px-6 py-2.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors"
                 >
-                  Next
+                  {t('patientForm.next')}
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
               ) : (
-                <button
+                <button key="step-submit"
                   type="submit"
                   disabled={isSubmitting}
                   className="inline-flex items-center gap-2 px-6 py-2.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -860,14 +866,14 @@ export default function EditPatientPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Saving Changes...
+                      {t('patientForm.saving')}
                     </>
                   ) : (
                     <>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Save Changes
+                      {t('patientForm.save')}
                     </>
                   )}
                 </button>

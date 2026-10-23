@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { api } from '@/lib/api';
+import { api, type AppointmentType } from '@/lib/api';
 import { useToast } from '@/components/toast';
+import { useLanguage } from '@/context/language-context';
+import { toLocalDateString } from '@/lib/formatters';
 
 interface Appointment {
   id: string;
@@ -47,6 +49,7 @@ interface Doctor {
 
 export function ReceptionistDashboard() {
   const toast = useToast();
+  const { t, tEnum, formatTime } = useLanguage();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -61,7 +64,7 @@ export function ReceptionistDashboard() {
     doctorId: '',
     date: '',
     time: '',
-    type: 'CONSULTATION',
+    type: 'IN_PERSON',
     reason: '',
   });
   const [submittingAppointment, setSubmittingAppointment] = useState(false);
@@ -73,7 +76,7 @@ export function ReceptionistDashboard() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const today = new Date().toISOString().split('T')[0];
+      const today = toLocalDateString();
 
       const [appointmentsRes, patientsRes, doctorsRes] = await Promise.all([
         api.getAppointments({ dateFrom: today, dateTo: today, limit: 50 }),
@@ -92,7 +95,7 @@ export function ReceptionistDashboard() {
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
-      toast.error('Failed to load data', 'Please try refreshing the page');
+      toast.error(t('admin.reception.failedLoad'), t('admin.reception.tryRefresh'));
     } finally {
       setLoading(false);
     }
@@ -102,11 +105,11 @@ export function ReceptionistDashboard() {
     try {
       setCheckingIn(appointment.id);
       await api.updateAppointment(appointment.id, { status: 'CHECKED_IN' });
-      toast.success('Patient checked in', `${appointment.patient.firstName} ${appointment.patient.lastName} is now checked in`);
+      toast.success(t('admin.reception.checkedInTitle'), t('admin.reception.checkedInMsg', { name: `${appointment.patient.firstName} ${appointment.patient.lastName}` }));
       fetchData();
     } catch (error) {
       console.error('Failed to check in:', error);
-      toast.error('Check-in failed', 'Please try again');
+      toast.error(t('admin.reception.checkInFailed'), t('admin.reception.tryAgain'));
     } finally {
       setCheckingIn(null);
     }
@@ -115,18 +118,18 @@ export function ReceptionistDashboard() {
   const handleMarkNoShow = async (appointment: Appointment) => {
     try {
       await api.updateAppointment(appointment.id, { status: 'NO_SHOW' });
-      toast.success('Marked as no-show', 'Appointment has been updated');
+      toast.success(t('admin.reception.markedNoShow'), t('admin.reception.appointmentUpdated'));
       fetchData();
     } catch (error) {
       console.error('Failed to update:', error);
-      toast.error('Update failed', 'Please try again');
+      toast.error(t('admin.reception.updateFailed'), t('admin.reception.tryAgain'));
     }
   };
 
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!appointmentForm.patientId || !appointmentForm.doctorId || !appointmentForm.date || !appointmentForm.time) {
-      toast.error('Missing fields', 'Please fill in all required fields');
+      toast.error(t('admin.reception.missingFields'), t('admin.reception.fillRequired'));
       return;
     }
 
@@ -145,24 +148,24 @@ export function ReceptionistDashboard() {
         appointmentDate: appointmentForm.date,
         startTime: appointmentForm.time,
         endTime: endTime,
-        type: appointmentForm.type as any,
-        reason: appointmentForm.reason || 'General consultation',
+        type: appointmentForm.type as AppointmentType,
+        reason: appointmentForm.reason || t('admin.reception.generalConsultation'),
       });
 
-      toast.success('Appointment scheduled', 'The appointment has been created successfully');
+      toast.success(t('admin.reception.scheduled'), t('admin.reception.scheduledMsg'));
       setShowAppointmentModal(false);
       setAppointmentForm({
         patientId: '',
         doctorId: '',
         date: '',
         time: '',
-        type: 'CONSULTATION',
+        type: 'IN_PERSON',
         reason: '',
       });
       fetchData();
     } catch (error) {
       console.error('Failed to create appointment:', error);
-      toast.error('Failed to schedule', error instanceof Error ? error.message : 'Please try again');
+      toast.error(t('admin.reception.scheduleFailed'), error instanceof Error ? error.message : t('admin.reception.tryAgain'));
     } finally {
       setSubmittingAppointment(false);
     }
@@ -184,14 +187,6 @@ export function ReceptionistDashboard() {
       (p.phoneNumber && p.phoneNumber.includes(searchTerm))
   );
 
-  const formatTime = (time: string) => {
-    if (!time) return '';
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -217,7 +212,7 @@ export function ReceptionistDashboard() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">{t('admin.reception.loadingDashboard')}</p>
         </div>
       </div>
     );
@@ -235,7 +230,7 @@ export function ReceptionistDashboard() {
               </svg>
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Today's Appointments</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.reception.todaySAppointments')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{appointments.length}</p>
             </div>
           </div>
@@ -249,7 +244,7 @@ export function ReceptionistDashboard() {
               </svg>
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Waiting</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.reception.waiting')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{scheduledAppointments.length}</p>
             </div>
           </div>
@@ -263,7 +258,7 @@ export function ReceptionistDashboard() {
               </svg>
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Checked In</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.reception.checkedIn')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{checkedInAppointments.length}</p>
             </div>
           </div>
@@ -277,7 +272,7 @@ export function ReceptionistDashboard() {
               </svg>
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Patients</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.reception.totalPatients')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{patients.length}</p>
             </div>
           </div>
@@ -286,7 +281,7 @@ export function ReceptionistDashboard() {
 
       {/* Quick Actions */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.reception.quickActions')}</h2>
         <div className="flex flex-wrap gap-3">
           <Link
             href="/dashboard/patients/new"
@@ -295,7 +290,7 @@ export function ReceptionistDashboard() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
             </svg>
-            Register New Patient
+            {t('admin.reception.registerNewPatient')}
           </Link>
           <button
             onClick={() => setShowAppointmentModal(true)}
@@ -304,7 +299,7 @@ export function ReceptionistDashboard() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            Schedule Appointment
+            {t('admin.reception.scheduleAppointment')}
           </button>
           <Link
             href="/dashboard/patients"
@@ -313,7 +308,7 @@ export function ReceptionistDashboard() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
-            View All Patients
+            {t('admin.reception.viewAllPatients')}
           </Link>
           <Link
             href="/dashboard/appointments"
@@ -322,7 +317,7 @@ export function ReceptionistDashboard() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
-            View All Appointments
+            {t('admin.reception.viewAllAppointments')}
           </Link>
         </div>
       </div>
@@ -330,8 +325,8 @@ export function ReceptionistDashboard() {
       {/* Appointments Ready for Check-in */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Appointments - Ready for Check-in</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Patients scheduled for today</p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.reception.appointmentsReadyForCheckIn')}</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t('admin.reception.patientsScheduledForToday')}</p>
         </div>
 
         {scheduledAppointments.length === 0 ? (
@@ -339,20 +334,20 @@ export function ReceptionistDashboard() {
             <svg className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <p className="text-gray-500 dark:text-gray-400">No appointments waiting for check-in</p>
+            <p className="text-gray-500 dark:text-gray-400">{t('admin.reception.noAppointmentsWaitingForCheckIn')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700/50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Patient</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Phone</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Doctor</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.reception.time')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.reception.patient')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.reception.phone')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.reception.doctor')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.reception.type')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.reception.status')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.reception.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -374,11 +369,11 @@ export function ReceptionistDashboard() {
                       Dr. {apt.doctor.firstName} {apt.doctor.lastName}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 capitalize">
-                      {apt.type.toLowerCase().replace('_', ' ')}
+                      {tEnum(apt.type)}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(apt.status)}`}>
-                        {apt.status.replace('_', ' ')}
+                        {tEnum(apt.status)}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -388,13 +383,13 @@ export function ReceptionistDashboard() {
                           disabled={checkingIn === apt.id}
                           className="px-3 py-1.5 bg-lime-600 text-white text-xs rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors"
                         >
-                          {checkingIn === apt.id ? 'Checking in...' : 'Check In'}
+                          {checkingIn === apt.id ? t('admin.reception.checkingIn') : t('admin.reception.checkIn')}
                         </button>
                         <button
                           onClick={() => handleMarkNoShow(apt)}
                           className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                         >
-                          No Show
+                          {t('admin.reception.noShow')}
                         </button>
                       </div>
                     </td>
@@ -409,8 +404,8 @@ export function ReceptionistDashboard() {
       {/* Patient Search */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Patient Search</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Search for patients by name, ID, or phone</p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.reception.patientSearch')}</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t('admin.reception.searchForPatientsByNameId')}</p>
         </div>
 
         <div className="p-4">
@@ -422,7 +417,7 @@ export function ReceptionistDashboard() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search patients..."
+              placeholder={t('admin.reception.searchPatients')}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
             />
           </div>
@@ -432,11 +427,11 @@ export function ReceptionistDashboard() {
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-700/50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Patient</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Phone</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.reception.patient')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.reception.id')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.reception.phone')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.reception.email')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.reception.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -463,13 +458,13 @@ export function ReceptionistDashboard() {
                             }}
                             className="px-3 py-1.5 bg-lime-600 text-white text-xs rounded-lg hover:bg-lime-700 transition-colors"
                           >
-                            Book Appointment
+                            {t('admin.reception.bookAppointment')}
                           </button>
                           <Link
                             href={`/dashboard/patients/${patient.id}`}
                             className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                           >
-                            View Details
+                            {t('admin.reception.viewDetails')}
                           </Link>
                         </div>
                       </td>
@@ -478,7 +473,7 @@ export function ReceptionistDashboard() {
                 </tbody>
               </table>
               {filteredPatients.length === 0 && (
-                <p className="text-center text-gray-500 dark:text-gray-400 py-4">No patients found</p>
+                <p className="text-center text-gray-500 dark:text-gray-400 py-4">{t('admin.reception.noPatientsFound')}</p>
               )}
             </div>
           )}
@@ -489,8 +484,8 @@ export function ReceptionistDashboard() {
       {checkedInAppointments.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-green-200 dark:border-green-800">
           <div className="p-4 border-b border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 rounded-t-xl">
-            <h2 className="text-lg font-semibold text-green-800 dark:text-green-200">Checked In - Waiting for Doctor</h2>
-            <p className="text-sm text-green-600 dark:text-green-400 mt-1">{checkedInAppointments.length} patient(s) waiting</p>
+            <h2 className="text-lg font-semibold text-green-800 dark:text-green-200">{t('admin.reception.checkedInWaitingForDoctor')}</h2>
+            <p className="text-sm text-green-600 dark:text-green-400 mt-1">{t('admin.reception.waitingCount', { count: checkedInAppointments.length })}</p>
           </div>
 
           <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -507,7 +502,7 @@ export function ReceptionistDashboard() {
                       {apt.patient.firstName} {apt.patient.lastName}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Checked in at {formatTime(apt.startTime)}
+                      {t('admin.reception.checkedInAt', { time: apt.startTime ? formatTime(apt.startTime) : '' })}
                     </p>
                   </div>
                 </div>
@@ -525,7 +520,7 @@ export function ReceptionistDashboard() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Schedule Appointment</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.reception.scheduleAppointment')}</h2>
               <button
                 onClick={() => setShowAppointmentModal(false)}
                 className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -539,7 +534,7 @@ export function ReceptionistDashboard() {
             <form onSubmit={handleCreateAppointment} className="p-4 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Patient <span className="text-red-500">*</span>
+                  {t('admin.reception.patient')} <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={appointmentForm.patientId}
@@ -547,7 +542,7 @@ export function ReceptionistDashboard() {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                   required
                 >
-                  <option value="">Select patient</option>
+                  <option value="">{t('admin.reception.selectPatient')}</option>
                   {patients.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.firstName} {p.lastName} ({p.patientId})
@@ -558,7 +553,7 @@ export function ReceptionistDashboard() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Doctor <span className="text-red-500">*</span>
+                  {t('admin.reception.doctor')} <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={appointmentForm.doctorId}
@@ -566,10 +561,10 @@ export function ReceptionistDashboard() {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                   required
                 >
-                  <option value="">Select doctor</option>
+                  <option value="">{t('admin.reception.selectDoctor')}</option>
                   {doctors.map((d) => (
                     <option key={d.id} value={d.id}>
-                      Dr. {d.firstName} {d.lastName} - {d.specializations?.[0] || 'General'}
+                      Dr. {d.firstName} {d.lastName} - {d.specializations?.[0] || t('admin.reception.general')}
                     </option>
                   ))}
                 </select>
@@ -578,20 +573,20 @@ export function ReceptionistDashboard() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Date <span className="text-red-500">*</span>
+                    {t('admin.reception.date')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
                     value={appointmentForm.date}
                     onChange={(e) => setAppointmentForm(prev => ({ ...prev, date: e.target.value }))}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={toLocalDateString()}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                     required
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Time <span className="text-red-500">*</span>
+                    {t('admin.reception.time')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="time"
@@ -605,29 +600,28 @@ export function ReceptionistDashboard() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Type
+                  {t('admin.reception.type')}
                 </label>
                 <select
                   value={appointmentForm.type}
                   onChange={(e) => setAppointmentForm(prev => ({ ...prev, type: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                 >
-                  <option value="CONSULTATION">Consultation</option>
-                  <option value="FOLLOW_UP">Follow-up</option>
-                  <option value="CHECK_UP">Check-up</option>
-                  <option value="EMERGENCY">Emergency</option>
+                  <option value="IN_PERSON">{tEnum('IN_PERSON')}</option>
+                  <option value="VIDEO">{tEnum('VIDEO')}</option>
+                  <option value="PHONE">{tEnum('PHONE')}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Reason
+                  {t('admin.reception.reason')}
                 </label>
                 <input
                   type="text"
                   value={appointmentForm.reason}
                   onChange={(e) => setAppointmentForm(prev => ({ ...prev, reason: e.target.value }))}
-                  placeholder="Reason for visit..."
+                  placeholder={t('admin.reception.reasonForVisit')}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                 />
               </div>
@@ -638,14 +632,14 @@ export function ReceptionistDashboard() {
                   onClick={() => setShowAppointmentModal(false)}
                   className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
-                  Cancel
+                  {t('admin.reception.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={submittingAppointment}
                   className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors"
                 >
-                  {submittingAppointment ? 'Scheduling...' : 'Schedule Appointment'}
+                  {submittingAppointment ? t('admin.reception.scheduling') : t('admin.reception.scheduleAppointment')}
                 </button>
               </div>
             </form>

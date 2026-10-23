@@ -5,11 +5,18 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
-import { navigationItems, hasPermission, roleColors, UserRole } from '@/lib/rbac';
+import { navigationItems, isNavItemVisible, roleColors, UserRole } from '@/lib/rbac';
 
 // Map navigation labels to translation keys
 const navTranslationKeys: Record<string, string> = {
   'Dashboard': 'nav.dashboard',
+  'My Health': 'nav.myHealth',
+  'My Schedule': 'nav.mySchedule',
+  'My Patients': 'nav.myPatients',
+  'Vital Signs': 'nav.vitals',
+  'Consultations': 'nav.consultations',
+  'Prescriptions': 'nav.prescriptions',
+  'Lab Results': 'nav.labResults',
   'Patients': 'nav.patients',
   'Doctors': 'nav.doctors',
   'Appointments': 'nav.appointments',
@@ -28,14 +35,11 @@ const navTranslationKeys: Record<string, string> = {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user, getRoleDisplayName } = useAuth();
-  const { t } = useLanguage();
+  const { user } = useAuth();
+  const { t, tEnum } = useLanguage();
 
   // Filter navigation items based on user permissions
-  const filteredNavItems = navigationItems.filter((item) => {
-    if (!item.permission) return true;
-    return hasPermission(user?.role, item.permission);
-  });
+  const filteredNavItems = navigationItems.filter((item) => isNavItemVisible(item, user?.role));
 
   // Get translated label for nav item
   const getNavLabel = (label: string) => {
@@ -111,7 +115,7 @@ export function Sidebar() {
             <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${
               roleColors[user?.role as UserRole] || 'bg-gray-100 text-gray-800'
             }`}>
-              {getRoleDisplayName()}
+              {tEnum(user?.role)}
             </span>
           </div>
         </div>

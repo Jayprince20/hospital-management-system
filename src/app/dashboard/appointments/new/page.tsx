@@ -4,8 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, Patient, Doctor, AppointmentType, DoctorAvailability } from '@/lib/api';
-import { formatTime, getDayName } from '@/lib/formatters';
 import { useAuth } from '@/context/auth-context';
+import { useLanguage } from '@/context/language-context';
+
+// Local calendar date as YYYY-MM-DD (toISOString would shift to UTC)
+const toLocalDateString = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const isPastDate = (value: string) => !!value && value < toLocalDateString(new Date());
 
 interface AppointmentFormData {
   patientId: string;
@@ -32,6 +38,9 @@ const initialFormData: AppointmentFormData = {
 export default function NewAppointmentPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
+  const { t, tEnum, formatDate, formatTime, formatCurrency } = useLanguage();
+  const getDayName = (dayOfWeek: number) => t(`appointmentForm.dayShort${dayOfWeek}`);
+  const [reasonTouched, setReasonTouched] = useState(false);
   const [formData, setFormData] = useState<AppointmentFormData>(initialFormData);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,10 +85,10 @@ export default function NewAppointmentPage() {
 
   // Steps configuration - show 3 steps for patients (skip patient selection)
   const allSteps = [
-    { id: 1, name: 'Select Patient', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-    { id: 2, name: 'Select Doctor', icon: 'M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { id: 3, name: 'Date & Time', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-    { id: 4, name: 'Details', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+    { id: 1, name: t('appointmentForm.stepPatient'), icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+    { id: 2, name: t('appointmentForm.stepDoctor'), icon: 'M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { id: 3, name: t('appointmentForm.stepDateTime'), icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+    { id: 4, name: t('appointmentForm.stepDetails'), icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
   ];
 
   // For patients, skip step 1
@@ -135,6 +144,19 @@ export default function NewAppointmentPage() {
     autoSelectPatient();
   }, [isPatientUser, user, selectedPatient]);
 
+  // Pre-select the patient when coming from a patient's page (?patientId=...)
+  useEffect(() => {
+    if (isPatientUser) return;
+    const patientIdParam = new URLSearchParams(window.location.search).get('patientId');
+    if (!patientIdParam) return;
+    api.getPatient(patientIdParam)
+      .then((patient) => {
+        setSelectedPatient(patient);
+        setFormData(prev => ({ ...prev, patientId: patient.id }));
+      })
+      .catch((error) => console.error('Failed to preselect patient:', error));
+  }, [isPatientUser]);
+
   // Fetch patients (only for non-patient users)
   const fetchPatients = useCallback(async () => {
     if (isPatientUser) {
@@ -183,8 +205,8 @@ export default function NewAppointmentPage() {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      const todayStr = today.toISOString().split('T')[0];
-      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      const todayStr = toLocalDateString(today);
+      const tomorrowStr = toLocalDateString(tomorrow);
 
       const availabilityResults: Record<string, { status: 'available_today' | 'available_tomorrow' | 'available_later' | 'unavailable'; nextDate?: string }> = {};
 
@@ -218,7 +240,7 @@ export default function NewAppointmentPage() {
             for (let i = 2; i <= 6; i++) {
               const futureDate = new Date(today);
               futureDate.setDate(futureDate.getDate() + i);
-              const futureDateStr = futureDate.toISOString().split('T')[0];
+              const futureDateStr = toLocalDateString(futureDate);
 
               const futureData = await api.getDoctorAvailability(doctor.id, futureDateStr);
               if (futureData?.isWorkingDay) {
@@ -226,7 +248,7 @@ export default function NewAppointmentPage() {
                 if (hasAvailability) {
                   availabilityResults[doctor.id] = {
                     status: 'available_later',
-                    nextDate: futureDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                    nextDate: formatDate(futureDate, { weekday: 'short', month: 'short', day: 'numeric' }),
                   };
                   return;
                 }
@@ -255,6 +277,14 @@ export default function NewAppointmentPage() {
         return;
       }
 
+      // A typed date can bypass the input's min; don't ask the API about past days
+      if (isPastDate(formData.appointmentDate)) {
+        setAvailability(null);
+        setAvailabilityError(null);
+        setErrors(prev => ({ ...prev, appointmentDate: t('appointmentForm.errPastDate') }));
+        return;
+      }
+
       try {
         setLoadingAvailability(true);
         setAvailabilityError(null);
@@ -275,7 +305,7 @@ export default function NewAppointmentPage() {
         }
       } catch (error) {
         console.error('Failed to fetch availability:', error);
-        setAvailabilityError('Failed to load availability. Please try again.');
+        setAvailabilityError(t('appointmentForm.errAvailabilityRetry'));
       } finally {
         setLoadingAvailability(false);
       }
@@ -338,33 +368,28 @@ export default function NewAppointmentPage() {
 
     // For patient users, step 1 is skipped and patient is auto-selected
     if (step === 1 && !isPatientUser) {
-      if (!formData.patientId) newErrors.patientId = 'Please select a patient';
+      if (!formData.patientId) newErrors.patientId = t('appointmentForm.errPatient');
     }
 
     if (step === 2) {
-      if (!formData.doctorId) newErrors.doctorId = 'Please select a doctor';
+      if (!formData.doctorId) newErrors.doctorId = t('appointmentForm.errDoctor');
       // Also validate patient is selected (for patient users who auto-select)
       if (isPatientUser && !formData.patientId && !isAutoSelectingPatient) {
-        newErrors.patientId = 'Unable to identify your patient record. Please contact reception.';
+        newErrors.patientId = t('appointmentForm.errPatientRecord');
       }
     }
 
     if (step === 3) {
-      if (!formData.appointmentDate) newErrors.appointmentDate = 'Please select a date';
-      if (!formData.startTime) newErrors.startTime = 'Please select a time slot';
+      if (!formData.appointmentDate) newErrors.appointmentDate = t('appointmentForm.errDate');
+      if (!formData.startTime) newErrors.startTime = t('appointmentForm.errSlot');
 
-      if (formData.appointmentDate) {
-        const selectedDate = new Date(formData.appointmentDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (selectedDate < today) {
-          newErrors.appointmentDate = 'Cannot schedule appointments in the past';
-        }
+      if (isPastDate(formData.appointmentDate)) {
+        newErrors.appointmentDate = t('appointmentForm.errPastDate');
       }
     }
 
     if (step === 4) {
-      if (!formData.reason.trim()) newErrors.reason = 'Please provide a reason for the visit';
+      if (!formData.reason.trim()) newErrors.reason = t('appointmentForm.errReason');
     }
 
     setErrors(newErrors);
@@ -385,7 +410,17 @@ export default function NewAppointmentPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (currentStep < 4) {
+      handleNext();
+      return;
+    }
 
+    setReasonTouched(true);
+    if (isPastDate(formData.appointmentDate)) {
+      setErrors({ appointmentDate: t('appointmentForm.errPastDate') });
+      setCurrentStep(3);
+      return;
+    }
     if (!validateStep(currentStep)) return;
 
     setIsSubmitting(true);
@@ -405,7 +440,7 @@ export default function NewAppointmentPage() {
       router.push('/dashboard/appointments');
     } catch (error) {
       console.error('Error creating appointment:', error);
-      setErrors({ submit: error instanceof Error ? error.message : 'Failed to create appointment' });
+      setErrors({ submit: error instanceof Error ? error.message : t('appointmentForm.errCreate') });
     } finally {
       setIsSubmitting(false);
     }
@@ -425,7 +460,7 @@ export default function NewAppointmentPage() {
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">{t('appointmentForm.loading')}</p>
           </div>
         </div>
       </div>
@@ -446,9 +481,9 @@ export default function NewAppointmentPage() {
             </svg>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">New Appointment</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('appointmentForm.title')}</h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Schedule a new appointment for a patient
+              {t('appointmentForm.subtitle')}
             </p>
           </div>
         </div>
@@ -511,7 +546,7 @@ export default function NewAppointmentPage() {
         <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <div className="flex items-center gap-3">
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-            <span className="text-blue-700 dark:text-blue-300">Loading your patient information...</span>
+            <span className="text-blue-700 dark:text-blue-300">{t('appointmentForm.loadingPatientInfo')}</span>
           </div>
         </div>
       )}
@@ -530,7 +565,7 @@ export default function NewAppointmentPage() {
           {currentStep === 1 && !isPatientUser && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Select Patient
+                {t('appointmentForm.selectPatient')}
               </h2>
 
               {/* Search */}
@@ -541,7 +576,7 @@ export default function NewAppointmentPage() {
                   </svg>
                   <input
                     type="text"
-                    placeholder="Search patients by name or ID..."
+                    placeholder={t('appointmentForm.searchPatientsPh')}
                     value={patientSearch}
                     onChange={(e) => setPatientSearch(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-lime-500"
@@ -557,7 +592,7 @@ export default function NewAppointmentPage() {
               {loadingPatients ? (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-lime-600 mx-auto"></div>
-                  <p className="mt-2 text-gray-500">Loading patients...</p>
+                  <p className="mt-2 text-gray-500">{t('appointmentForm.loadingPatients')}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
@@ -597,7 +632,7 @@ export default function NewAppointmentPage() {
 
               {patients.length === 0 && !loadingPatients && (
                 <div className="text-center py-8 text-gray-500">
-                  No patients found. Try a different search term.
+                  {t('appointmentForm.noPatients')}
                 </div>
               )}
             </div>
@@ -607,7 +642,7 @@ export default function NewAppointmentPage() {
           {currentStep === 2 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Select Doctor
+                {t('appointmentForm.selectDoctor')}
               </h2>
 
               {/* Patient Info Banner for patient users */}
@@ -640,7 +675,7 @@ export default function NewAppointmentPage() {
                   </svg>
                   <input
                     type="text"
-                    placeholder="Search doctors by name or department..."
+                    placeholder={t('appointmentForm.searchDoctorsPh')}
                     value={doctorSearch}
                     onChange={(e) => setDoctorSearch(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-lime-500"
@@ -656,7 +691,7 @@ export default function NewAppointmentPage() {
               {loadingDoctors ? (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-lime-600 mx-auto"></div>
-                  <p className="mt-2 text-gray-500">Loading doctors...</p>
+                  <p className="mt-2 text-gray-500">{t('appointmentForm.loadingDoctors')}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
@@ -674,22 +709,22 @@ export default function NewAppointmentPage() {
                         case 'available_today':
                           bgColor = 'bg-green-100 dark:bg-green-900/30';
                           textColor = 'text-green-700 dark:text-green-400';
-                          text = 'Available today';
+                          text = t('appointmentForm.availableToday');
                           break;
                         case 'available_tomorrow':
                           bgColor = 'bg-blue-100 dark:bg-blue-900/30';
                           textColor = 'text-blue-700 dark:text-blue-400';
-                          text = 'Available tomorrow';
+                          text = t('appointmentForm.availableTomorrow');
                           break;
                         case 'available_later':
                           bgColor = 'bg-amber-100 dark:bg-amber-900/30';
                           textColor = 'text-amber-700 dark:text-amber-400';
-                          text = `Next: ${availabilityInfo.nextDate}`;
+                          text = t('appointmentForm.nextAvailable', { date: availabilityInfo.nextDate || '' });
                           break;
                         case 'unavailable':
                           bgColor = 'bg-gray-100 dark:bg-gray-700';
                           textColor = 'text-gray-500 dark:text-gray-400';
-                          text = 'No slots this week';
+                          text = t('appointmentForm.noSlotsWeek');
                           break;
                         default:
                           return null;
@@ -734,11 +769,11 @@ export default function NewAppointmentPage() {
                             </p>
                             <div className="flex items-center flex-wrap gap-2 mt-2">
                               <span className="text-xs text-green-600 dark:text-green-400">
-                                ${doctor.consultationFee}
+                                {formatCurrency(doctor.consultationFee)}
                               </span>
                               <span className="text-xs text-gray-400">•</span>
                               <span className="text-xs text-gray-500">
-                                {doctor.schedule?.filter(s => s.isActive).map(s => getDayName(s.dayOfWeek, 'short')).join(', ')}
+                                {doctor.schedule?.filter(s => s.isActive).map(s => getDayName(s.dayOfWeek)).join(', ')}
                               </span>
                             </div>
                             {renderAvailabilityBadge() && (
@@ -761,7 +796,7 @@ export default function NewAppointmentPage() {
 
               {doctors.length === 0 && !loadingDoctors && (
                 <div className="text-center py-8 text-gray-500">
-                  No available doctors found. Try a different search term.
+                  {t('appointmentForm.noDoctors')}
                 </div>
               )}
             </div>
@@ -771,17 +806,17 @@ export default function NewAppointmentPage() {
           {currentStep === 3 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Select Date & Time
+                {t('appointmentForm.selectDateTime')}
               </h2>
 
               {/* Selected Doctor Info */}
               {selectedDoctor && (
                 <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                   <p className="text-sm text-blue-800 dark:text-blue-300">
-                    Scheduling with <span className="font-medium">Dr. {selectedDoctor.firstName} {selectedDoctor.lastName}</span>
+                    {t('appointmentForm.schedulingWith')} <span className="font-medium">Dr {selectedDoctor.firstName} {selectedDoctor.lastName}</span>
                   </p>
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Available: {selectedDoctor.schedule?.filter(s => s.isActive).map(s => getDayName(s.dayOfWeek, 'short')).join(', ')}
+                    {t('appointmentForm.availableDays')} {selectedDoctor.schedule?.filter(s => s.isActive).map(s => getDayName(s.dayOfWeek)).join(', ')}
                   </p>
                 </div>
               )}
@@ -790,14 +825,14 @@ export default function NewAppointmentPage() {
                 {/* Date Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Appointment Date <span className="text-red-500">*</span>
+                    {t('appointmentForm.date')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
                     name="appointmentDate"
                     value={formData.appointmentDate}
                     onChange={handleChange}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={toLocalDateString(new Date())}
                     className={inputClassName('appointmentDate')}
                   />
                   {errors.appointmentDate && (
@@ -808,7 +843,7 @@ export default function NewAppointmentPage() {
                 {/* Appointment Type */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Appointment Type
+                    {t('appointmentForm.type')}
                   </label>
                   <select
                     name="type"
@@ -816,9 +851,9 @@ export default function NewAppointmentPage() {
                     onChange={handleChange}
                     className={inputClassName('type')}
                   >
-                    <option value="IN_PERSON">In Person</option>
-                    <option value="VIDEO">Video Call</option>
-                    <option value="PHONE">Phone Call</option>
+                    <option value="IN_PERSON">{tEnum('IN_PERSON')}</option>
+                    <option value="VIDEO">{tEnum('VIDEO')}</option>
+                    <option value="PHONE">{tEnum('PHONE')}</option>
                   </select>
                 </div>
               </div>
@@ -827,18 +862,18 @@ export default function NewAppointmentPage() {
               <div className="mt-6">
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Available Time Slots <span className="text-red-500">*</span>
+                    {t('appointmentForm.slots')} <span className="text-red-500">*</span>
                   </label>
                   {availability?.workingHours && (
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      Working hours: {formatTime(availability.workingHours.start)} - {formatTime(availability.workingHours.end)}
+                      {t('appointmentForm.workingHours')} {formatTime(availability.workingHours.start)} - {formatTime(availability.workingHours.end)}
                     </span>
                   )}
                 </div>
 
-                {!formData.appointmentDate ? (
+                {!formData.appointmentDate || isPastDate(formData.appointmentDate) ? (
                   <div className="text-center py-8 text-gray-500 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    Please select a date first
+                    {t('appointmentForm.selectDateFirst')}
                   </div>
                 ) : loadingAvailability ? (
                   <div className="text-center py-8 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -846,7 +881,7 @@ export default function NewAppointmentPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <p className="text-gray-500 dark:text-gray-400">Loading available slots...</p>
+                    <p className="text-gray-500 dark:text-gray-400">{t('appointmentForm.loadingSlots')}</p>
                   </div>
                 ) : availabilityError ? (
                   <div className="text-center py-8 bg-red-50 dark:bg-red-900/20 rounded-lg">
@@ -862,13 +897,13 @@ export default function NewAppointmentPage() {
                           setAvailabilityError(null);
                           api.getDoctorAvailability(selectedDoctor.id, formData.appointmentDate)
                             .then(data => setAvailability(data))
-                            .catch(() => setAvailabilityError('Failed to load availability'))
+                            .catch(() => setAvailabilityError(t('appointmentForm.errAvailability')))
                             .finally(() => setLoadingAvailability(false));
                         }
                       }}
                       className="mt-3 px-4 py-2 text-sm font-medium text-red-600 bg-red-100 rounded-lg hover:bg-red-200 transition-colors"
                     >
-                      Retry
+                      {t('appointmentForm.retry')}
                     </button>
                   </div>
                 ) : !availability?.isWorkingDay ? (
@@ -876,16 +911,16 @@ export default function NewAppointmentPage() {
                     <svg className="w-12 h-12 mx-auto text-amber-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <p className="text-amber-700 dark:text-amber-400">Doctor is not available on this day.</p>
-                    <p className="text-sm text-amber-600 dark:text-amber-500 mt-1">Please select another date.</p>
+                    <p className="text-amber-700 dark:text-amber-400">{t('appointmentForm.notAvailableDay')}</p>
+                    <p className="text-sm text-amber-600 dark:text-amber-500 mt-1">{t('appointmentForm.selectAnotherDate')}</p>
                   </div>
                 ) : availability?.slots.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <svg className="w-12 h-12 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p>No available slots for this date.</p>
-                    <p className="text-sm">All time slots have been booked.</p>
+                    <p>{t('appointmentForm.noSlotsDate')}</p>
+                    <p className="text-sm">{t('appointmentForm.allBooked')}</p>
                   </div>
                 ) : (
                   <>
@@ -924,7 +959,7 @@ export default function NewAppointmentPage() {
                       <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      {availability?.slots.filter(s => s.available).length} slots available
+                      {t('appointmentForm.slotsAvailable', { count: availability?.slots.filter(s => s.available).length ?? 0 })}
                     </div>
                   </>
                 )}
@@ -935,7 +970,7 @@ export default function NewAppointmentPage() {
 
                 {formData.startTime && formData.endTime && (
                   <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
-                    Selected: <span className="font-medium">{formatTime(formData.startTime)} - {formatTime(formData.endTime)}</span>
+                    {t('appointmentForm.selected')} <span className="font-medium">{formatTime(formData.startTime)} - {formatTime(formData.endTime)}</span>
                   </p>
                 )}
               </div>
@@ -946,41 +981,41 @@ export default function NewAppointmentPage() {
           {currentStep === 4 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Appointment Details
+                {t('appointmentForm.details')}
               </h2>
 
               {/* Summary */}
               <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Summary</h3>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{t('appointmentForm.summary')}</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-gray-500 dark:text-gray-400">Patient</p>
+                    <p className="text-gray-500 dark:text-gray-400">{t('appointmentForm.patient')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">
                       {selectedPatient?.firstName} {selectedPatient?.lastName}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500 dark:text-gray-400">Doctor</p>
+                    <p className="text-gray-500 dark:text-gray-400">{t('appointmentForm.doctor')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      Dr. {selectedDoctor?.firstName} {selectedDoctor?.lastName}
+                      Dr {selectedDoctor?.firstName} {selectedDoctor?.lastName}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500 dark:text-gray-400">Date & Time</p>
+                    <p className="text-gray-500 dark:text-gray-400">{t('appointmentForm.dateTime')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      {formData.appointmentDate && new Date(formData.appointmentDate).toLocaleDateString('en-US', {
+                      {formData.appointmentDate && formatDate(`${formData.appointmentDate}T00:00:00`, {
                         weekday: 'short',
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
                       })}
-                      {formData.startTime && ` at ${formatTime(formData.startTime)}`}
+                      {formData.startTime && ` ${t('appointmentForm.at')} ${formatTime(formData.startTime)}`}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500 dark:text-gray-400">Type</p>
+                    <p className="text-gray-500 dark:text-gray-400">{t('appointmentForm.typeShort')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      {formData.type === 'IN_PERSON' ? 'In Person' : formData.type === 'VIDEO' ? 'Video Call' : 'Phone Call'}
+                      {tEnum(formData.type)}
                     </p>
                   </div>
                 </div>
@@ -989,24 +1024,28 @@ export default function NewAppointmentPage() {
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Reason for Visit <span className="text-red-500">*</span>
+                    {t('appointmentForm.reason')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     name="reason"
                     value={formData.reason}
                     onChange={handleChange}
-                    className={inputClassName('reason')}
-                    placeholder="e.g., Regular checkup, Follow-up visit, Consultation"
+                    onBlur={() => {
+                      setReasonTouched(true);
+                      if (!formData.reason.trim()) setErrors(prev => ({ ...prev, reason: t('appointmentForm.errReason') }));
+                    }}
+                    className={reasonTouched ? inputClassName('reason') : inputClassName('')}
+                    placeholder={t('appointmentForm.reasonPh')}
                   />
-                  {errors.reason && (
+                  {reasonTouched && errors.reason && (
                     <p className="mt-1 text-sm text-red-500">{errors.reason}</p>
                   )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Additional Notes
+                    {t('appointmentForm.notes')}
                   </label>
                   <textarea
                     name="notes"
@@ -1014,7 +1053,7 @@ export default function NewAppointmentPage() {
                     onChange={handleChange}
                     rows={4}
                     className={inputClassName('notes')}
-                    placeholder="Any additional information for the doctor..."
+                    placeholder={t('appointmentForm.notesPh')}
                   />
                 </div>
               </div>
@@ -1031,7 +1070,7 @@ export default function NewAppointmentPage() {
                   onClick={handlePrevious}
                   className="px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  Previous
+                  {t('appointmentForm.previous')}
                 </button>
               )}
             </div>
@@ -1040,18 +1079,18 @@ export default function NewAppointmentPage() {
                 href="/dashboard/appointments"
                 className="px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
               >
-                Cancel
+                {t('appointmentForm.cancel')}
               </Link>
               {currentStep < 4 ? (
-                <button
+                <button key="step-next"
                   type="button"
                   onClick={handleNext}
                   className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 text-white text-sm font-medium rounded-lg transition-colors"
                 >
-                  Next Step
+                  {t('appointmentForm.nextStep')}
                 </button>
               ) : (
-                <button
+                <button key="step-submit"
                   type="submit"
                   disabled={isSubmitting}
                   className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 disabled:bg-lime-400 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center gap-2"
@@ -1062,14 +1101,14 @@ export default function NewAppointmentPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Scheduling...
+                      {t('appointmentForm.scheduling')}
                     </>
                   ) : (
                     <>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      Schedule Appointment
+                      {t('appointmentForm.submit')}
                     </>
                   )}
                 </button>

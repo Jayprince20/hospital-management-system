@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { api, User, LoginRequest } from '@/lib/api';
+import { api, ApiError, User, LoginRequest } from '@/lib/api';
 import {
   Permission,
   UserRole,
@@ -45,7 +45,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Check if we have a token
       if (api.isAuthenticated()) {
-        const currentUser = await api.getCurrentUser();
+        let currentUser;
+        // Retry while the server is unreachable (e.g. restarting) instead of logging out
+        for (let attempt = 0; ; attempt++) {
+          try {
+            currentUser = await api.getCurrentUser();
+            break;
+          } catch (err) {
+            if (!(err instanceof ApiError && err.status === 0) || attempt >= 9) throw err;
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+          }
+        }
         setUser(currentUser);
         // Check if user needs to change password
         if (currentUser.mustChangePassword) {
@@ -54,8 +64,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true;
       }
       return false;
-    } catch {
-      api.clearTokens();
+    } catch (err) {
+      // Only an explicit rejection ends the session; keep tokens if the server is just down
+      if (!(err instanceof ApiError && err.status === 0)) {
+        api.clearTokens();
+      }
       setUser(null);
       setMustChangePassword(false);
       return false;
@@ -86,11 +99,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (mustChangePassword) {
         router.push('/change-password');
         return;
-      }
-      // Check if user has permission to access this route
-      if (!canAccessRoute(user.role, pathname || '')) {
-        // Redirect to dashboard if no access
-        router.push('/dashboard');
       }
     } else if (isLoginRoute && user) {
       // Already authenticated

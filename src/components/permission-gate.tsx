@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react';
 import { useAuth } from '@/context/auth-context';
+import { useLanguage } from '@/context/language-context';
 import { Permission } from '@/lib/rbac';
 
 interface PermissionGateProps {
@@ -62,10 +63,13 @@ interface AccessDeniedProps {
 }
 
 export function AccessDenied({
-  title = 'Access Denied',
-  message = 'You do not have permission to access this page.',
+  title,
+  message,
   showBackButton = true,
 }: AccessDeniedProps) {
+  const { t } = useLanguage();
+  title = title ?? t('access.deniedTitle');
+  message = message ?? t('access.deniedMessage');
   return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="text-center max-w-md px-4">
@@ -99,7 +103,7 @@ export function AccessDenied({
                 d="M10 19l-7-7m0 0l7-7m-7 7h18"
               />
             </svg>
-            Back to Dashboard
+            {t('access.backToDashboard')}
           </a>
         )}
       </div>

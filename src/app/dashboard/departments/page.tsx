@@ -58,7 +58,7 @@ export default function DepartmentsPage() {
       setTotalPages(response.pagination.totalPages);
     } catch (error) {
       console.error('Error fetching departments:', error);
-      setFetchError(error instanceof Error ? error.message : 'Failed to fetch departments');
+      setFetchError(error instanceof Error ? error.message : t('clinical.departments.fetchError'));
     } finally {
       setLoading(false);
     }
@@ -102,7 +102,7 @@ export default function DepartmentsPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      setError('Department name is required');
+      setError(t('clinical.departments.nameRequired'));
       return;
     }
 
@@ -116,10 +116,10 @@ export default function DepartmentsPage() {
       });
       setShowCreateModal(false);
       setFormData(initialFormData);
-      toast.success('Department created', `${formData.name} has been added.`);
+      toast.success(t('clinical.departments.created'), t('clinical.departments.createdMessage', { name: formData.name }));
       fetchDepartments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create department');
+      setError(err instanceof Error ? err.message : t('clinical.departments.createFailed'));
     } finally {
       setSaving(false);
     }
@@ -128,7 +128,7 @@ export default function DepartmentsPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDepartment || !formData.name.trim()) {
-      setError('Department name is required');
+      setError(t('clinical.departments.nameRequired'));
       return;
     }
 
@@ -143,10 +143,10 @@ export default function DepartmentsPage() {
       setShowEditModal(false);
       setSelectedDepartment(null);
       setFormData(initialFormData);
-      toast.success('Department updated', `${formData.name} has been updated.`);
+      toast.success(t('clinical.departments.updated'), t('clinical.departments.updatedMessage', { name: formData.name }));
       fetchDepartments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update department');
+      setError(err instanceof Error ? err.message : t('clinical.departments.updateFailed'));
     } finally {
       setSaving(false);
     }
@@ -161,11 +161,11 @@ export default function DepartmentsPage() {
       await api.deleteDepartment(selectedDepartment.id);
       setShowDeleteModal(false);
       setSelectedDepartment(null);
-      toast.success('Department deleted', `${deptName} has been removed.`);
+      toast.success(t('clinical.departments.deleted'), t('clinical.departments.deletedMessage', { name: deptName }));
       fetchDepartments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete department');
-      toast.error('Delete failed', err instanceof Error ? err.message : 'Failed to delete department');
+      setError(err instanceof Error ? err.message : t('clinical.departments.deleteFailed'));
+      toast.error(t('clinical.doctors.deleteFailed'), err instanceof Error ? err.message : t('clinical.departments.deleteFailed'));
     } finally {
       setSaving(false);
     }
@@ -274,7 +274,7 @@ export default function DepartmentsPage() {
                     <button
                       onClick={(e) => openEditModal(dept, e)}
                       className="p-2 text-gray-500 hover:text-lime-600 hover:bg-lime-50 dark:hover:bg-lime-900/50 rounded-lg transition-colors"
-                      title="Edit department"
+                      title={t('clinical.departments.editTitle')}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -285,7 +285,7 @@ export default function DepartmentsPage() {
                     <button
                       onClick={(e) => openDeleteModal(dept, e)}
                       className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors"
-                      title="Delete department"
+                      title={t('clinical.departments.deleteTitle')}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

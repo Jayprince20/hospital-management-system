@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { api, PaymentStats, PaymentMethod } from '@/lib/api';
+import { api, PaymentStats } from '@/lib/api';
+import { useLanguage } from '@/context/language-context';
 import {
   LineChart,
   Line,
@@ -21,17 +22,10 @@ import {
 
 const COLORS = ['#84cc16', '#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-const METHOD_LABELS: Record<string, string> = {
-  CASH: 'Cash',
-  CARD: 'Card',
-  BANK_TRANSFER: 'Bank Transfer',
-  INSURANCE: 'Insurance',
-  MOBILE_WALLET: 'Mobile Wallet',
-  MTN_MOMO: 'MTN MoMo',
-  ORANGE_MONEY: 'Orange Money',
-};
+const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export default function PaymentsPage() {
+  const { t, tEnum, formatCurrency, formatDate, formatDateTime, locale } = useLanguage();
   const [stats, setStats] = useState<PaymentStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -51,7 +45,7 @@ export default function PaymentsPage() {
       setStats(data);
     } catch (err) {
       console.error('Error fetching payment stats:', err);
-      setError('Failed to load payment statistics');
+      setError(t('admin.payments.failedToLoadPaymentStatistics'));
     } finally {
       setLoading(false);
     }
@@ -61,28 +55,18 @@ export default function PaymentsPage() {
     fetchStats();
   }, [fetchStats]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'XAF',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatShortDate = (dateStr: string) => formatDate(dateStr, { month: 'short', day: 'numeric' });
+  const formatShortDateTime = (dateStr: string) =>
+    formatDateTime(dateStr, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const paymentsLabel = (count: number) =>
+    t(count === 1 ? 'admin.payments.paymentsOne' : 'admin.payments.paymentsOther', { count });
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const formatDateTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  // The API labels months in English ("Oct 26"); re-render them in the UI language
+  const formatMonthLabel = (label: string) => {
+    const [mon, yy] = String(label).split(' ');
+    const monthIndex = EN_MONTHS.indexOf(mon);
+    if (monthIndex < 0 || !yy) return label;
+    return new Date(2000 + Number(yy), monthIndex, 1).toLocaleDateString(locale, { month: 'short', year: '2-digit' });
   };
 
   if (loading) {
@@ -90,7 +74,7 @@ export default function PaymentsPage() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading payment statistics...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">{t('admin.payments.loadingPaymentStatistics')}</p>
         </div>
       </div>
     );
@@ -103,13 +87,13 @@ export default function PaymentsPage() {
           <svg className="w-12 h-12 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <h2 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">Error Loading Data</h2>
+          <h2 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">{t('admin.payments.errorLoadingData')}</h2>
           <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <button
             onClick={fetchStats}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
-            Try Again
+            {t('admin.payments.tryAgain')}
           </button>
         </div>
       </div>
@@ -123,28 +107,47 @@ export default function PaymentsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Payment Analytics</h1>
-          <p className="text-gray-600 dark:text-gray-400">Monitor and analyze payment trends</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('admin.payments.paymentAnalytics')}</h1>
+          <p className="text-gray-600 dark:text-gray-400">{t('admin.payments.monitorAndAnalyzePaymentTrends')}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <input
-            type="date"
-            value={dateRange.startDate}
-            onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-          />
-          <span className="text-gray-500">to</span>
-          <input
-            type="date"
-            value={dateRange.endDate}
-            onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-          />
+        <div className="flex flex-wrap items-end gap-3">
+          <fieldset className="flex flex-wrap items-end gap-3">
+            <legend className="sr-only">{t('admin.payments.dateRange')}</legend>
+            <label className="flex flex-col text-xs text-gray-500 dark:text-gray-400">
+              {t('admin.payments.from')}
+              <input
+                type="date"
+                value={dateRange.startDate}
+                max={dateRange.endDate || undefined}
+                onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                className="mt-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              />
+            </label>
+            <label className="flex flex-col text-xs text-gray-500 dark:text-gray-400">
+              {t('admin.payments.to')}
+              <input
+                type="date"
+                value={dateRange.endDate}
+                min={dateRange.startDate || undefined}
+                onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                className="mt-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              />
+            </label>
+            {(dateRange.startDate || dateRange.endDate) && (
+              <button
+                type="button"
+                onClick={() => setDateRange({ startDate: '', endDate: '' })}
+                className="px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+              >
+                {t('admin.payments.clearDates')}
+              </button>
+            )}
+          </fieldset>
           <Link
             href="/dashboard/billing"
             className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors text-sm"
           >
-            View Invoices
+            {t('admin.payments.viewInvoices')}
           </Link>
         </div>
       </div>
@@ -159,9 +162,9 @@ export default function PaymentsPage() {
               </svg>
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Today</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.payments.today')}</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(stats.summary.todayAmount)}</p>
-              <p className="text-xs text-gray-500">{stats.summary.todayPayments} payments</p>
+              <p className="text-xs text-gray-500">{paymentsLabel(stats.summary.todayPayments)}</p>
             </div>
           </div>
         </div>
@@ -174,9 +177,9 @@ export default function PaymentsPage() {
               </svg>
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">This Week</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.payments.thisWeek')}</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(stats.summary.weekAmount)}</p>
-              <p className="text-xs text-gray-500">{stats.summary.weekPayments} payments</p>
+              <p className="text-xs text-gray-500">{paymentsLabel(stats.summary.weekPayments)}</p>
             </div>
           </div>
         </div>
@@ -189,9 +192,9 @@ export default function PaymentsPage() {
               </svg>
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">This Month</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.payments.thisMonth')}</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(stats.summary.monthAmount)}</p>
-              <p className="text-xs text-gray-500">{stats.summary.monthPayments} payments</p>
+              <p className="text-xs text-gray-500">{paymentsLabel(stats.summary.monthPayments)}</p>
             </div>
           </div>
         </div>
@@ -204,9 +207,9 @@ export default function PaymentsPage() {
               </svg>
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Avg Payment</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.payments.avgPayment')}</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCurrency(stats.summary.averagePayment)}</p>
-              <p className="text-xs text-gray-500">{stats.summary.totalPayments} total</p>
+              <p className="text-xs text-gray-500">{t('admin.payments.totalCount', { count: stats.summary.totalPayments })}</p>
             </div>
           </div>
         </div>
@@ -216,14 +219,14 @@ export default function PaymentsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Daily Trend Line Chart */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Daily Payment Trend (Last 30 Days)</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.payments.dailyPaymentTrendLast30Days')}</h2>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={stats.dailyTrend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis
                   dataKey="date"
-                  tickFormatter={formatDate}
+                  tickFormatter={formatShortDate}
                   stroke="#9ca3af"
                   fontSize={12}
                 />
@@ -233,8 +236,8 @@ export default function PaymentsPage() {
                   tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
-                  formatter={(value) => [formatCurrency(value as number), 'Amount']}
-                  labelFormatter={(label) => formatDate(label as string)}
+                  formatter={(value) => [formatCurrency(value as number), t('admin.payments.amount')]}
+                  labelFormatter={(label) => formatShortDate(label as string)}
                   contentStyle={{
                     backgroundColor: '#1f2937',
                     border: 'none',
@@ -257,7 +260,7 @@ export default function PaymentsPage() {
 
         {/* Payment Methods Pie Chart */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Payment Methods Distribution</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.payments.paymentMethodsDistribution')}</h2>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -270,7 +273,7 @@ export default function PaymentsPage() {
                   paddingAngle={2}
                   dataKey="amount"
                   nameKey="method"
-                  label={({ name, percent }) => `${METHOD_LABELS[name as string] || name} (${((percent || 0) * 100).toFixed(0)}%)`}
+                  label={({ name, percent }) => `${tEnum(name as string)} (${((percent || 0) * 100).toFixed(0)}%)`}
                   labelLine={{ stroke: '#9ca3af' }}
                 >
                   {stats.paymentsByMethod.map((entry, index) => (
@@ -278,7 +281,7 @@ export default function PaymentsPage() {
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value, name) => [formatCurrency(value as number), METHOD_LABELS[name as string] || name]}
+                  formatter={(value, name) => [formatCurrency(value as number), tEnum(name as string)]}
                   contentStyle={{
                     backgroundColor: '#1f2937',
                     border: 'none',
@@ -294,22 +297,23 @@ export default function PaymentsPage() {
 
       {/* Monthly Trend Bar Chart */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Monthly Revenue (Last 12 Months)</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.payments.monthlyRevenueLast12Months')}</h2>
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={stats.monthlyTrend}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
+              <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} tickFormatter={formatMonthLabel} />
               <YAxis
                 stroke="#9ca3af"
                 fontSize={12}
                 tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
               />
               <Tooltip
-                formatter={(value, name) => [
-                  name === 'amount' ? formatCurrency(value as number) : value,
-                  name === 'amount' ? 'Revenue' : 'Payments',
+                formatter={(value, _name, item) => [
+                  item?.dataKey === 'amount' ? formatCurrency(value as number) : value,
+                  item?.dataKey === 'amount' ? t('admin.payments.revenue') : t('admin.payments.payments'),
                 ]}
+                labelFormatter={(label) => formatMonthLabel(label as string)}
                 contentStyle={{
                   backgroundColor: '#1f2937',
                   border: 'none',
@@ -318,8 +322,8 @@ export default function PaymentsPage() {
                 }}
               />
               <Legend />
-              <Bar dataKey="amount" name="Revenue" fill="#84cc16" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="count" name="Payments" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="amount" name={t('admin.payments.revenue')} fill="#84cc16" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" name={t('admin.payments.payments')} fill="#3b82f6" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -330,16 +334,16 @@ export default function PaymentsPage() {
         {/* Recent Payments */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Payments</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.payments.recentPayments')}</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700/50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Patient</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Method</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.payments.patient')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.payments.method')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.payments.amount')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.payments.date')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -350,20 +354,20 @@ export default function PaymentsPage() {
                       <p className="text-xs text-gray-500">{payment.invoiceNumber}</p>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                      {METHOD_LABELS[payment.method] || payment.method}
+                      {tEnum(payment.method)}
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-green-600 dark:text-green-400 text-right">
                       {formatCurrency(payment.amount)}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                      {formatDateTime(payment.processedAt)}
+                      {formatShortDateTime(payment.processedAt)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {stats.recentPayments.length === 0 && (
-              <p className="text-center text-gray-500 dark:text-gray-400 py-8">No recent payments</p>
+              <p className="text-center text-gray-500 dark:text-gray-400 py-8">{t('admin.payments.noRecentPayments')}</p>
             )}
           </div>
         </div>
@@ -371,7 +375,7 @@ export default function PaymentsPage() {
         {/* Top Paying Patients */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Top Paying Patients</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.payments.topPayingPatients')}</h2>
           </div>
           <div className="p-4 space-y-3">
             {stats.topPatients.slice(0, 8).map((patient, index) => (
@@ -386,7 +390,7 @@ export default function PaymentsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{patient.name}</p>
-                  <p className="text-xs text-gray-500">{patient.count} payments</p>
+                  <p className="text-xs text-gray-500">{paymentsLabel(patient.count)}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(patient.amount)}</p>
@@ -394,7 +398,7 @@ export default function PaymentsPage() {
               </div>
             ))}
             {stats.topPatients.length === 0 && (
-              <p className="text-center text-gray-500 dark:text-gray-400 py-4">No data available</p>
+              <p className="text-center text-gray-500 dark:text-gray-400 py-4">{t('admin.payments.noDataAvailable')}</p>
             )}
           </div>
         </div>
@@ -403,7 +407,7 @@ export default function PaymentsPage() {
       {/* Payment Methods Summary */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Payment Methods Breakdown</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.payments.paymentMethodsBreakdown')}</h2>
         </div>
         <div className="p-4">
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
@@ -413,9 +417,9 @@ export default function PaymentsPage() {
                 className="p-4 rounded-lg border border-gray-200 dark:border-gray-600"
                 style={{ borderLeftColor: COLORS[index % COLORS.length], borderLeftWidth: '4px' }}
               >
-                <p className="text-sm text-gray-600 dark:text-gray-400">{METHOD_LABELS[method.method] || method.method}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{tEnum(method.method)}</p>
                 <p className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(method.amount)}</p>
-                <p className="text-xs text-gray-500">{method.count} payments ({method.percentage}%)</p>
+                <p className="text-xs text-gray-500">{t('admin.payments.methodShare', { payments: paymentsLabel(method.count), percent: method.percentage })}</p>
               </div>
             ))}
           </div>

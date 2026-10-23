@@ -13,7 +13,14 @@ type PrescriptionStatus = 'ACTIVE' | 'DISPENSED' | 'PARTIALLY_DISPENSED' | 'CANC
 
 export default function PrescriptionsPage() {
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, tEnum, formatDate, language } = useLanguage();
+  const plural = (key: string, count: number) =>
+    t(`${key}_${count === 1 || (language === 'fr' && count === 0) ? 'one' : 'other'}`, { count });
+  const rxStatus = (status: string) => {
+    const key = `ph.rxStatus.${status}`;
+    const label = t(key);
+    return label === key ? tEnum(status) : label;
+  };
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -23,6 +30,14 @@ export default function PrescriptionsPage() {
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Allow deep links such as /dashboard/prescriptions?status=ACTIVE
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get('status');
+    if (status && ['ACTIVE', 'DISPENSED', 'PARTIALLY_DISPENSED', 'CANCELLED', 'EXPIRED'].includes(status)) {
+      setStatusFilter(status as PrescriptionStatus);
+    }
+  }, []);
 
   // If user is a doctor, the backend will automatically filter to their prescriptions
   const isDoctor = user?.role === 'DOCTOR';
@@ -42,11 +57,11 @@ export default function PrescriptionsPage() {
       setTotalPages(response.pagination.totalPages);
     } catch (error) {
       console.error('Error fetching prescriptions:', error);
-      setFetchError(error instanceof Error ? error.message : 'Failed to fetch prescriptions');
+      setFetchError(error instanceof Error ? error.message : t('ph.rx.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, statusFilter, page]);
+  }, [debouncedSearch, statusFilter, page, t]);
 
   useEffect(() => {
     fetchPrescriptions();
@@ -74,14 +89,6 @@ export default function PrescriptionsPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
   // Calculate stats
   const totalPrescriptions = Object.values(statusCounts).reduce((a, b) => a + b, 0);
   const activePrescriptions = statusCounts['ACTIVE'] || 0;
@@ -94,10 +101,10 @@ export default function PrescriptionsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {isDoctor ? 'My Prescriptions' : 'Prescriptions'}
+            {isDoctor ? t('ph.rx.myTitle') : t('ph.rx.title')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {isDoctor ? 'Manage prescriptions for your patients' : 'View and manage all prescriptions'}
+            {isDoctor ? t('ph.rx.mySubtitle') : t('ph.rx.subtitle')}
           </p>
         </div>
         <PermissionGate permission="prescriptions:create">
@@ -108,7 +115,7 @@ export default function PrescriptionsPage() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            New Prescription
+            {t('ph.rx.new')}
           </Link>
         </PermissionGate>
       </div>
@@ -117,19 +124,19 @@ export default function PrescriptionsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-3xl font-bold text-lime-600">{totalPrescriptions}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Total Prescriptions</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('ph.rx.total')}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-3xl font-bold text-blue-600">{activePrescriptions}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Active</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('ph.rx.activeStat')}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-3xl font-bold text-green-600">{dispensedToday}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Dispensed</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('ph.rx.dispensedStat')}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-3xl font-bold text-orange-600">{pendingDispense}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Pending Dispense</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('ph.rx.pendingStat')}</p>
         </div>
       </div>
 
@@ -143,7 +150,7 @@ export default function PrescriptionsPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by patient name or ID..."
+                placeholder={t('ph.rx.searchPlaceholder')}
                 className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
               />
             </div>
@@ -152,12 +159,10 @@ export default function PrescriptionsPage() {
               onChange={(e) => setStatusFilter(e.target.value as PrescriptionStatus | '')}
               className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
-              <option value="">All Statuses</option>
-              <option value="ACTIVE">Active</option>
-              <option value="DISPENSED">Dispensed</option>
-              <option value="PARTIALLY_DISPENSED">Partially Dispensed</option>
-              <option value="CANCELLED">Cancelled</option>
-              <option value="EXPIRED">Expired</option>
+              <option value="">{t('ph.rx.allStatuses')}</option>
+              {(['ACTIVE', 'DISPENSED', 'PARTIALLY_DISPENSED', 'CANCELLED', 'EXPIRED'] as const).map((status) => (
+                <option key={status} value={status}>{rxStatus(status)}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -188,14 +193,14 @@ export default function PrescriptionsPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(prescription.status)}`}>
-                        {prescription.status.replace('_', ' ')}
+                        {rxStatus(prescription.status)}
                       </span>
                     </div>
                   </div>
 
                   <div className="mb-3">
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      <span className="font-medium">Prescribed by:</span> {prescription.doctorName}
+                      <span className="font-medium">{t('ph.rx.prescribedBy')}</span> {prescription.doctorName}
                     </p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(prescription.createdAt)}
@@ -204,7 +209,7 @@ export default function PrescriptionsPage() {
 
                   {/* Medications */}
                   <div className="mb-3">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Medications</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t('ph.rx.medications')}</p>
                     <div className="flex flex-wrap gap-2">
                       {prescription.items.slice(0, 3).map((item) => (
                         <span
@@ -220,7 +225,7 @@ export default function PrescriptionsPage() {
                       ))}
                       {prescription.items.length > 3 && (
                         <span className="px-2 py-1 bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400 rounded text-xs">
-                          +{prescription.items.length - 3} more
+                          {t('ph.common.more', { count: prescription.items.length - 3 })}
                         </span>
                       )}
                     </div>
@@ -228,28 +233,28 @@ export default function PrescriptionsPage() {
 
                   {prescription.notes && (
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                      <span className="font-medium">Notes:</span> {prescription.notes}
+                      <span className="font-medium">{t('ph.rx.notes')}</span> {prescription.notes}
                     </p>
                   )}
 
                   <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
                     <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {prescription.itemCount} medication{prescription.itemCount !== 1 ? 's' : ''}
+                      {plural('ph.rx.medicationCount', prescription.itemCount)}
                     </span>
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/dashboard/prescriptions/${prescription.id}`}
                         className="px-3 py-1.5 text-sm text-lime-600 hover:bg-lime-50 dark:hover:bg-lime-900/50 rounded-lg transition-colors"
                       >
-                        View Details
+                        {t('ph.rx.viewDetails')}
                       </Link>
                       <PermissionGate permission="prescriptions:dispense">
-                        {prescription.status === 'ACTIVE' && (
+                        {(prescription.status === 'ACTIVE' || prescription.status === 'PARTIALLY_DISPENSED') && (
                           <Link
-                            href={`/dashboard/pharmacy?prescription=${prescription.id}`}
+                            href={`/dashboard/prescriptions/${prescription.id}`}
                             className="px-3 py-1.5 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
                           >
-                            Dispense
+                            {t('ph.rx.dispense')}
                           </Link>
                         )}
                       </PermissionGate>

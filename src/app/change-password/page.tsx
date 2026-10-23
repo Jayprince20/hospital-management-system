@@ -25,30 +25,30 @@ export default function ChangePasswordPage() {
   // Password validation
   const validatePassword = (password: string): string | null => {
     if (password.length < 8) {
-      return 'Password must be at least 8 characters long';
+      return t('admin.pwd.min8');
     }
     if (!/[A-Z]/.test(password)) {
-      return 'Password must contain at least one uppercase letter';
+      return t('admin.pwd.upper');
     }
     if (!/[a-z]/.test(password)) {
-      return 'Password must contain at least one lowercase letter';
+      return t('admin.pwd.lower');
     }
     if (!/[0-9]/.test(password)) {
-      return 'Password must contain at least one number';
+      return t('admin.pwd.number');
     }
     if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-      return 'Password must contain at least one special character';
+      return t('admin.pwd.special');
     }
     return null;
   };
 
   // Check password requirements for visual feedback
   const passwordRequirements = [
-    { label: 'At least 8 characters', met: newPassword.length >= 8 },
-    { label: 'One uppercase letter', met: /[A-Z]/.test(newPassword) },
-    { label: 'One lowercase letter', met: /[a-z]/.test(newPassword) },
-    { label: 'One number', met: /[0-9]/.test(newPassword) },
-    { label: 'One special character', met: /[!@#$%^&*(),.?":{}|<>]/.test(newPassword) },
+    { label: t('admin.pwd.req8'), met: newPassword.length >= 8 },
+    { label: t('admin.pwd.reqUpper'), met: /[A-Z]/.test(newPassword) },
+    { label: t('admin.pwd.reqLower'), met: /[a-z]/.test(newPassword) },
+    { label: t('admin.pwd.reqNumber'), met: /[0-9]/.test(newPassword) },
+    { label: t('admin.pwd.reqSpecial'), met: /[!@#$%^&*(),.?":{}|<>]/.test(newPassword) },
   ];
 
   // Show loading while checking authentication
@@ -57,7 +57,7 @@ export default function ChangePasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-lime-100 dark:from-gray-900 dark:to-gray-800">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">{t('admin.pwd.loading')}</p>
         </div>
       </div>
     );
@@ -88,13 +88,13 @@ export default function ChangePasswordPage() {
 
     // Check if passwords match
     if (newPassword !== confirmPassword) {
-      setError('New passwords do not match');
+      setError(t('admin.pwd.mismatch'));
       return;
     }
 
     // Check if new password is different from current
     if (currentPassword === newPassword) {
-      setError('New password must be different from current password');
+      setError(t('admin.pwd.sameAsOld'));
       return;
     }
 
@@ -110,7 +110,7 @@ export default function ChangePasswordPage() {
       clearMustChangePassword();
       router.push('/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to change password');
+      setError(err instanceof Error ? err.message : t('admin.pwd.failed'));
     } finally {
       setIsLoading(false);
     }
@@ -142,10 +142,10 @@ export default function ChangePasswordPage() {
             />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Change Your Password
+            {t('admin.pwd.changeYourPassword')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            For security reasons, please change your password before continuing.
+            {t('admin.pwd.forSecurityReasonsPleaseChangeYour')}
           </p>
         </div>
 
@@ -171,7 +171,7 @@ export default function ChangePasswordPage() {
                 htmlFor="currentPassword"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
               >
-                Current Password (Temporary Password)
+                {t('admin.pwd.currentPasswordTemporaryPassword')}
               </label>
               <div className="relative">
                 <input
@@ -181,7 +181,7 @@ export default function ChangePasswordPage() {
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   required
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-lime-500 focus:border-transparent transition-colors pr-12"
-                  placeholder="Enter your temporary password"
+                  placeholder={t('admin.pwd.enterYourTemporaryPassword')}
                 />
                 <button
                   type="button"
@@ -208,7 +208,7 @@ export default function ChangePasswordPage() {
                 htmlFor="newPassword"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
               >
-                New Password
+                {t('admin.pwd.newPassword')}
               </label>
               <div className="relative">
                 <input
@@ -218,7 +218,7 @@ export default function ChangePasswordPage() {
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-lime-500 focus:border-transparent transition-colors pr-12"
-                  placeholder="Enter your new password"
+                  placeholder={t('admin.pwd.enterYourNewPassword')}
                 />
                 <button
                   type="button"
@@ -267,7 +267,7 @@ export default function ChangePasswordPage() {
                 htmlFor="confirmPassword"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
               >
-                Confirm New Password
+                {t('admin.pwd.confirmNewPassword')}
               </label>
               <div className="relative">
                 <input
@@ -283,7 +283,7 @@ export default function ChangePasswordPage() {
                       ? 'border-green-300 dark:border-green-600'
                       : 'border-gray-300 dark:border-gray-600'
                   } bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-lime-500 focus:border-transparent transition-colors pr-12`}
-                  placeholder="Confirm your new password"
+                  placeholder={t('admin.pwd.confirmYourNewPassword')}
                 />
                 <button
                   type="button"
@@ -303,10 +303,10 @@ export default function ChangePasswordPage() {
                 </button>
               </div>
               {confirmPassword && confirmPassword !== newPassword && (
-                <p className="mt-1 text-sm text-red-500">Passwords do not match</p>
+                <p className="mt-1 text-sm text-red-500">{t('admin.pwd.passwordsDoNotMatch')}</p>
               )}
               {confirmPassword && confirmPassword === newPassword && (
-                <p className="mt-1 text-sm text-green-500">Passwords match</p>
+                <p className="mt-1 text-sm text-green-500">{t('admin.pwd.passwordsMatch')}</p>
               )}
             </div>
 
@@ -336,10 +336,10 @@ export default function ChangePasswordPage() {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     />
                   </svg>
-                  Changing Password...
+                  {t('admin.pwd.changingPassword')}
                 </span>
               ) : (
-                'Change Password'
+                t('admin.pwd.change')
               )}
             </button>
           </form>
@@ -350,7 +350,7 @@ export default function ChangePasswordPage() {
               onClick={handleLogout}
               className="text-sm text-gray-600 dark:text-gray-400 hover:text-lime-600 dark:hover:text-lime-400"
             >
-              Sign out and use a different account
+              {t('admin.pwd.signOutAndUseADifferent')}
             </button>
           </div>
         </div>

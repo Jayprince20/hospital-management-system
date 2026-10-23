@@ -1,5 +1,13 @@
 'use client';
 
+import { useLanguage } from '@/context/language-context';
+
+// Screen-reader text announced while a skeleton is visible
+function LoadingLabel() {
+  const { t } = useLanguage();
+  return <span className="sr-only">{t('common.loading')}</span>;
+}
+
 interface SkeletonProps {
   className?: string;
   width?: string;
@@ -99,7 +107,7 @@ export function TableSkeleton({
           ))}
         </tbody>
       </table>
-      <span className="sr-only">Loading...</span>
+      <LoadingLabel />
     </div>
   );
 }
@@ -123,7 +131,7 @@ export function CardSkeleton({ showImage = false, lines = 3, className = '' }: C
         <Skeleton className="h-5 w-3/4" />
         <SkeletonText lines={lines} />
       </div>
-      <span className="sr-only">Loading...</span>
+      <LoadingLabel />
     </div>
   );
 }
@@ -147,7 +155,7 @@ export function ListSkeleton({ items = 5, showAvatar = true, className = '' }: L
           </div>
         </div>
       ))}
-      <span className="sr-only">Loading...</span>
+      <LoadingLabel />
     </div>
   );
 }
@@ -162,7 +170,7 @@ export function StatsSkeleton({ className = '' }: { className?: string }) {
     >
       <Skeleton className="h-8 w-16 mb-2" />
       <Skeleton className="h-4 w-24" />
-      <span className="sr-only">Loading...</span>
+      <LoadingLabel />
     </div>
   );
 }
@@ -197,7 +205,7 @@ export function FormSkeleton({ fields = 4, className = '' }: FormSkeletonProps) 
         <Skeleton className="h-10 w-20" />
         <Skeleton className="h-10 w-24" />
       </div>
-      <span className="sr-only">Loading...</span>
+      <LoadingLabel />
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { useToast } from '@/components/toast';
 import { TableSkeleton, ErrorState, NoResults, Modal } from '@/components/ui';
 import { ButtonSpinner } from '@/components/ui/loading-spinner';
-import { formatDate } from '@/lib/formatters';
+import { useLanguage } from '@/context/language-context';
 
 interface NotificationFormData {
   title: string;
@@ -54,6 +54,9 @@ export default function NotificationsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const toast = useToast();
+  const { t, formatDate } = useLanguage();
+  const typeLabel = (type: string) => t(`admin.notif.type.${type}`);
+  const audienceLabel = (role: string) => t(`admin.notif.audience.${role}`);
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -107,7 +110,7 @@ export default function NotificationsPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title.trim() || !formData.message.trim()) {
-      setError('Title and message are required');
+      setError(t('admin.notif.requiredFields'));
       return;
     }
 
@@ -122,7 +125,7 @@ export default function NotificationsPage() {
       });
       setShowCreateModal(false);
       setFormData(initialFormData);
-      toast.success('Notification sent', `Notification has been sent to ${formData.targetRole === 'ALL' ? 'all users' : formData.targetRole.toLowerCase() + 's'}.`);
+      toast.success(t('admin.notif.sent'), t('admin.notif.sentMsg', { audience: audienceLabel(formData.targetRole) }));
       fetchNotifications();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create notification');
@@ -139,10 +142,10 @@ export default function NotificationsPage() {
       await api.deleteNotification(selectedNotification.id);
       setShowDeleteModal(false);
       setSelectedNotification(null);
-      toast.success('Notification deleted', 'The notification has been deleted.');
+      toast.success(t('admin.notif.deleted'), t('admin.notif.deletedMsg'));
       fetchNotifications();
     } catch (err) {
-      toast.error('Delete failed', err instanceof Error ? err.message : 'Failed to delete notification');
+      toast.error(t('admin.notif.deleteFailed'), err instanceof Error ? err.message : t('admin.notif.deleteError'));
     } finally {
       setSaving(false);
     }
@@ -156,17 +159,17 @@ export default function NotificationsPage() {
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (err) {
-      toast.error('Error', 'Failed to mark notification as read');
+      toast.error(t('admin.notif.error'), t('admin.notif.markReadError'));
     }
   };
 
   const handleMarkAllAsRead = async () => {
     try {
       const result = await api.markAllNotificationsAsRead();
-      toast.success('Success', `Marked ${result.count} notifications as read`);
+      toast.success(t('admin.notif.success'), t('admin.notif.markedAll', { count: result.count }));
       fetchNotifications();
     } catch (err) {
-      toast.error('Error', 'Failed to mark all notifications as read');
+      toast.error(t('admin.notif.error'), t('admin.notif.markAllError'));
     }
   };
 
@@ -174,10 +177,10 @@ export default function NotificationsPage() {
     if (!confirm('Are you sure you want to delete all notifications?')) return;
     try {
       const result = await api.deleteAllNotifications(true);
-      toast.success('Success', `Deleted ${result.count} notifications`);
+      toast.success(t('admin.notif.success'), t('admin.notif.deletedAll', { count: result.count }));
       fetchNotifications();
     } catch (err) {
-      toast.error('Error', 'Failed to delete notifications');
+      toast.error(t('admin.notif.error'), t('admin.notif.deleteAllError'));
     }
   };
 
@@ -194,9 +197,9 @@ export default function NotificationsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Notifications</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('admin.notif.notifications')}</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Send and manage system notifications
+            {t('admin.notif.sendAndManageSystemNotifications')}
             {unreadCount > 0 && (
               <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400">
                 {unreadCount} unread
@@ -213,7 +216,7 @@ export default function NotificationsPage() {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Mark All Read
+              {t('admin.notif.markAllRead')}
             </button>
           )}
           <button
@@ -223,7 +226,7 @@ export default function NotificationsPage() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Send Notification
+            {t('admin.notif.sendNotification')}
           </button>
         </div>
       </div>
@@ -237,7 +240,7 @@ export default function NotificationsPage() {
           onClick={() => { setTypeFilter(''); setUnreadOnly(false); }}
         >
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{notifications.length}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">All</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.notif.all')}</p>
         </div>
         <div
           className={`bg-white dark:bg-gray-800 rounded-xl p-4 border cursor-pointer transition-colors ${
@@ -246,7 +249,7 @@ export default function NotificationsPage() {
           onClick={() => { setTypeFilter(''); setUnreadOnly(true); }}
         >
           <p className="text-2xl font-bold text-red-600 dark:text-red-400">{unreadCount}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Unread</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.notif.unread')}</p>
         </div>
         {notificationTypes.map((type) => (
           <div
@@ -257,7 +260,7 @@ export default function NotificationsPage() {
             onClick={() => { setTypeFilter(type.value); setUnreadOnly(false); }}
           >
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${type.color}`}>
-              {type.label}
+              {typeLabel(type.value)}
             </span>
           </div>
         ))}
@@ -268,14 +271,14 @@ export default function NotificationsPage() {
         {/* Table Header */}
         <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
           <h2 className="font-semibold text-gray-900 dark:text-white">
-            {typeFilter ? `${getTypeConfig(typeFilter).label} Notifications` : unreadOnly ? 'Unread Notifications' : 'All Notifications'}
+            {typeFilter ? t('admin.notif.typeHeading', { type: typeLabel(getTypeConfig(typeFilter).value) }) : unreadOnly ? t('admin.notif.unreadHeading') : t('admin.notif.allHeading')}
           </h2>
           {notifications.length > 0 && (
             <button
               onClick={handleDeleteAll}
               className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
             >
-              Delete All
+              {t('admin.notif.deleteAll')}
             </button>
           )}
         </div>
@@ -292,12 +295,12 @@ export default function NotificationsPage() {
             <table className="w-full">
               <thead>
                 <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
-                  <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3">Type</th>
-                  <th className="px-6 py-3">Title</th>
-                  <th className="px-6 py-3">Message</th>
-                  <th className="px-6 py-3">Created</th>
-                  <th className="px-6 py-3">Actions</th>
+                  <th className="px-6 py-3">{t('admin.notif.status')}</th>
+                  <th className="px-6 py-3">{t('admin.notif.type')}</th>
+                  <th className="px-6 py-3">{t('admin.notif.title')}</th>
+                  <th className="px-6 py-3">{t('admin.notif.message')}</th>
+                  <th className="px-6 py-3">{t('admin.notif.created')}</th>
+                  <th className="px-6 py-3">{t('admin.notif.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -314,18 +317,18 @@ export default function NotificationsPage() {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76" />
                             </svg>
-                            <span className="text-xs">Read</span>
+                            <span className="text-xs">{t('admin.notif.read')}</span>
                           </span>
                         ) : (
                           <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
                             <span className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400"></span>
-                            <span className="text-xs font-medium">New</span>
+                            <span className="text-xs font-medium">{t('admin.notif.new')}</span>
                           </span>
                         )}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${typeConfig.color}`}>
-                          {typeConfig.label}
+                          {typeLabel(typeConfig.value)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -347,7 +350,7 @@ export default function NotificationsPage() {
                             <button
                               onClick={() => handleMarkAsRead(notification.id)}
                               className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-lg transition-colors"
-                              title="Mark as read"
+                              title={t('admin.notif.markAsRead')}
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -357,7 +360,7 @@ export default function NotificationsPage() {
                           <button
                             onClick={() => openDeleteModal(notification)}
                             className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors"
-                            title="Delete"
+                            title={t('admin.notif.delete')}
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -381,17 +384,17 @@ export default function NotificationsPage() {
               disabled={page === 1}
               className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50"
             >
-              Previous
+              {t('admin.notif.previous')}
             </button>
             <span className="text-sm text-gray-600 dark:text-gray-400">
-              Page {page} of {totalPages}
+              {t('admin.notif.pageOf', { page, total: totalPages })}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
               className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50"
             >
-              Next
+              {t('admin.notif.next')}
             </button>
           </div>
         )}
@@ -399,7 +402,7 @@ export default function NotificationsPage() {
 
       {/* Create Modal */}
       <Modal isOpen={showCreateModal} onClose={closeModals} size="lg">
-        <Modal.Header>Send Notification</Modal.Header>
+        <Modal.Header>{t('admin.notif.sendNotification')}</Modal.Header>
         <Modal.Body>
           {error && (
             <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
@@ -408,22 +411,22 @@ export default function NotificationsPage() {
           )}
           <form id="create-notification-form" onSubmit={handleCreate} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.notif.title')}</label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Enter notification title"
+                placeholder={t('admin.notif.enterNotificationTitle')}
                 className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Message *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.notif.message')}</label>
               <textarea
                 value={formData.message}
                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                placeholder="Enter notification message"
+                placeholder={t('admin.notif.enterNotificationMessage')}
                 rows={4}
                 className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                 required
@@ -431,45 +434,45 @@ export default function NotificationsPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.notif.type')}</label>
                 <select
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value as NotificationType })}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                 >
                   {notificationTypes.map((type) => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
+                    <option key={type.value} value={type.value}>{typeLabel(type.value)}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Recipients</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.notif.recipients')}</label>
                 <select
                   value={formData.targetRole}
                   onChange={(e) => setFormData({ ...formData, targetRole: e.target.value as NotificationTargetRole })}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                 >
                   {targetRoles.map((role) => (
-                    <option key={role.value} value={role.value}>{role.label}</option>
+                    <option key={role.value} value={role.value}>{t(`admin.notif.target.${role.value}`)}</option>
                   ))}
                 </select>
               </div>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                <strong>Note:</strong> This notification will be sent to{' '}
-                {formData.targetRole === 'ALL' ? 'all users' : formData.targetRole === 'STAFF' ? 'all staff members' : `all ${formData.targetRole.toLowerCase()}s`} in the system.
+                <strong>{t('admin.notif.notePrefix')}</strong>{' '}
+                {t('admin.notif.noteBody', { audience: audienceLabel(formData.targetRole) })}
               </p>
             </div>
           </form>
         </Modal.Body>
         <Modal.Footer>
           <button type="button" onClick={closeModals} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-            Cancel
+            {t('admin.notif.cancel')}
           </button>
           <button type="submit" form="create-notification-form" disabled={saving} className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors flex items-center gap-2">
             {saving && <ButtonSpinner />}
-            {saving ? 'Sending...' : 'Send Notification'}
+            {saving ? t('admin.notif.sending') : t('admin.notif.sendNotification')}
           </button>
         </Modal.Footer>
       </Modal>
@@ -482,18 +485,18 @@ export default function NotificationsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Delete Notification</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{t('admin.notif.deleteNotification')}</h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Are you sure you want to delete this notification? This action cannot be undone.
+            {t('admin.notif.areYouSureYouWantTo')}
           </p>
         </Modal.Body>
         <Modal.Footer className="justify-center">
           <button onClick={closeModals} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-            Cancel
+            {t('admin.notif.cancel')}
           </button>
           <button onClick={handleDelete} disabled={saving} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-2">
             {saving && <ButtonSpinner />}
-            {saving ? 'Deleting...' : 'Delete'}
+            {saving ? t('admin.notif.deleting') : t('admin.notif.delete')}
           </button>
         </Modal.Footer>
       </Modal>

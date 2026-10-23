@@ -8,7 +8,7 @@ import { useToast } from '@/components/toast';
 import { useConfirm } from '@/components/confirm-modal';
 import { useLanguage } from '@/context/language-context';
 import { TableSkeleton } from '@/components/ui';
-import { formatDate as formatDateBase, formatTime, getStatusColorClasses } from '@/lib/formatters';
+import { getStatusColorClasses } from '@/lib/formatters';
 import { PermissionGate } from '@/components/permission-gate';
 import {
   BarChart,
@@ -25,7 +25,7 @@ import {
 } from 'recharts';
 
 export default function AppointmentsPage() {
-  const { t } = useLanguage();
+  const { t, tEnum, formatDate: formatDateBase, formatTime } = useLanguage();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [stats, setStats] = useState({
     totalToday: 0,
@@ -103,7 +103,7 @@ export default function AppointmentsPage() {
       setTotalPages(response.totalPages);
       setTotalAppointments(response.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch appointments');
+      setError(err instanceof Error ? err.message : t('appointmentsPage.errFetch'));
     } finally {
       setLoading(false);
     }
@@ -120,18 +120,18 @@ export default function AppointmentsPage() {
   const handleStatusChange = async (id: string, newStatus: AppointmentStatus) => {
     try {
       await api.updateAppointment(id, { status: newStatus });
-      toast.success('Status updated', `Appointment status changed to ${newStatus.replace('_', ' ').toLowerCase()}.`);
+      toast.success(t('appointmentsPage.statusUpdated'), t('appointmentsPage.statusUpdatedMessage', { status: tEnum(newStatus).toLowerCase() }));
       fetchAppointments();
     } catch (err) {
-      toast.error('Update failed', err instanceof Error ? err.message : 'Failed to update appointment');
+      toast.error(t('appointmentsPage.updateFailed'), err instanceof Error ? err.message : t('appointmentsPage.updateFailedMessage'));
     }
   };
 
   const handleDelete = async (id: string, patientName: string) => {
     const confirmed = await confirm({
-      title: 'Delete Appointment',
-      message: `Are you sure you want to delete the appointment for ${patientName}? This action cannot be undone.`,
-      confirmText: 'Delete',
+      title: t('appointmentsPage.deleteTitle'),
+      message: t('appointmentsPage.deleteMessage', { name: patientName }),
+      confirmText: t('common.delete'),
       variant: 'danger',
     });
 
@@ -140,10 +140,10 @@ export default function AppointmentsPage() {
     try {
       setIsDeleting(true);
       await api.deleteAppointment(id);
-      toast.success('Appointment deleted', `Appointment for ${patientName} has been removed.`);
+      toast.success(t('appointmentsPage.deleted'), t('appointmentsPage.deletedMessage', { name: patientName }));
       fetchAppointments();
     } catch (err) {
-      toast.error('Delete failed', err instanceof Error ? err.message : 'Failed to delete appointment');
+      toast.error(t('patientsPage.deleteFailed'), err instanceof Error ? err.message : t('appointmentsPage.deleteFailedMessage'));
     } finally {
       setIsDeleting(false);
     }
@@ -247,15 +247,15 @@ export default function AppointmentsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Status Distribution Pie Chart */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Today&apos;s Status Distribution</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('appointmentsPage.statusChart')}</h3>
           <div className="h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={[
-                    { name: 'Scheduled', value: stats.scheduledToday, color: '#84cc16' },
-                    { name: 'Completed', value: stats.completedToday, color: '#22c55e' },
-                    { name: 'Cancelled', value: stats.cancelledToday, color: '#ef4444' },
+                    { name: tEnum('SCHEDULED'), value: stats.scheduledToday, color: '#84cc16' },
+                    { name: tEnum('COMPLETED'), value: stats.completedToday, color: '#22c55e' },
+                    { name: tEnum('CANCELLED'), value: stats.cancelledToday, color: '#ef4444' },
                   ]}
                   cx="50%"
                   cy="50%"
@@ -277,14 +277,14 @@ export default function AppointmentsPage() {
 
         {/* Weekly Overview Bar Chart */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Appointment Overview</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('appointmentsPage.overviewChart')}</h3>
           <div className="h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={[
-                  { name: 'Today', total: stats.totalToday, completed: stats.completedToday },
-                  { name: 'This Week', total: stats.totalThisWeek, completed: Math.round(stats.totalThisWeek * 0.6) },
-                  { name: 'Upcoming', total: stats.upcomingCount, completed: 0 },
+                  { name: t('appointmentsPage.today'), total: stats.totalToday, completed: stats.completedToday },
+                  { name: t('appointmentsPage.thisWeek'), total: stats.totalThisWeek, completed: undefined },
+                  { name: t('appointmentsPage.upcoming'), total: stats.upcomingCount, completed: undefined },
                 ]}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -292,8 +292,8 @@ export default function AppointmentsPage() {
                 <YAxis stroke="#9ca3af" fontSize={12} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="total" name="Total" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="completed" name="Completed" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="total" name={t('appointmentsPage.total')} fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="completed" name={tEnum('COMPLETED')} fill="#22c55e" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -414,7 +414,7 @@ export default function AppointmentsPage() {
                       <td className="px-6 py-4">
                         <div>
                           <p className="text-sm font-medium text-gray-900 dark:text-white">
-                            Dr. {appointment.doctor.firstName} {appointment.doctor.lastName}
+                            Dr {appointment.doctor.firstName} {appointment.doctor.lastName}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">{appointment.doctor.department}</p>
                         </div>

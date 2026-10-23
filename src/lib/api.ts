@@ -1,3 +1,6 @@
+import { backendErrorsFr, backendErrorPatternsFr } from '@/locales/backend-errors';
+import { extraTranslations } from '@/locales';
+
 function getApiUrl(): string {
   if (typeof window !== 'undefined') {
     // Client-side: use the browser's current hostname with the backend port
@@ -15,6 +18,7 @@ interface ApiResponse<T> {
   success: boolean;
   data?: T;
   message?: string;
+  error?: string;
   errors?: Record<string, string[]>;
 }
 
@@ -888,6 +892,7 @@ interface ReportData {
 // Consultation types
 interface Consultation {
   id: string;
+  appointmentId: string;
   patientId: string;
   patientName: string;
   patientHospitalId: string;
@@ -1135,6 +1140,35 @@ interface CreateNotificationInput {
   targetRole?: NotificationTargetRole;
 }
 
+// The backend answers in English; show its messages in French when the UI is in French
+function localizeServerMessage(message: string): string {
+  if (typeof window === 'undefined' || localStorage.getItem('language') === 'en') return message;
+  if (backendErrorsFr[message]) return backendErrorsFr[message];
+  const tEnum = (value: string) => extraTranslations.fr[`enum.${value}`] || value;
+  for (const [pattern, translate] of backendErrorPatternsFr) {
+    const match = message.match(pattern);
+    if (match) return translate(match, tEnum);
+  }
+  const prefix = 'Validation failed: ';
+  if (message.startsWith(prefix)) {
+    const details = message
+      .slice(prefix.length)
+      .split(', ')
+      .map((part) => backendErrorsFr[part] || part)
+      .join(', ');
+    return `${backendErrorsFr['Validation failed'] || 'Validation échouée'} : ${details}`;
+  }
+  return message;
+}
+
+/** Error carrying the HTTP status; status 0 means the server could not be reached */
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -1194,12 +1228,21 @@ class ApiClient {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${accessToken}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${endpoint}`, {
+        ...options,
+        headers,
+      });
+    } catch {
+      const isFrench = typeof window !== 'undefined' && localStorage.getItem('language') !== 'en';
+      throw new ApiError(
+        isFrench ? 'Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.' : 'Unable to reach the server. Check your connection and try again.',
+        0
+      );
+    }
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       if (response.status === 401 && this.getRefreshToken()) {
@@ -1208,7 +1251,7 @@ class ApiClient {
           return this.request<T>(endpoint, options);
         }
       }
-      throw new Error(data.message || 'Request failed');
+      throw new ApiError(localizeServerMessage(data.message || data.error || 'Request failed'), response.status);
     }
 
     return data;
@@ -1241,7 +1284,7 @@ class ApiClient {
       }
       return false;
     } catch {
-      this.clearTokens();
+      // Network failure: keep the tokens so the session survives a server restart
       return false;
     }
   }
@@ -1262,7 +1305,7 @@ class ApiClient {
       return response.data;
     }
 
-    throw new Error(response.message || 'Login failed');
+    throw new Error(response.message || response.error || 'Login failed');
   }
 
   async logout(): Promise<void> {
@@ -1619,7 +1662,7 @@ class ApiClient {
     if (response.success && response.data) {
       return response.data;
     }
-    throw new Error(response.message || 'Failed to reschedule appointment');
+    throw new Error(response.message || response.error || 'Failed to reschedule appointment');
   }
 
   // Dashboard methods
@@ -1827,7 +1870,7 @@ class ApiClient {
     throw new Error('Failed to fetch lab order');
   }
 
-  async createLabOrder(data: { patientId: string; doctorId: string; priority?: string; notes?: string; tests: { labTestId: string }[] }): Promise<LabOrder> {
+  async createLabOrder(data: { patientId: string; doctorId: string; consultationId?: string; priority?: string; notes?: string; tests: { labTestId: string }[] }): Promise<LabOrder> {
     const response = await this.request<LabOrder>('/api/lab-orders', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -1838,7 +1881,7 @@ class ApiClient {
     throw new Error('Failed to create lab order');
   }
 
-  async updateLabOrder(id: string, data: { status?: LabOrderStatus; priority?: string; notes?: string; collectedBy?: string; results?: Array<{ itemId: string; result: string; isAbnormal?: boolean }> }): Promise<LabOrder> {
+  async updateLabOrder(id: string, data: { status?: LabOrderStatus; priority?: string; notes?: string; collectedBy?: string; results?: Array<{ itemId: string; result: string; isAbnormal?: boolean; unit?: string; normalRange?: string; notes?: string }> }): Promise<LabOrder> {
     const response = await this.request<LabOrder>(`/api/lab-orders/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -2133,7 +2176,7 @@ class ApiClient {
     if (response.success && response.data) {
       return response.data;
     }
-    throw new Error(response.message || 'Failed to register patient');
+    throw new Error(response.message || response.error || 'Failed to register patient');
   }
 
   // Report methods

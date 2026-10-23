@@ -7,6 +7,7 @@ import { api, Appointment, Consultation } from '@/lib/api';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth-context';
 import { PermissionGate } from '@/components/permission-gate';
+import { useLanguage } from '@/context/language-context';
 
 interface ConsultationForm {
   chiefComplaint: string;
@@ -41,6 +42,7 @@ export default function ConsultationPage() {
   const router = useRouter();
   const { user } = useAuth();
   const toast = useToast();
+  const { t, tEnum, formatDate, formatTime } = useLanguage();
 
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [existingConsultation, setExistingConsultation] = useState<Consultation | null>(null);
@@ -97,10 +99,10 @@ export default function ConsultationPage() {
 
       // Check if there's an existing consultation for this appointment
       try {
-        const consultationsRes = await api.getConsultations({ patientId: appointmentData.patient.id, limit: 1 });
+        const consultationsRes = await api.getConsultations({ patientId: appointmentData.patient.id, limit: 100 });
         // Find consultation for this specific appointment
         const existing = consultationsRes.consultations?.find(
-          (c: any) => c.appointmentId === params.id
+          (c) => c.appointmentId === params.id
         );
         if (existing) {
           setExistingConsultation(existing);
@@ -119,7 +121,7 @@ export default function ConsultationPage() {
         // No existing consultation, that's okay
       }
     } catch (err) {
-      toast.error('Error', 'Failed to load appointment data');
+      toast.error(t('common.error'), t('consultationForm.errLoad'));
       console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
@@ -217,7 +219,7 @@ export default function ConsultationPage() {
 
   const handleSaveConsultation = async () => {
     if (!appointment || !consultationForm.chiefComplaint) {
-      toast.error('Error', 'Chief complaint is required');
+      toast.error(t('common.error'), t('consultationForm.errComplaint'));
       return;
     }
 
@@ -282,10 +284,10 @@ export default function ConsultationPage() {
       // Update appointment status to completed
       await api.updateAppointment(appointment.id, { status: 'COMPLETED' });
 
-      toast.success('Success', 'Consultation saved successfully');
+      toast.success(t('common.success'), t('consultationForm.saved'));
       router.push(`/dashboard/appointments/${appointment.id}`);
     } catch (err) {
-      toast.error('Error', 'Failed to save consultation');
+      toast.error(t('common.error'), t('consultationForm.errSave'));
       console.error('Error saving consultation:', err);
     } finally {
       setSaving(false);
@@ -303,9 +305,9 @@ export default function ConsultationPage() {
   if (!appointment) {
     return (
       <div className="p-8 text-center">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Appointment not found</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('appointmentDetail.notFound')}</h2>
         <Link href="/dashboard/appointments" className="text-lime-600 hover:underline mt-4 inline-block">
-          Back to Appointments
+          {t('appointmentDetail.back')}
         </Link>
       </div>
     );
@@ -314,8 +316,8 @@ export default function ConsultationPage() {
   return (
     <PermissionGate permission="appointments:start_consultation" fallback={
       <div className="p-8 text-center">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Access Denied</h2>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">You don't have permission to create consultations.</p>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('consultationForm.accessDenied')}</h2>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">{t('consultationForm.noPermission')}</p>
       </div>
     }>
       <div className="max-w-6xl mx-auto">
@@ -329,10 +331,10 @@ export default function ConsultationPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              Back to Appointment
+              {t('consultationForm.backToAppointment')}
             </Link>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
-              Consultation
+              {t('consultationForm.title')}
             </h1>
           </div>
           <button
@@ -346,7 +348,7 @@ export default function ConsultationPage() {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
             )}
-            Complete Consultation
+            {t('consultationForm.complete')}
           </button>
         </div>
 
@@ -368,21 +370,21 @@ export default function ConsultationPage() {
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {appointment.patient.patientId}
-                {appointment.patient.gender && ` | ${appointment.patient.gender}`}
-                {appointment.patient.dateOfBirth && ` | ${new Date().getFullYear() - new Date(appointment.patient.dateOfBirth).getFullYear()} years`}
+                {appointment.patient.gender && ` | ${tEnum(appointment.patient.gender)}`}
+                {appointment.patient.dateOfBirth && ` | ${t('unit.years', { count: new Date().getFullYear() - new Date(appointment.patient.dateOfBirth).getFullYear() })}`}
               </p>
               <div className="flex gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
-                <span>Phone: {appointment.patient.phoneNumber}</span>
-                <span>Email: {appointment.patient.email}</span>
+                <span>{t('consultationForm.phoneValue', { value: appointment.patient.phoneNumber })}</span>
+                <span>{t('consultationForm.emailValue', { value: appointment.patient.email })}</span>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-sm font-medium text-gray-900 dark:text-white">{appointment.type}</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{tEnum(appointment.type)}</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                {new Date(appointment.appointmentDate).toLocaleDateString()} at {new Date(appointment.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {formatDate(appointment.appointmentDate)} {t('appointmentForm.at')} {formatTime(appointment.startTime)}
               </p>
               {appointment.reason && (
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Reason: {appointment.reason}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t('consultationForm.reasonValue', { value: appointment.reason })}</p>
               )}
             </div>
           </div>
@@ -398,7 +400,7 @@ export default function ConsultationPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
-            Consultation Notes
+            {t('consultationForm.tabNotes')}
           </button>
           <button
             onClick={() => setActiveTab('prescription')}
@@ -408,7 +410,7 @@ export default function ConsultationPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
-            Prescription ({prescriptionItems.length})
+            {t('consultationForm.tabPrescription', { count: prescriptionItems.length })}
           </button>
           <button
             onClick={() => setActiveTab('lab-orders')}
@@ -418,7 +420,7 @@ export default function ConsultationPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
-            Lab Orders ({labOrderItems.length})
+            {t('consultationForm.tabLab', { count: labOrderItems.length })}
           </button>
         </div>
 
@@ -429,21 +431,21 @@ export default function ConsultationPage() {
               {/* Chief Complaint */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Chief Complaint *
+                  {t('consultationForm.chiefComplaint')}
                 </label>
                 <textarea
                   value={consultationForm.chiefComplaint}
                   onChange={(e) => setConsultationForm(prev => ({ ...prev, chiefComplaint: e.target.value }))}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
-                  placeholder="Patient's main complaint..."
+                  placeholder={t('consultationForm.complaintPh')}
                 />
               </div>
 
               {/* Symptoms */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Symptoms
+                  {t('consultationForm.symptoms')}
                 </label>
                 <div className="flex gap-2 mb-2">
                   <input
@@ -452,14 +454,14 @@ export default function ConsultationPage() {
                     onChange={(e) => setSymptomInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSymptom())}
                     className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
-                    placeholder="Add symptom..."
+                    placeholder={t('consultationForm.symptomPh')}
                   />
                   <button
                     type="button"
                     onClick={handleAddSymptom}
                     className="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500"
                   >
-                    Add
+                    {t('consultationForm.add')}
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -482,21 +484,21 @@ export default function ConsultationPage() {
               {/* Examination */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Physical Examination
+                  {t('consultationForm.examination')}
                 </label>
                 <textarea
                   value={consultationForm.examination}
                   onChange={(e) => setConsultationForm(prev => ({ ...prev, examination: e.target.value }))}
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
-                  placeholder="Examination findings..."
+                  placeholder={t('consultationForm.examinationPh')}
                 />
               </div>
 
               {/* Diagnosis */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Diagnosis
+                  {t('consultationForm.diagnosis')}
                 </label>
                 <div className="flex gap-2 mb-2">
                   <input
@@ -505,14 +507,14 @@ export default function ConsultationPage() {
                     onChange={(e) => setDiagnosisInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddDiagnosis())}
                     className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
-                    placeholder="Add diagnosis..."
+                    placeholder={t('consultationForm.diagnosisPh')}
                   />
                   <button
                     type="button"
                     onClick={handleAddDiagnosis}
                     className="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500"
                   >
-                    Add
+                    {t('consultationForm.add')}
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -535,21 +537,21 @@ export default function ConsultationPage() {
               {/* Treatment Plan */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Treatment Plan
+                  {t('consultationForm.treatmentPlan')}
                 </label>
                 <textarea
                   value={consultationForm.treatmentPlan}
                   onChange={(e) => setConsultationForm(prev => ({ ...prev, treatmentPlan: e.target.value }))}
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
-                  placeholder="Treatment plan and recommendations..."
+                  placeholder={t('consultationForm.treatmentPh')}
                 />
               </div>
 
               {/* Follow-up Date */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Follow-up Date
+                  {t('consultationForm.followUp')}
                 </label>
                 <input
                   type="date"
@@ -562,14 +564,14 @@ export default function ConsultationPage() {
               {/* Notes */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Additional Notes
+                  {t('consultationForm.notes')}
                 </label>
                 <textarea
                   value={consultationForm.notes}
                   onChange={(e) => setConsultationForm(prev => ({ ...prev, notes: e.target.value }))}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
-                  placeholder="Any additional notes..."
+                  placeholder={t('consultationForm.notesPh')}
                 />
               </div>
             </div>
@@ -580,7 +582,7 @@ export default function ConsultationPage() {
         {activeTab === 'prescription' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Prescription Items</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('consultationForm.rxItems')}</h3>
               <button
                 onClick={handleAddPrescriptionItem}
                 className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 flex items-center gap-2"
@@ -588,20 +590,20 @@ export default function ConsultationPage() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Add Medication
+                {t('consultationForm.addMedication')}
               </button>
             </div>
 
             {prescriptionItems.length === 0 ? (
               <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                No medications added. Click "Add Medication" to prescribe medications.
+                {t('consultationForm.noMedications')}
               </p>
             ) : (
               <div className="space-y-4">
                 {prescriptionItems.map((item, index) => (
                   <div key={index} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
                     <div className="flex justify-between items-start mb-4">
-                      <h4 className="font-medium text-gray-900 dark:text-white">Medication #{index + 1}</h4>
+                      <h4 className="font-medium text-gray-900 dark:text-white">{t('consultationForm.medicationN', { n: index + 1 })}</h4>
                       <button
                         onClick={() => handleRemovePrescriptionItem(index)}
                         className="text-red-500 hover:text-red-700"
@@ -613,50 +615,50 @@ export default function ConsultationPage() {
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Medication</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{t('consultationForm.medication')}</label>
                         <select
                           value={item.medicationId}
                           onChange={(e) => handlePrescriptionItemChange(index, 'medicationId', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         >
-                          <option value="">Select medication...</option>
+                          <option value="">{t('consultationForm.selectMedication')}</option>
                           {medications.map(med => (
                             <option key={med.id} value={med.id}>{med.name} ({med.dosageForm})</option>
                           ))}
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Dosage</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{t('consultationForm.dosage')}</label>
                         <input
                           type="text"
                           value={item.dosage}
                           onChange={(e) => handlePrescriptionItemChange(index, 'dosage', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                          placeholder="e.g., 500mg"
+                          placeholder={t('consultationForm.dosagePh')}
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Frequency</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{t('consultationForm.frequency')}</label>
                         <input
                           type="text"
                           value={item.frequency}
                           onChange={(e) => handlePrescriptionItemChange(index, 'frequency', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                          placeholder="e.g., 3 times daily"
+                          placeholder={t('consultationForm.frequencyPh')}
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Duration</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{t('consultationForm.duration')}</label>
                         <input
                           type="text"
                           value={item.duration}
                           onChange={(e) => handlePrescriptionItemChange(index, 'duration', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                          placeholder="e.g., 7 days"
+                          placeholder={t('consultationForm.durationPh')}
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Quantity</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{t('consultationForm.quantity')}</label>
                         <input
                           type="number"
                           value={item.quantity}
@@ -666,13 +668,13 @@ export default function ConsultationPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Instructions</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{t('consultationForm.instructions')}</label>
                         <input
                           type="text"
                           value={item.instructions}
                           onChange={(e) => handlePrescriptionItemChange(index, 'instructions', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                          placeholder="e.g., Take with food"
+                          placeholder={t('consultationForm.instructionsPh')}
                         />
                       </div>
                     </div>
@@ -687,7 +689,7 @@ export default function ConsultationPage() {
         {activeTab === 'lab-orders' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Lab Orders</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('consultationForm.labOrders')}</h3>
               <button
                 onClick={handleAddLabOrderItem}
                 className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 flex items-center gap-2"
@@ -695,20 +697,20 @@ export default function ConsultationPage() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Add Lab Test
+                {t('consultationForm.addLabTest')}
               </button>
             </div>
 
             {labOrderItems.length === 0 ? (
               <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                No lab tests ordered. Click "Add Lab Test" to order tests.
+                {t('consultationForm.noLabTests')}
               </p>
             ) : (
               <div className="space-y-4">
                 {labOrderItems.map((item, index) => (
                   <div key={index} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
                     <div className="flex justify-between items-start mb-4">
-                      <h4 className="font-medium text-gray-900 dark:text-white">Lab Test #{index + 1}</h4>
+                      <h4 className="font-medium text-gray-900 dark:text-white">{t('consultationForm.labTestN', { n: index + 1 })}</h4>
                       <button
                         onClick={() => handleRemoveLabOrderItem(index)}
                         className="text-red-500 hover:text-red-700"
@@ -720,38 +722,38 @@ export default function ConsultationPage() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Lab Test</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{t('consultationForm.labTest')}</label>
                         <select
                           value={item.labTestId}
                           onChange={(e) => handleLabOrderItemChange(index, 'labTestId', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         >
-                          <option value="">Select test...</option>
+                          <option value="">{t('consultationForm.selectTest')}</option>
                           {labTests.map(test => (
                             <option key={test.id} value={test.id}>{test.name} ({test.code})</option>
                           ))}
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Priority</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{t('consultationForm.priority')}</label>
                         <select
                           value={item.priority}
                           onChange={(e) => handleLabOrderItemChange(index, 'priority', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         >
-                          <option value="ROUTINE">Routine</option>
-                          <option value="URGENT">Urgent</option>
-                          <option value="STAT">STAT</option>
+                          <option value="ROUTINE">{tEnum('ROUTINE')}</option>
+                          <option value="URGENT">{tEnum('URGENT')}</option>
+                          <option value="STAT">{tEnum('STAT')}</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Notes</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{t('consultationForm.notesShort')}</label>
                         <input
                           type="text"
                           value={item.notes}
                           onChange={(e) => handleLabOrderItemChange(index, 'notes', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                          placeholder="Clinical indication..."
+                          placeholder={t('consultationForm.indicationPh')}
                         />
                       </div>
                     </div>

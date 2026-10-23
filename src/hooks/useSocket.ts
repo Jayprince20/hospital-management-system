@@ -34,7 +34,6 @@ export interface UseSocketOptions {
 }
 
 export interface UseSocketReturn {
-  socket: Socket | null;
   isConnected: boolean;
   isConnecting: boolean;
   error: string | null;
@@ -171,11 +170,11 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
 
   // Auto-connect on mount if token exists
   useEffect(() => {
-    if (autoConnect && getToken()) {
-      connect();
-    }
+    // Connect on the next tick: connect() updates state, which must not happen synchronously in an effect
+    const timer = autoConnect && getToken() ? setTimeout(connect, 0) : undefined;
 
     return () => {
+      clearTimeout(timer);
       disconnect();
     };
   }, [autoConnect, connect, disconnect, getToken]);
@@ -197,7 +196,6 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
   }, [connect, disconnect]);
 
   return {
-    socket: socketRef.current,
     isConnected,
     isConnecting,
     error,

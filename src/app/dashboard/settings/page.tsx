@@ -349,10 +349,9 @@ export default function SettingsPage() {
                       onChange={(e) => setSystemSettings({ ...systemSettings, timezone: e.target.value })}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     >
-                      <option value="America/New_York">Eastern Time (ET)</option>
-                      <option value="America/Chicago">Central Time (CT)</option>
-                      <option value="America/Denver">Mountain Time (MT)</option>
-                      <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                      <option value="Africa/Douala">{t('admin.settings.tz.douala')}</option>
+                      <option value="Africa/Lagos">{t('admin.settings.tz.lagos')}</option>
+                      <option value="Europe/Paris">{t('admin.settings.tz.paris')}</option>
                       <option value="UTC">UTC</option>
                     </select>
                   </div>
@@ -379,8 +378,8 @@ export default function SettingsPage() {
                       onChange={(e) => setSystemSettings({ ...systemSettings, timeFormat: e.target.value })}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     >
-                      <option value="12h">12-hour (AM/PM)</option>
-                      <option value="24h">24-hour</option>
+                      <option value="12h">{t('admin.settings.time12')}</option>
+                      <option value="24h">{t('admin.settings.time24')}</option>
                     </select>
                   </div>
                   <div>

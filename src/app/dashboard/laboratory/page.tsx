@@ -6,6 +6,7 @@ import { api, LabTest, LabOrder, LabOrderStatus } from '@/lib/api';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useToast } from '@/components/toast';
 import { PermissionGate } from '@/components/permission-gate';
+import { useLanguage } from '@/context/language-context';
 import {
   PieChart,
   Pie,
@@ -67,8 +68,13 @@ export default function LaboratoryPage() {
   const debouncedSearch = useDebounce(search, 300);
   const [status, setStatus] = useState<LabOrderStatus | ''>('');
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  // Totals per priority across all orders (from the API, not just the current page)
+  const [priorityCounts, setPriorityCounts] = useState<Record<string, number>>({});
 
   const toast = useToast();
+  const { t, tEnum, formatDate, formatCurrency } = useLanguage();
+  // Full catalog for the charts; the paginated `labTests` only holds the visible page of the Test Catalog tab
+  const [catalogTests, setCatalogTests] = useState<LabTest[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
@@ -88,41 +94,52 @@ export default function LaboratoryPage() {
     return Object.entries(statusCounts)
       .filter(([, count]) => count > 0)
       .map(([status, count]) => ({
-        name: status.replace('_', ' '),
+        name: tEnum(status),
         value: count,
         color: STATUS_COLORS[status] || '#6b7280',
       }));
-  }, [statusCounts]);
+  }, [statusCounts, tEnum]);
 
   const testCategoryData = useMemo(() => {
     const categoryCount: Record<string, number> = {};
-    labTests.forEach((test) => {
-      const cat = test.category || 'Uncategorized';
+    catalogTests.forEach((test) => {
+      const cat = test.category || t('lab.uncategorized');
       categoryCount[cat] = (categoryCount[cat] || 0) + 1;
     });
-    return Object.entries(categoryCount).map(([name, value]) => ({ name, value }));
-  }, [labTests]);
+    return Object.entries(categoryCount).map(([cat, value]) => {
+      const key = `lab.category.${cat}`;
+      const label = t(key);
+      return { name: label === key ? cat : label, value };
+    });
+  }, [catalogTests, t]);
 
   const sampleTypeData = useMemo(() => {
     const sampleCount: Record<string, number> = {};
-    labTests.forEach((test) => {
+    catalogTests.forEach((test) => {
       const sample = test.sampleType || 'Other';
       sampleCount[sample] = (sampleCount[sample] || 0) + 1;
     });
-    return Object.entries(sampleCount).map(([name, value]) => ({ name, value }));
-  }, [labTests]);
+    return Object.entries(sampleCount).map(([sample, value]) => {
+      const key = `lab.sample.${sample}`;
+      const label = t(key);
+      return { name: label === key ? sample : label, value };
+    });
+  }, [catalogTests, t]);
 
   const priorityData = useMemo(() => {
-    const priorityCount: Record<string, number> = { ROUTINE: 0, URGENT: 0, STAT: 0 };
-    labOrders.forEach((order) => {
-      priorityCount[order.priority] = (priorityCount[order.priority] || 0) + 1;
-    });
     return [
-      { name: 'Routine', value: priorityCount.ROUTINE, color: '#6b7280' },
-      { name: 'Urgent', value: priorityCount.URGENT, color: '#f59e0b' },
-      { name: 'STAT', value: priorityCount.STAT, color: '#ef4444' },
+      { name: tEnum('ROUTINE'), value: priorityCounts.ROUTINE || 0, color: '#6b7280' },
+      { name: tEnum('URGENT'), value: priorityCounts.URGENT || 0, color: '#f59e0b' },
+      { name: tEnum('STAT'), value: priorityCounts.STAT || 0, color: '#ef4444' },
     ].filter((d) => d.value > 0);
-  }, [labOrders]);
+  }, [priorityCounts, tEnum]);
+
+  // Load the whole active catalog once so the category/sample charts reflect every test
+  useEffect(() => {
+    api.getLabTests({ limit: 500 })
+      .then((response) => setCatalogTests(response.labTests))
+      .catch((err) => console.error('Error fetching lab test catalog:', err));
+  }, []);
 
   const fetchLabOrders = useCallback(async () => {
     try {
@@ -136,13 +153,15 @@ export default function LaboratoryPage() {
       });
       setLabOrders(response.labOrders);
       setStatusCounts(response.statusCounts);
+      setPriorityCounts((response as typeof response & { priorityCounts?: Record<string, number> }).priorityCounts || {});
       setTotalPages(response.pagination.totalPages);
     } catch (error) {
       console.error('Error fetching lab orders:', error);
-      setFetchError(error instanceof Error ? error.message : 'Failed to fetch lab orders');
+      setFetchError(error instanceof Error ? error.message : t('lab.error.fetchOrders'));
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, status, page]);
 
   const fetchLabTests = useCallback(async () => {
@@ -160,10 +179,11 @@ export default function LaboratoryPage() {
       setTotalPages(response.pagination.totalPages);
     } catch (error) {
       console.error('Error fetching lab tests:', error);
-      setFetchError(error instanceof Error ? error.message : 'Failed to fetch lab tests');
+      setFetchError(error instanceof Error ? error.message : t('lab.error.fetchTests'));
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, category, page]);
 
   useEffect(() => {
@@ -199,13 +219,24 @@ export default function LaboratoryPage() {
   };
 
   const statusOptions: { value: LabOrderStatus | ''; label: string }[] = [
-    { value: '', label: 'All Status' },
-    { value: 'ORDERED', label: 'Ordered' },
-    { value: 'SAMPLE_COLLECTED', label: 'Sample Collected' },
-    { value: 'PROCESSING', label: 'Processing' },
-    { value: 'COMPLETED', label: 'Completed' },
-    { value: 'CANCELLED', label: 'Cancelled' },
+    { value: '', label: t('lab.filters.allStatuses') },
+    ...(['ORDERED', 'SAMPLE_COLLECTED', 'PROCESSING', 'COMPLETED', 'CANCELLED'] as LabOrderStatus[]).map((value) => ({
+      value,
+      label: tEnum(value),
+    })),
   ];
+
+  const categoryLabel = (cat: string) => {
+    const key = `lab.category.${cat}`;
+    const label = t(key);
+    return label === key ? cat : label;
+  };
+
+  const sampleLabel = (sample: string) => {
+    const key = `lab.sample.${sample}`;
+    const label = t(key);
+    return label === key ? sample : label;
+  };
 
   const openCreateModal = () => {
     setFormData(initialFormData);
@@ -239,7 +270,7 @@ export default function LaboratoryPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.code.trim() || !formData.name.trim() || !formData.category.trim()) {
-      setError('Code, name, and category are required');
+      setError(t('lab.form.requiredCodeNameCategory'));
       return;
     }
 
@@ -260,10 +291,11 @@ export default function LaboratoryPage() {
       });
       setShowCreateModal(false);
       setFormData(initialFormData);
-      toast.success('Lab test created', `${formData.name} has been added to the catalog.`);
+      toast.success(t('lab.toast.testCreated'), t('lab.toast.testCreatedMsg', { name: formData.name }));
       fetchLabTests();
+      refreshCatalog();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create test');
+      setError(err instanceof Error ? err.message : t('lab.error.createTest'));
     } finally {
       setSaving(false);
     }
@@ -272,7 +304,7 @@ export default function LaboratoryPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTest || !formData.name.trim() || !formData.category.trim()) {
-      setError('Name and category are required');
+      setError(t('lab.form.requiredNameCategory'));
       return;
     }
 
@@ -293,10 +325,11 @@ export default function LaboratoryPage() {
       setShowEditModal(false);
       setSelectedTest(null);
       setFormData(initialFormData);
-      toast.success('Lab test updated', `${formData.name} has been updated successfully.`);
+      toast.success(t('lab.toast.testUpdated'), t('lab.toast.testUpdatedMsg', { name: formData.name }));
       fetchLabTests();
+      refreshCatalog();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update test');
+      setError(err instanceof Error ? err.message : t('lab.error.updateTest'));
     } finally {
       setSaving(false);
     }
@@ -311,14 +344,21 @@ export default function LaboratoryPage() {
       await api.deleteLabTest(selectedTest.id);
       setShowDeleteModal(false);
       setSelectedTest(null);
-      toast.success('Lab test deleted', `${testName} has been removed.`);
+      toast.success(t('lab.toast.testDeleted'), t('lab.toast.testDeletedMsg', { name: testName }));
       fetchLabTests();
+      refreshCatalog();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete test');
-      toast.error('Delete failed', err instanceof Error ? err.message : 'Failed to delete test');
+      setError(err instanceof Error ? err.message : t('lab.error.deleteTest'));
+      toast.error(t('lab.toast.deleteFailed'), err instanceof Error ? err.message : t('lab.error.deleteTest'));
     } finally {
       setSaving(false);
     }
+  };
+
+  const refreshCatalog = () => {
+    api.getLabTests({ limit: 500 })
+      .then((response) => setCatalogTests(response.labTests))
+      .catch((err) => console.error('Error fetching lab test catalog:', err));
   };
 
   const closeModals = () => {
@@ -335,8 +375,8 @@ export default function LaboratoryPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Laboratory</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">Manage lab orders and tests</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('lab.title')}</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">{t('lab.subtitle')}</p>
         </div>
         <div className="flex gap-2">
           <PermissionGate permission="laboratory:create_orders">
@@ -347,7 +387,7 @@ export default function LaboratoryPage() {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              New Order
+              {t('lab.newOrder')}
             </Link>
           </PermissionGate>
           <PermissionGate permission="laboratory:manage_tests">
@@ -355,7 +395,7 @@ export default function LaboratoryPage() {
               onClick={openCreateModal}
               className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
-              Add Test
+              {t('lab.addTest')}
             </button>
           </PermissionGate>
         </div>
@@ -385,7 +425,7 @@ export default function LaboratoryPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Order Status Distribution */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-100 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Order Status Distribution</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('lab.charts.orderStatus')}</h3>
           {orderStatusData.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
@@ -415,14 +455,14 @@ export default function LaboratoryPage() {
             </ResponsiveContainer>
           ) : (
             <div className="h-[250px] flex items-center justify-center text-gray-500 dark:text-gray-400">
-              No order data available
+              {t('lab.charts.noOrderData')}
             </div>
           )}
         </div>
 
         {/* Order Priority Distribution */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-100 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Orders by Priority</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('lab.charts.byPriority')}</h3>
           {priorityData.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={priorityData}>
@@ -436,7 +476,7 @@ export default function LaboratoryPage() {
                     border: '1px solid #e5e7eb',
                   }}
                 />
-                <Bar dataKey="value" name="Orders" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="value" name={t('lab.charts.orders')} radius={[4, 4, 0, 0]}>
                   {priorityData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -445,14 +485,14 @@ export default function LaboratoryPage() {
             </ResponsiveContainer>
           ) : (
             <div className="h-[250px] flex items-center justify-center text-gray-500 dark:text-gray-400">
-              No order data available
+              {t('lab.charts.noOrderData')}
             </div>
           )}
         </div>
 
         {/* Tests by Category */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-100 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tests by Category</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('lab.charts.byCategory')}</h3>
           {testCategoryData.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={testCategoryData} layout="vertical" margin={{ left: 20 }}>
@@ -471,7 +511,7 @@ export default function LaboratoryPage() {
                     border: '1px solid #e5e7eb',
                   }}
                 />
-                <Bar dataKey="value" fill="#84cc16" name="Tests" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="value" fill="#84cc16" name={t('lab.charts.tests')} radius={[0, 4, 4, 0]}>
                   {testCategoryData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                   ))}
@@ -480,14 +520,14 @@ export default function LaboratoryPage() {
             </ResponsiveContainer>
           ) : (
             <div className="h-[250px] flex items-center justify-center text-gray-500 dark:text-gray-400">
-              No test data available
+              {t('lab.charts.noTestData')}
             </div>
           )}
         </div>
 
         {/* Tests by Sample Type */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-100 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tests by Sample Type</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('lab.charts.bySampleType')}</h3>
           {sampleTypeData.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
@@ -516,7 +556,7 @@ export default function LaboratoryPage() {
             </ResponsiveContainer>
           ) : (
             <div className="h-[250px] flex items-center justify-center text-gray-500 dark:text-gray-400">
-              No test data available
+              {t('lab.charts.noTestData')}
             </div>
           )}
         </div>
@@ -534,7 +574,7 @@ export default function LaboratoryPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
               }`}
             >
-              Lab Orders
+              {t('lab.tabs.orders')}
             </button>
             <button
               onClick={() => { setActiveTab('tests'); setPage(1); }}
@@ -544,7 +584,7 @@ export default function LaboratoryPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
               }`}
             >
-              Test Catalog
+              {t('lab.tabs.catalog')}
             </button>
           </nav>
         </div>
@@ -557,7 +597,7 @@ export default function LaboratoryPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={activeTab === 'orders' ? 'Search patients...' : 'Search tests...'}
+                placeholder={activeTab === 'orders' ? t('lab.filters.searchPatients') : t('lab.filters.searchTests')}
                 className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
               />
             </div>
@@ -577,9 +617,9 @@ export default function LaboratoryPage() {
                 onChange={(e) => setCategory(e.target.value)}
                 className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
-                <option value="">All Categories</option>
+                <option value="">{t('lab.filters.allCategories')}</option>
                 {categories.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
+                  <option key={cat} value={cat}>{categoryLabel(cat)}</option>
                 ))}
               </select>
             )}
@@ -598,18 +638,18 @@ export default function LaboratoryPage() {
                 onClick={activeTab === 'orders' ? fetchLabOrders : fetchLabTests}
                 className="text-lime-600 dark:text-lime-400 hover:underline"
               >
-                Try again
+                {t('lab.tryAgain')}
               </button>
             </div>
           ) : loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600"></div>
-              <span className="ml-3 text-gray-600 dark:text-gray-400">Loading...</span>
+              <span className="ml-3 text-gray-600 dark:text-gray-400">{t('lab.loading')}</span>
             </div>
           ) : activeTab === 'orders' ? (
             <div className="space-y-4">
               {labOrders.length === 0 ? (
-                <p className="text-center py-8 text-gray-500 dark:text-gray-400">No lab orders found</p>
+                <p className="text-center py-8 text-gray-500 dark:text-gray-400">{t('lab.noOrders')}</p>
               ) : (
                 labOrders.map((order) => (
                   <Link
@@ -626,10 +666,10 @@ export default function LaboratoryPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityColor(order.priority)}`}>
-                          {order.priority}
+                          {tEnum(order.priority)}
                         </span>
                         <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(order.status)}`}>
-                          {order.status.replace('_', ' ')}
+                          {tEnum(order.status)}
                         </span>
                       </div>
                     </div>
@@ -650,8 +690,8 @@ export default function LaboratoryPage() {
                       ))}
                     </div>
                     <div className="mt-3 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                      <span>Ordered by {order.doctorName}</span>
-                      <span>{new Date(order.createdAt).toLocaleDateString()}</span>
+                      <span>{t('lab.orderedBy', { doctor: order.doctorName })}</span>
+                      <span>{formatDate(order.createdAt)}</span>
                     </div>
                   </Link>
                 ))
@@ -662,14 +702,14 @@ export default function LaboratoryPage() {
               <table className="w-full">
                 <thead>
                   <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <th className="px-4 py-3">Code</th>
-                    <th className="px-4 py-3">Test Name</th>
-                    <th className="px-4 py-3">Category</th>
-                    <th className="px-4 py-3">Sample Type</th>
-                    <th className="px-4 py-3">Processing Time</th>
-                    <th className="px-4 py-3">Price</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Actions</th>
+                    <th className="px-4 py-3">{t('lab.table.code')}</th>
+                    <th className="px-4 py-3">{t('lab.table.name')}</th>
+                    <th className="px-4 py-3">{t('lab.table.category')}</th>
+                    <th className="px-4 py-3">{t('lab.table.sampleType')}</th>
+                    <th className="px-4 py-3">{t('lab.table.processingTime')}</th>
+                    <th className="px-4 py-3">{t('lab.table.price')}</th>
+                    <th className="px-4 py-3">{t('lab.table.status')}</th>
+                    <th className="px-4 py-3">{t('lab.table.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -682,17 +722,17 @@ export default function LaboratoryPage() {
                           <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">{test.description}</p>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{test.category}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{test.sampleType}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{test.processingTime}h</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">${test.price.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{categoryLabel(test.category)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{sampleLabel(test.sampleType)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{t('lab.hours', { count: test.processingTime })}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{formatCurrency(test.price)}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                           test.isActive
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400'
                             : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
                         }`}>
-                          {test.isActive ? 'Active' : 'Inactive'}
+                          {tEnum(test.isActive ? 'ACTIVE' : 'INACTIVE')}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -701,7 +741,7 @@ export default function LaboratoryPage() {
                             <button
                               onClick={() => openEditModal(test)}
                               className="p-1.5 text-lime-600 hover:bg-lime-50 dark:hover:bg-lime-900/50 rounded-lg transition-colors"
-                              title="Edit test"
+                              title={t('lab.editTest')}
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -712,7 +752,7 @@ export default function LaboratoryPage() {
                             <button
                               onClick={() => openDeleteModal(test)}
                               className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors"
-                              title="Delete test"
+                              title={t('lab.deleteTest')}
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -726,7 +766,7 @@ export default function LaboratoryPage() {
                 </tbody>
               </table>
               {labTests.length === 0 && (
-                <p className="text-center py-8 text-gray-500 dark:text-gray-400">No lab tests found</p>
+                <p className="text-center py-8 text-gray-500 dark:text-gray-400">{t('lab.noTests')}</p>
               )}
             </div>
           )}
@@ -740,17 +780,17 @@ export default function LaboratoryPage() {
               disabled={page === 1}
               className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50"
             >
-              Previous
+              {t('lab.pagination.previous')}
             </button>
             <span className="text-sm text-gray-600 dark:text-gray-400">
-              Page {page} of {totalPages}
+              {t('lab.pagination.pageOf', { page, total: totalPages })}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
               className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50"
             >
-              Next
+              {t('lab.pagination.next')}
             </button>
           </div>
         )}
@@ -763,7 +803,7 @@ export default function LaboratoryPage() {
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={closeModals}></div>
             <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl transform transition-all sm:max-w-lg sm:w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Add Lab Test</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('lab.modal.addTitle')}</h3>
                 <button onClick={closeModals} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -780,23 +820,23 @@ export default function LaboratoryPage() {
               <form onSubmit={handleCreate} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.code')} *</label>
                     <input
                       type="text"
                       value={formData.code}
                       onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                      placeholder="e.g., CBC, BMP"
+                      placeholder={t('lab.form.codePlaceholder')}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.category')} *</label>
                     <input
                       type="text"
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      placeholder="e.g., Hematology"
+                      placeholder={t('lab.form.categoryPlaceholder')}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                       required
                     />
@@ -804,7 +844,7 @@ export default function LaboratoryPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Test Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.name')} *</label>
                   <input
                     type="text"
                     value={formData.name}
@@ -815,7 +855,7 @@ export default function LaboratoryPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.description')}</label>
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -826,21 +866,21 @@ export default function LaboratoryPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sample Type *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.sampleType')} *</label>
                     <select
                       value={formData.sampleType}
                       onChange={(e) => setFormData({ ...formData, sampleType: e.target.value })}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                       required
                     >
-                      <option value="">Select type</option>
-                      {sampleTypes.map((t) => (
-                        <option key={t} value={t}>{t}</option>
+                      <option value="">{t('lab.form.selectSampleType')}</option>
+                      {sampleTypes.map((type) => (
+                        <option key={type} value={type}>{sampleLabel(type)}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Processing Time (hours) *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.processingTime')} *</label>
                     <input
                       type="number"
                       min="1"
@@ -854,32 +894,32 @@ export default function LaboratoryPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Normal Range</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.normalRange')}</label>
                     <input
                       type="text"
                       value={formData.normalRange}
                       onChange={(e) => setFormData({ ...formData, normalRange: e.target.value })}
-                      placeholder="e.g., 4.5-11.0"
+                      placeholder={t('lab.form.normalRangePlaceholder')}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.unit')}</label>
                     <input
                       type="text"
                       value={formData.unit}
                       onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                      placeholder="e.g., x10^9/L"
+                      placeholder={t('lab.form.unitPlaceholder')}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Price ($) *</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.price')} *</label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="1"
                     min="0"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
@@ -897,16 +937,16 @@ export default function LaboratoryPage() {
                     className="w-4 h-4 text-lime-600 rounded"
                   />
                   <label htmlFor="isActive" className="text-sm text-gray-700 dark:text-gray-300">
-                    Active
+                    {t('lab.form.active')}
                   </label>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-4">
                   <button type="button" onClick={closeModals} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                    Cancel
+                    {t('lab.form.cancel')}
                   </button>
                   <button type="submit" disabled={saving} className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors">
-                    {saving ? 'Creating...' : 'Create Test'}
+                    {saving ? t('lab.form.creating') : t('lab.form.create')}
                   </button>
                 </div>
               </form>
@@ -922,7 +962,7 @@ export default function LaboratoryPage() {
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={closeModals}></div>
             <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl transform transition-all sm:max-w-lg sm:w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Lab Test</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('lab.modal.editTitle')}</h3>
                 <button onClick={closeModals} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -939,7 +979,7 @@ export default function LaboratoryPage() {
               <form onSubmit={handleUpdate} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.code')}</label>
                     <input
                       type="text"
                       value={formData.code}
@@ -948,7 +988,7 @@ export default function LaboratoryPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.category')} *</label>
                     <input
                       type="text"
                       value={formData.category}
@@ -960,7 +1000,7 @@ export default function LaboratoryPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Test Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.name')} *</label>
                   <input
                     type="text"
                     value={formData.name}
@@ -971,7 +1011,7 @@ export default function LaboratoryPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.description')}</label>
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -982,20 +1022,20 @@ export default function LaboratoryPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sample Type *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.sampleType')} *</label>
                     <select
                       value={formData.sampleType}
                       onChange={(e) => setFormData({ ...formData, sampleType: e.target.value })}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                       required
                     >
-                      {sampleTypes.map((t) => (
-                        <option key={t} value={t}>{t}</option>
+                      {sampleTypes.map((type) => (
+                        <option key={type} value={type}>{sampleLabel(type)}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Processing Time (hours) *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.processingTime')} *</label>
                     <input
                       type="number"
                       min="1"
@@ -1009,7 +1049,7 @@ export default function LaboratoryPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Normal Range</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.normalRange')}</label>
                     <input
                       type="text"
                       value={formData.normalRange}
@@ -1018,7 +1058,7 @@ export default function LaboratoryPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.unit')}</label>
                     <input
                       type="text"
                       value={formData.unit}
@@ -1029,10 +1069,10 @@ export default function LaboratoryPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Price ($) *</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('lab.form.price')} *</label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="1"
                     min="0"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
@@ -1050,16 +1090,16 @@ export default function LaboratoryPage() {
                     className="w-4 h-4 text-lime-600 rounded"
                   />
                   <label htmlFor="editIsActive" className="text-sm text-gray-700 dark:text-gray-300">
-                    Active
+                    {t('lab.form.active')}
                   </label>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-4">
                   <button type="button" onClick={closeModals} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                    Cancel
+                    {t('lab.form.cancel')}
                   </button>
                   <button type="submit" disabled={saving} className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors">
-                    {saving ? 'Saving...' : 'Save Changes'}
+                    {saving ? t('lab.form.saving') : t('lab.form.save')}
                   </button>
                 </div>
               </form>
@@ -1079,9 +1119,9 @@ export default function LaboratoryPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Delete Lab Test</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{t('lab.modal.deleteTitle')}</h3>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Are you sure you want to delete <strong>{selectedTest.name}</strong>? This action cannot be undone.
+                {t('lab.modal.deleteConfirm', { name: selectedTest.name })}
               </p>
 
               {error && (
@@ -1092,10 +1132,10 @@ export default function LaboratoryPage() {
 
               <div className="flex items-center justify-center gap-3">
                 <button onClick={closeModals} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                  Cancel
+                  {t('lab.form.cancel')}
                 </button>
                 <button onClick={handleDelete} disabled={saving} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors">
-                  {saving ? 'Deleting...' : 'Delete'}
+                  {saving ? t('lab.form.deleting') : t('lab.form.delete')}
                 </button>
               </div>
             </div>

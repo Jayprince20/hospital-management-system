@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNotifications, Notification, NotificationType } from '@/context/notification-context';
 import Link from 'next/link';
+import { useLanguage } from '@/context/language-context';
 
 const typeIcons: Record<NotificationType, React.ReactElement> = {
   appointment: (
@@ -47,16 +48,20 @@ const typeColors: Record<NotificationType, string> = {
   promotion: 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400',
 };
 
-function formatTimeAgo(dateString: string): string {
+function formatTimeAgo(
+  dateString: string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+  formatDate: (value: string | Date) => string
+): string {
   const date = new Date(dateString);
   const now = new Date();
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (seconds < 60) return 'Just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-  return date.toLocaleDateString();
+  if (seconds < 60) return t('admin.notifBell.justNow');
+  if (seconds < 3600) return t('admin.notifBell.minutesAgo', { count: Math.floor(seconds / 60) });
+  if (seconds < 86400) return t('admin.notifBell.hoursAgo', { count: Math.floor(seconds / 3600) });
+  if (seconds < 604800) return t('admin.notifBell.daysAgo', { count: Math.floor(seconds / 86400) });
+  return formatDate(date);
 }
 
 function NotificationItem({
@@ -68,6 +73,7 @@ function NotificationItem({
   onRead: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const { t, formatDate } = useLanguage();
   return (
     <div
       className={`px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
@@ -92,7 +98,7 @@ function NotificationItem({
           </p>
           <div className="flex items-center gap-3 mt-2">
             <span className="text-xs text-gray-500 dark:text-gray-500">
-              {formatTimeAgo(notification.createdAt)}
+              {formatTimeAgo(notification.createdAt, t, formatDate)}
             </span>
             {!notification.isRead && (
               <button
@@ -102,7 +108,7 @@ function NotificationItem({
                 }}
                 className="text-xs text-lime-600 dark:text-lime-400 hover:text-lime-700 dark:hover:text-lime-300"
               >
-                Mark as read
+                {t('admin.notifBell.markAsRead')}
               </button>
             )}
             <button
@@ -112,7 +118,7 @@ function NotificationItem({
               }}
               className="text-xs text-gray-500 hover:text-red-600 dark:hover:text-red-400"
             >
-              Delete
+              {t('admin.notifBell.delete')}
             </button>
           </div>
         </div>
@@ -131,6 +137,7 @@ export function NotificationBell() {
     markAllAsRead,
     deleteNotification,
   } = useNotifications();
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -153,7 +160,7 @@ export function NotificationBell() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-        aria-label={`Notifications ${unreadCount > 0 ? `(${unreadCount} unread)` : ''}`}
+        aria-label={unreadCount > 0 ? t('admin.notifBell.ariaUnread', { count: unreadCount }) : t('admin.notifBell.notifications')}
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -174,7 +181,7 @@ export function NotificationBell() {
           className={`absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full ${
             isConnected ? 'bg-green-500' : 'bg-gray-400'
           }`}
-          title={isConnected ? 'Connected' : 'Disconnected'}
+          title={isConnected ? t('admin.notifBell.connected') : t('admin.notifBell.disconnected')}
         />
       </button>
 
@@ -183,14 +190,14 @@ export function NotificationBell() {
         <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50">
           {/* Header */}
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Notifications</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white">{t('admin.notifBell.notifications')}</h3>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
                 <button
                   onClick={() => markAllAsRead()}
                   className="text-xs text-lime-600 dark:text-lime-400 hover:text-lime-700 dark:hover:text-lime-300"
                 >
-                  Mark all as read
+                  {t('admin.notifBell.markAllAsRead')}
                 </button>
               )}
             </div>
@@ -201,7 +208,7 @@ export function NotificationBell() {
             {isLoading ? (
               <div className="py-8 text-center">
                 <div className="animate-spin w-6 h-6 border-2 border-lime-500 border-t-transparent rounded-full mx-auto"></div>
-                <p className="text-sm text-gray-500 mt-2">Loading...</p>
+                <p className="text-sm text-gray-500 mt-2">{t('admin.notifBell.loading')}</p>
               </div>
             ) : recentNotifications.length === 0 ? (
               <div className="py-8 text-center">
@@ -218,7 +225,7 @@ export function NotificationBell() {
                     d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
                   />
                 </svg>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">No notifications yet</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{t('admin.notifBell.noNotificationsYet')}</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -242,7 +249,7 @@ export function NotificationBell() {
                 onClick={() => setIsOpen(false)}
                 className="block text-center text-sm text-lime-600 dark:text-lime-400 hover:text-lime-700 dark:hover:text-lime-300 font-medium"
               >
-                View all notifications
+                {t('admin.notifBell.viewAllNotifications')}
               </Link>
             </div>
           )}

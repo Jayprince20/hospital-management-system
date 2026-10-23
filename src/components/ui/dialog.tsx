@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useLanguage } from '@/context/language-context';
 import { X } from 'lucide-react';
 
 interface DialogContextType {
@@ -34,7 +35,7 @@ function DialogTrigger({ children, asChild }: { children: React.ReactNode; asChi
   if (!context) throw new Error('DialogTrigger must be used within Dialog');
 
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement<any>, {
+    return React.cloneElement(children as React.ReactElement<{ onClick?: () => void }>, {
       onClick: () => context.onOpenChange(true),
     });
   }
@@ -62,6 +63,7 @@ function DialogOverlay({ className = '' }: { className?: string }) {
 
 function DialogContent({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   const context = React.useContext(DialogContext);
+  const { t } = useLanguage();
   if (!context || !context.open) return null;
 
   return (
@@ -78,7 +80,7 @@ function DialogContent({ children, className = '' }: { children: React.ReactNode
             onClick={() => context.onOpenChange(false)}
           >
             <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{t('common.close')}</span>
           </button>
         </div>
       </div>

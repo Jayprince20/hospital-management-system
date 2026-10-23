@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { api, Invoice, InvoiceStatus, PaymentMethod, Patient } from '@/lib/api';
 import { PermissionGate } from '@/components/permission-gate';
 import { useAuth } from '@/context/auth-context';
+import { useLanguage } from '@/context/language-context';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -49,6 +50,7 @@ const initialPaymentForm: PaymentFormData = {
 
 export default function BillingPage() {
   const { user } = useAuth();
+  const { t, tEnum, formatCurrency, formatDate , language } = useLanguage();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -82,12 +84,12 @@ export default function BillingPage() {
       // Get auth token
       const token = localStorage.getItem('accessToken');
       if (!token) {
-        alert('Please login again to download the invoice.');
+        alert(t('admin.billing.loginAgain'));
         return;
       }
 
       // Fetch PDF with auth header
-      const response = await fetch(`${API_URL}/api/invoices/${invoice.id}/pdf`, {
+      const response = await fetch(`${API_URL}/api/invoices/${invoice.id}/pdf?lang=${language}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -102,14 +104,14 @@ export default function BillingPage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Invoice-${invoice.invoiceNumber}.pdf`;
+      link.download = language === 'fr' ? `facture-${invoice.invoiceNumber}.pdf` : `Invoice-${invoice.invoiceNumber}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error downloading PDF:', error);
-      alert('Failed to download invoice. Please try again.');
+      alert(t('admin.billing.downloadFailed'));
     } finally {
       setDownloadingId(null);
     }
@@ -173,6 +175,15 @@ export default function BillingPage() {
     setShowCreateModal(true);
   };
 
+  // Dashboard quick actions link here with ?new=1 to open the create dialog directly
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('new') === '1') {
+      openCreateModal();
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const openPaymentModal = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setPaymentForm({
@@ -233,11 +244,11 @@ export default function BillingPage() {
   // Create invoice handler
   const handleCreateInvoice = async () => {
     if (!invoiceForm.patientId) {
-      setError('Please select a patient');
+      setError(t('admin.billing.selectPatient'));
       return;
     }
     if (invoiceForm.items.some(item => !item.description || item.unitPrice <= 0)) {
-      setError('Please fill in all item details with valid prices');
+      setError(t('admin.billing.fillItems'));
       return;
     }
 
@@ -255,7 +266,7 @@ export default function BillingPage() {
       closeModals();
       fetchInvoices();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create invoice');
+      setError(err instanceof Error ? err.message : t('admin.billing.createFailed'));
     } finally {
       setSaving(false);
     }
@@ -265,11 +276,11 @@ export default function BillingPage() {
   const handleAddPayment = async () => {
     if (!selectedInvoice) return;
     if (paymentForm.amount <= 0) {
-      setError('Payment amount must be greater than 0');
+      setError(t('admin.billing.amountPositive'));
       return;
     }
     if (paymentForm.amount > selectedInvoice.balance) {
-      setError('Payment amount cannot exceed balance');
+      setError(t('admin.billing.amountExceeds'));
       return;
     }
 
@@ -286,7 +297,7 @@ export default function BillingPage() {
       closeModals();
       fetchInvoices();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to record payment');
+      setError(err instanceof Error ? err.message : t('admin.billing.recordFailed'));
     } finally {
       setSaving(false);
     }
@@ -306,31 +317,19 @@ export default function BillingPage() {
   };
 
   const statusOptions: { value: InvoiceStatus | ''; label: string }[] = [
-    { value: '', label: 'All Status' },
-    { value: 'DRAFT', label: 'Draft' },
-    { value: 'PENDING', label: 'Pending' },
-    { value: 'PAID', label: 'Paid' },
-    { value: 'PARTIALLY_PAID', label: 'Partially Paid' },
-    { value: 'OVERDUE', label: 'Overdue' },
-    { value: 'CANCELLED', label: 'Cancelled' },
-    { value: 'REFUNDED', label: 'Refunded' },
+    { value: '', label: t('admin.billing.allStatus') },
+    ...(['DRAFT', 'PENDING', 'PAID', 'PARTIALLY_PAID', 'OVERDUE', 'CANCELLED', 'REFUNDED'] as InvoiceStatus[]).map(
+      (value) => ({ value, label: tEnum(value) })
+    ),
   ];
-
-  const formatCurrency = (amount: number) => {
-    // Format as Cameroon CFA Franc (XAF)
-    const formattedAmount = Math.round(amount)
-      .toString()
-      .replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-    return `${formattedAmount} FCFA`;
-  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Billing & Invoices</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">Manage patient invoices and payments</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('admin.billing.billingInvoices')}</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">{t('admin.billing.managePatientInvoicesAndPayments')}</p>
         </div>
         <PermissionGate permission="billing:create">
           <button
@@ -340,7 +339,7 @@ export default function BillingPage() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            New Invoice
+            {t('admin.billing.newInvoice')}
           </button>
         </PermissionGate>
       </div>
@@ -350,7 +349,7 @@ export default function BillingPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Billed</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.billing.totalBilled')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(totals.totalBilled)}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
@@ -363,7 +362,7 @@ export default function BillingPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Collected</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.billing.totalCollected')}</p>
               <p className="text-2xl font-bold text-green-600">{formatCurrency(totals.totalPaid)}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
@@ -376,7 +375,7 @@ export default function BillingPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Outstanding</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.billing.outstanding')}</p>
               <p className="text-2xl font-bold text-orange-600">{formatCurrency(totals.totalOutstanding)}</p>
             </div>
             <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/50 rounded-lg flex items-center justify-center">
@@ -398,7 +397,7 @@ export default function BillingPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by invoice # or patient name..."
+                placeholder={t('admin.billing.searchByInvoiceOrPatientName')}
                 className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
               />
             </div>
@@ -421,19 +420,19 @@ export default function BillingPage() {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600"></div>
             </div>
           ) : invoices.length === 0 ? (
-            <p className="text-center py-12 text-gray-500 dark:text-gray-400">No invoices found</p>
+            <p className="text-center py-12 text-gray-500 dark:text-gray-400">{t('admin.billing.noInvoicesFound')}</p>
           ) : (
             <table className="w-full">
               <thead>
                 <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700">
-                  <th className="px-6 py-3">Invoice</th>
-                  <th className="px-6 py-3">Patient</th>
-                  <th className="px-6 py-3">Date</th>
-                  <th className="px-6 py-3">Total</th>
-                  <th className="px-6 py-3">Paid</th>
-                  <th className="px-6 py-3">Balance</th>
-                  <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3">Actions</th>
+                  <th className="px-6 py-3">{t('admin.billing.invoice')}</th>
+                  <th className="px-6 py-3">{t('admin.billing.patient')}</th>
+                  <th className="px-6 py-3">{t('admin.billing.date')}</th>
+                  <th className="px-6 py-3">{t('admin.billing.total')}</th>
+                  <th className="px-6 py-3">{t('admin.billing.paid')}</th>
+                  <th className="px-6 py-3">{t('admin.billing.balance')}</th>
+                  <th className="px-6 py-3">{t('admin.billing.status')}</th>
+                  <th className="px-6 py-3">{t('admin.billing.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -451,7 +450,7 @@ export default function BillingPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                      {new Date(invoice.createdAt).toLocaleDateString()}
+                      {formatDate(invoice.createdAt)}
                     </td>
                     <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
                       {formatCurrency(invoice.total)}
@@ -464,7 +463,7 @@ export default function BillingPage() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(invoice.status)}`}>
-                        {invoice.status.replace('_', ' ')}
+                        {tEnum(invoice.status)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -473,13 +472,13 @@ export default function BillingPage() {
                           href={`/dashboard/billing/${invoice.id}`}
                           className="text-lime-600 hover:text-lime-800 text-sm font-medium"
                         >
-                          View
+                          {t('admin.billing.view')}
                         </Link>
                         <button
                           onClick={() => handleDownloadPdf(invoice)}
                           disabled={downloadingId === invoice.id}
                           className="text-blue-600 hover:text-blue-800 text-sm font-medium disabled:opacity-50 flex items-center gap-1"
-                          title="Download PDF"
+                          title={t('admin.billing.downloadPdf')}
                         >
                           {downloadingId === invoice.id ? (
                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
@@ -496,7 +495,7 @@ export default function BillingPage() {
                               onClick={() => openPaymentModal(invoice)}
                               className="text-green-600 hover:text-green-800 text-sm font-medium"
                             >
-                              Pay
+                              {t('admin.billing.pay')}
                             </button>
                           </PermissionGate>
                         )}
@@ -517,17 +516,17 @@ export default function BillingPage() {
               disabled={page === 1}
               className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50"
             >
-              Previous
+              {t('admin.billing.previous')}
             </button>
             <span className="text-sm text-gray-600 dark:text-gray-400">
-              Page {page} of {totalPages}
+              {t('admin.billing.pageOf', { page, total: totalPages })}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
               className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-50"
             >
-              Next
+              {t('admin.billing.next')}
             </button>
           </div>
         )}
@@ -538,7 +537,7 @@ export default function BillingPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Create New Invoice</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('admin.billing.createNewInvoice')}</h2>
             </div>
             <div className="p-6 space-y-6">
               {error && (
@@ -550,7 +549,7 @@ export default function BillingPage() {
               {/* Patient Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Patient *
+                  {t('admin.billing.patient')}
                 </label>
                 {selectedPatient ? (
                   <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -578,7 +577,7 @@ export default function BillingPage() {
                       type="text"
                       value={patientSearch}
                       onChange={(e) => setPatientSearch(e.target.value)}
-                      placeholder="Search patients by name or ID..."
+                      placeholder={t('admin.billing.searchPatientsByNameOrId')}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     />
                     {loadingPatients && (
@@ -610,14 +609,14 @@ export default function BillingPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Invoice Items *
+                    {t('admin.billing.invoiceItems')}
                   </label>
                   <button
                     type="button"
                     onClick={addItem}
                     className="text-sm text-lime-600 hover:text-lime-800 font-medium"
                   >
-                    + Add Item
+                    {t('admin.billing.addItem')}
                   </button>
                 </div>
                 <div className="space-y-3">
@@ -628,7 +627,7 @@ export default function BillingPage() {
                           type="text"
                           value={item.description}
                           onChange={(e) => updateItem(index, 'description', e.target.value)}
-                          placeholder="Description"
+                          placeholder={t('admin.billing.description')}
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                         />
                       </div>
@@ -638,11 +637,9 @@ export default function BillingPage() {
                           onChange={(e) => updateItem(index, 'category', e.target.value)}
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                         >
-                          <option value="consultation">Consultation</option>
-                          <option value="medication">Medication</option>
-                          <option value="lab">Lab</option>
-                          <option value="procedure">Procedure</option>
-                          <option value="other">Other</option>
+                          {(['consultation', 'medication', 'lab', 'procedure', 'other'] as const).map((cat) => (
+                            <option key={cat} value={cat}>{t(`admin.billing.cat.${cat}`)}</option>
+                          ))}
                         </select>
                       </div>
                       <div className="col-span-2">
@@ -651,7 +648,7 @@ export default function BillingPage() {
                           value={item.quantity}
                           onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
                           min="1"
-                          placeholder="Qty"
+                          placeholder={t('admin.billing.qty')}
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                         />
                       </div>
@@ -661,8 +658,8 @@ export default function BillingPage() {
                           value={item.unitPrice}
                           onChange={(e) => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
                           min="0"
-                          step="0.01"
-                          placeholder="Price"
+                          step="1"
+                          placeholder={t('admin.billing.price')}
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                         />
                       </div>
@@ -690,33 +687,33 @@ export default function BillingPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Tax
+                    {t('admin.billing.tax')}
                   </label>
                   <input
                     type="number"
                     value={invoiceForm.tax}
                     onChange={(e) => setInvoiceForm({ ...invoiceForm, tax: parseFloat(e.target.value) || 0 })}
                     min="0"
-                    step="0.01"
+                    step="1"
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Discount
+                    {t('admin.billing.discount')}
                   </label>
                   <input
                     type="number"
                     value={invoiceForm.discount}
                     onChange={(e) => setInvoiceForm({ ...invoiceForm, discount: parseFloat(e.target.value) || 0 })}
                     min="0"
-                    step="0.01"
+                    step="1"
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Due Date
+                    {t('admin.billing.dueDate')}
                   </label>
                   <input
                     type="date"
@@ -730,7 +727,7 @@ export default function BillingPage() {
               {/* Notes */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Notes
+                  {t('admin.billing.notes')}
                 </label>
                 <textarea
                   value={invoiceForm.notes}
@@ -743,19 +740,19 @@ export default function BillingPage() {
               {/* Totals */}
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+                  <span className="text-gray-600 dark:text-gray-400">{t('admin.billing.subtotal')}</span>
                   <span className="text-gray-900 dark:text-white">{formatCurrency(calculateSubtotal())}</span>
                 </div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600 dark:text-gray-400">Tax</span>
+                  <span className="text-gray-600 dark:text-gray-400">{t('admin.billing.tax')}</span>
                   <span className="text-gray-900 dark:text-white">{formatCurrency(invoiceForm.tax)}</span>
                 </div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-600 dark:text-gray-400">Discount</span>
+                  <span className="text-gray-600 dark:text-gray-400">{t('admin.billing.discount')}</span>
                   <span className="text-red-600">-{formatCurrency(invoiceForm.discount)}</span>
                 </div>
                 <div className="border-t border-gray-200 dark:border-gray-600 pt-2 mt-2 flex justify-between">
-                  <span className="font-semibold text-gray-900 dark:text-white">Total</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{t('admin.billing.total')}</span>
                   <span className="font-bold text-lg text-lime-600">{formatCurrency(calculateTotal())}</span>
                 </div>
               </div>
@@ -766,7 +763,7 @@ export default function BillingPage() {
                 onClick={closeModals}
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
               >
-                Cancel
+                {t('admin.billing.cancel')}
               </button>
               <button
                 onClick={handleCreateInvoice}
@@ -774,7 +771,7 @@ export default function BillingPage() {
                 className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 flex items-center gap-2"
               >
                 {saving && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
-                Create Invoice
+                {t('admin.billing.createInvoice')}
               </button>
             </div>
           </div>
@@ -786,9 +783,9 @@ export default function BillingPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Record Payment</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('admin.billing.recordPayment')}</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Invoice: {selectedInvoice.invoiceNumber}
+                {t('admin.billing.invoiceNumber', { number: selectedInvoice.invoiceNumber })}
               </p>
             </div>
             <div className="p-6 space-y-4">
@@ -801,73 +798,73 @@ export default function BillingPage() {
               {/* Invoice Summary */}
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Patient</span>
+                  <span className="text-gray-600 dark:text-gray-400">{t('admin.billing.patient')}</span>
                   <span className="text-gray-900 dark:text-white font-medium">{selectedInvoice.patientName}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Total Amount</span>
+                  <span className="text-gray-600 dark:text-gray-400">{t('admin.billing.totalAmount')}</span>
                   <span className="text-gray-900 dark:text-white">{formatCurrency(selectedInvoice.total)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Already Paid</span>
+                  <span className="text-gray-600 dark:text-gray-400">{t('admin.billing.alreadyPaid')}</span>
                   <span className="text-green-600">{formatCurrency(selectedInvoice.paidAmount)}</span>
                 </div>
                 <div className="flex justify-between border-t border-gray-200 dark:border-gray-600 pt-2 mt-2">
-                  <span className="font-semibold text-gray-900 dark:text-white">Balance Due</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{t('admin.billing.balanceDue')}</span>
                   <span className="font-bold text-orange-600">{formatCurrency(selectedInvoice.balance)}</span>
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Payment Amount *
+                  {t('admin.billing.paymentAmount')}
                 </label>
                 <input
                   type="number"
                   value={paymentForm.amount}
                   onChange={(e) => setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) || 0 })}
                   max={selectedInvoice.balance}
-                  min="0.01"
-                  step="0.01"
+                  min="1"
+                  step="1"
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Payment Method *
+                  {t('admin.billing.paymentMethod')}
                 </label>
                 <select
                   value={paymentForm.method}
                   onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value as PaymentMethod })}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  <option value="CASH">Cash</option>
-                  <option value="CARD">Card</option>
-                  <option value="BANK_TRANSFER">Bank Transfer</option>
-                  <option value="MTN_MOMO">MTN Mobile Money</option>
-                  <option value="ORANGE_MONEY">Orange Money</option>
-                  <option value="MOBILE_WALLET">Other Mobile Wallet</option>
-                  <option value="INSURANCE">Insurance</option>
+                  <option value="CASH">{tEnum('CASH')}</option>
+                  <option value="CARD">{tEnum('CARD')}</option>
+                  <option value="BANK_TRANSFER">{tEnum('BANK_TRANSFER')}</option>
+                  <option value="MTN_MOMO">{tEnum('MTN_MOMO')}</option>
+                  <option value="ORANGE_MONEY">{tEnum('ORANGE_MONEY')}</option>
+                  <option value="MOBILE_WALLET">{tEnum('MOBILE_WALLET')}</option>
+                  <option value="INSURANCE">{tEnum('INSURANCE')}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Reference Number
+                  {t('admin.billing.referenceNumber')}
                 </label>
                 <input
                   type="text"
                   value={paymentForm.referenceNumber}
                   onChange={(e) => setPaymentForm({ ...paymentForm, referenceNumber: e.target.value })}
-                  placeholder="Transaction ID, receipt number, etc."
+                  placeholder={t('admin.billing.transactionIdReceiptNumberEtc')}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Notes
+                  {t('admin.billing.notes')}
                 </label>
                 <textarea
                   value={paymentForm.notes}
@@ -883,7 +880,7 @@ export default function BillingPage() {
                 onClick={closeModals}
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
               >
-                Cancel
+                {t('admin.billing.cancel')}
               </button>
               <button
                 onClick={handleAddPayment}
@@ -891,7 +888,7 @@ export default function BillingPage() {
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
               >
                 {saving && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
-                Record Payment
+                {t('admin.billing.recordPayment')}
               </button>
             </div>
           </div>

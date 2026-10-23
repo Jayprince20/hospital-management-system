@@ -7,6 +7,7 @@ import { Header } from '@/components/header';
 import { AccessDenied } from '@/components/permission-gate';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { LoadingState } from '@/components/ui';
+import { useLanguage } from '@/context/language-context';
 
 export default function DashboardLayout({
   children,
@@ -14,6 +15,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { isLoading, isAuthenticated, canAccess } = useAuth();
+  const { t } = useLanguage();
   const pathname = usePathname();
 
   // Show loading while auth is being checked
@@ -21,7 +23,7 @@ export default function DashboardLayout({
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <LoadingState label="Verifying authentication..." minHeight="h-32" />
+        <LoadingState label={t('admin.layout.verifying')} minHeight="h-32" />
       </div>
     );
   }
@@ -30,7 +32,7 @@ export default function DashboardLayout({
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <LoadingState label="Redirecting to login..." minHeight="h-32" />
+        <LoadingState label={t('admin.layout.redirecting')} minHeight="h-32" />
       </div>
     );
   }

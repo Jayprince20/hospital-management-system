@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api } from '@/lib/api';
+import { api, UserDetail } from '@/lib/api';
+import { useLanguage } from '@/context/language-context';
 
 interface ScheduleDay {
   dayOfWeek: number;
@@ -70,53 +71,62 @@ const initialFormData: DoctorFormData = {
 };
 
 const commonSpecializations = [
-  'General Medicine',
-  'Internal Medicine',
-  'Cardiology',
-  'Dermatology',
-  'Endocrinology',
-  'Gastroenterology',
-  'Neurology',
-  'Oncology',
-  'Ophthalmology',
-  'Orthopedics',
-  'Pediatrics',
-  'Psychiatry',
-  'Pulmonology',
-  'Radiology',
-  'Rheumatology',
-  'Surgery',
-  'Urology',
+  'Médecine générale',
+  'Médecine interne',
+  'Cardiologie',
+  'Dermatologie',
+  'Endocrinologie',
+  'Gastro-entérologie',
+  'Gynécologie',
+  'Obstétrique',
+  'Maladies tropicales',
+  "Médecine d'urgence",
+  'Néphrologie',
+  'Neurologie',
+  'Oncologie',
+  'Ophtalmologie',
+  'ORL',
+  'Orthopédie',
+  'Pédiatrie',
+  'Néonatologie',
+  'Pneumologie',
+  'Psychiatrie',
+  'Radiologie',
+  'Rhumatologie',
+  'Chirurgie générale',
+  'Urologie',
 ];
 
 const commonQualifications = [
   'MD',
-  'MBBS',
-  'DO',
+  'Doctorat en médecine',
+  'Certificat de spécialiste',
+  'DES',
+  'DIU',
+  'Master en santé publique',
   'PhD',
-  'MS',
-  'DNB',
   'FRCS',
   'MRCP',
-  'Board Certified',
 ];
 
 const commonLanguages = [
-  'English',
-  'Spanish',
-  'French',
-  'German',
-  'Chinese',
-  'Hindi',
-  'Arabic',
-  'Portuguese',
-  'Japanese',
-  'Korean',
+  'Français',
+  'Anglais',
+  'Pidgin',
+  'Fulfuldé',
+  'Ewondo',
+  'Douala',
+  'Bassa',
+  'Bamiléké',
+  'Bamoun',
+  'Arabe',
 ];
 
 export default function AddDoctorPage() {
   const router = useRouter();
+  const { t, locale } = useLanguage();
   const [formData, setFormData] = useState<DoctorFormData>(initialFormData);
+  const [doctorUsers, setDoctorUsers] = useState<UserDetail[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
@@ -126,15 +136,27 @@ export default function AddDoctorPage() {
   const [newLanguage, setNewLanguage] = useState('');
 
   const steps = [
-    { id: 1, name: 'User Account', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-    { id: 2, name: 'Professional', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
-    { id: 3, name: 'Consultation', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { id: 4, name: 'Schedule', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+    { id: 1, name: t('clinical.doctorForm.step.account'), icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+    { id: 2, name: t('clinical.doctorForm.step.professional'), icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
+    { id: 3, name: t('clinical.doctorForm.step.consultation'), icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { id: 4, name: t('clinical.doctorForm.step.schedule'), icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
   ];
 
   useEffect(() => {
     fetchDepartments();
   }, []);
+
+  // Existing accounts with the DOCTOR role, for linking a profile to an existing user
+  useEffect(() => {
+    if (formData.createNewUser || doctorUsers.length > 0) return;
+    api.getUsers({ role: 'DOCTOR', isActive: true, limit: 100 })
+      .then((res) => setDoctorUsers(res.users))
+      .catch((error) => console.error('Failed to fetch doctor users:', error));
+  }, [formData.createNewUser, doctorUsers.length]);
+
+  // 7 Jan 2024 was a Sunday, so day N of that week maps to dayOfWeek N
+  const dayLabel = (dayOfWeek: number) =>
+    new Date(2024, 0, 7 + dayOfWeek).toLocaleDateString(locale, { weekday: 'long' });
 
   const fetchDepartments = async () => {
     try {
@@ -193,47 +215,47 @@ export default function AddDoctorPage() {
 
     if (step === 1) {
       if (formData.createNewUser) {
-        if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-        if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+        if (!formData.firstName.trim()) newErrors.firstName = t('clinical.doctorForm.firstNameIsRequired');
+        if (!formData.lastName.trim()) newErrors.lastName = t('clinical.doctorForm.lastNameIsRequired');
         if (!formData.email.trim()) {
-          newErrors.email = 'Email is required';
+          newErrors.email = t('clinical.doctorForm.emailIsRequired');
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-          newErrors.email = 'Invalid email format';
+          newErrors.email = t('clinical.doctorForm.invalidEmailFormat');
         }
-        if (!formData.phoneNumber.trim()) newErrors.phoneNumber = 'Phone number is required';
+        if (!formData.phoneNumber.trim()) newErrors.phoneNumber = t('clinical.doctorForm.phoneNumberIsRequired');
         if (!formData.password) {
-          newErrors.password = 'Password is required';
+          newErrors.password = t('clinical.doctorForm.passwordIsRequired');
         } else if (formData.password.length < 8) {
-          newErrors.password = 'Password must be at least 8 characters';
+          newErrors.password = t('clinical.doctorForm.passwordMustBeAtLeast8');
         }
         if (formData.password !== formData.confirmPassword) {
-          newErrors.confirmPassword = 'Passwords do not match';
+          newErrors.confirmPassword = t('clinical.doctorForm.passwordsDoNotMatch');
         }
       } else {
-        if (!formData.userId) newErrors.userId = 'Please select a user';
+        if (!formData.userId) newErrors.userId = t('clinical.doctorForm.pleaseSelectAUser');
       }
     }
 
     if (step === 2) {
-      if (!formData.departmentId) newErrors.departmentId = 'Department is required';
-      if (formData.specializations.length === 0) newErrors.specializations = 'At least one specialization is required';
-      if (formData.qualifications.length === 0) newErrors.qualifications = 'At least one qualification is required';
-      if (!formData.licenseNumber.trim()) newErrors.licenseNumber = 'License number is required';
+      if (!formData.departmentId) newErrors.departmentId = t('clinical.doctorForm.departmentIsRequired');
+      if (formData.specializations.length === 0) newErrors.specializations = t('clinical.doctorForm.atLeastOneSpecializationIsRequired');
+      if (formData.qualifications.length === 0) newErrors.qualifications = t('clinical.doctorForm.atLeastOneQualificationIsRequired');
+      if (!formData.licenseNumber.trim()) newErrors.licenseNumber = t('clinical.doctorForm.licenseNumberIsRequired');
     }
 
     if (step === 3) {
       if (!formData.consultationFee) {
-        newErrors.consultationFee = 'Consultation fee is required';
+        newErrors.consultationFee = t('clinical.doctorForm.consultationFeeIsRequired');
       } else if (isNaN(parseFloat(formData.consultationFee)) || parseFloat(formData.consultationFee) < 0) {
-        newErrors.consultationFee = 'Please enter a valid fee amount';
+        newErrors.consultationFee = t('clinical.doctorForm.pleaseEnterAValidFeeAmount');
       }
-      if (formData.languages.length === 0) newErrors.languages = 'At least one language is required';
+      if (formData.languages.length === 0) newErrors.languages = t('clinical.doctorForm.atLeastOneLanguageIsRequired');
     }
 
     if (step === 4) {
       const activeDays = formData.schedule.filter((day) => day.isActive);
       if (activeDays.length === 0) {
-        newErrors.schedule = 'At least one working day is required';
+        newErrors.schedule = t('clinical.doctorForm.atLeastOneWorkingDayIs');
       }
     }
 
@@ -253,6 +275,10 @@ export default function AddDoctorPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (currentStep < 4) {
+      handleNext();
+      return;
+    }
 
     if (!validateStep(currentStep)) return;
 
@@ -286,7 +312,7 @@ export default function AddDoctorPage() {
       router.push('/dashboard/doctors');
     } catch (error) {
       console.error('Error creating doctor:', error);
-      setErrors({ submit: error instanceof Error ? error.message : 'Failed to create doctor' });
+      setErrors({ submit: error instanceof Error ? error.message : t('clinical.doctorForm.failedToCreateDoctor') });
     } finally {
       setIsSubmitting(false);
     }
@@ -313,9 +339,9 @@ export default function AddDoctorPage() {
             </svg>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Add New Doctor</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('clinical.doctorForm.addNewDoctor')}</h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Create a new doctor profile with professional details and schedule
+              {t('clinical.doctorForm.createANewDoctorProfileWith')}
             </p>
           </div>
         </div>
@@ -376,7 +402,7 @@ export default function AddDoctorPage() {
           {currentStep === 1 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                User Account Information
+                {t('clinical.doctorForm.userAccountInformation')}
               </h2>
 
               <div className="mb-6">
@@ -389,7 +415,7 @@ export default function AddDoctorPage() {
                     className="w-5 h-5 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
                   />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Create a new user account for this doctor
+                    {t('clinical.doctorForm.createANewUserAccountFor')}
                   </span>
                 </label>
               </div>
@@ -398,7 +424,7 @@ export default function AddDoctorPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      First Name <span className="text-red-500">*</span>
+                      {t('clinical.doctorForm.firstName')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -406,7 +432,7 @@ export default function AddDoctorPage() {
                       value={formData.firstName}
                       onChange={handleChange}
                       className={inputClassName('firstName')}
-                      placeholder="Enter first name"
+                      placeholder={t('clinical.doctorForm.enterFirstName')}
                     />
                     {errors.firstName && (
                       <p className="mt-1 text-sm text-red-500">{errors.firstName}</p>
@@ -415,7 +441,7 @@ export default function AddDoctorPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Last Name <span className="text-red-500">*</span>
+                      {t('clinical.doctorForm.lastName')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -423,7 +449,7 @@ export default function AddDoctorPage() {
                       value={formData.lastName}
                       onChange={handleChange}
                       className={inputClassName('lastName')}
-                      placeholder="Enter last name"
+                      placeholder={t('clinical.doctorForm.enterLastName')}
                     />
                     {errors.lastName && (
                       <p className="mt-1 text-sm text-red-500">{errors.lastName}</p>
@@ -432,7 +458,7 @@ export default function AddDoctorPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Email Address <span className="text-red-500">*</span>
+                      {t('clinical.doctorForm.emailAddress')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="email"
@@ -440,7 +466,7 @@ export default function AddDoctorPage() {
                       value={formData.email}
                       onChange={handleChange}
                       className={inputClassName('email')}
-                      placeholder="Enter email address"
+                      placeholder={t('clinical.doctorForm.enterEmailAddress')}
                     />
                     {errors.email && (
                       <p className="mt-1 text-sm text-red-500">{errors.email}</p>
@@ -449,7 +475,7 @@ export default function AddDoctorPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Phone Number <span className="text-red-500">*</span>
+                      {t('clinical.doctorForm.phoneNumber')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="tel"
@@ -457,7 +483,7 @@ export default function AddDoctorPage() {
                       value={formData.phoneNumber}
                       onChange={handleChange}
                       className={inputClassName('phoneNumber')}
-                      placeholder="+1 234-567-8900"
+                      placeholder="+237 6XX XX XX XX"
                     />
                     {errors.phoneNumber && (
                       <p className="mt-1 text-sm text-red-500">{errors.phoneNumber}</p>
@@ -466,7 +492,7 @@ export default function AddDoctorPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Password <span className="text-red-500">*</span>
+                      {t('clinical.doctorForm.password')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="password"
@@ -474,7 +500,7 @@ export default function AddDoctorPage() {
                       value={formData.password}
                       onChange={handleChange}
                       className={inputClassName('password')}
-                      placeholder="Enter password"
+                      placeholder={t('clinical.doctorForm.enterPassword')}
                     />
                     {errors.password && (
                       <p className="mt-1 text-sm text-red-500">{errors.password}</p>
@@ -483,7 +509,7 @@ export default function AddDoctorPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Confirm Password <span className="text-red-500">*</span>
+                      {t('clinical.doctorForm.confirmPassword')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="password"
@@ -491,7 +517,7 @@ export default function AddDoctorPage() {
                       value={formData.confirmPassword}
                       onChange={handleChange}
                       className={inputClassName('confirmPassword')}
-                      placeholder="Confirm password"
+                      placeholder={t('clinical.doctorForm.confirmPassword')}
                     />
                     {errors.confirmPassword && (
                       <p className="mt-1 text-sm text-red-500">{errors.confirmPassword}</p>
@@ -501,7 +527,7 @@ export default function AddDoctorPage() {
               ) : (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Select Existing User <span className="text-red-500">*</span>
+                    {t('clinical.doctorForm.selectExistingUser')} <span className="text-red-500">*</span>
                   </label>
                   <select
                     name="userId"
@@ -509,14 +535,18 @@ export default function AddDoctorPage() {
                     onChange={handleChange}
                     className={inputClassName('userId')}
                   >
-                    <option value="">Select a user</option>
-                    {/* Users would be fetched from API */}
+                    <option value="">{t('clinical.doctorForm.selectUser')}</option>
+                    {doctorUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.firstName} {u.lastName} ({u.email})
+                      </option>
+                    ))}
                   </select>
                   {errors.userId && (
                     <p className="mt-1 text-sm text-red-500">{errors.userId}</p>
                   )}
                   <p className="mt-2 text-sm text-gray-500">
-                    Only users with DOCTOR role who don&apos;t have a doctor profile will be shown.
+                    {t('clinical.doctorForm.existingUserHint')}
                   </p>
                 </div>
               )}
@@ -527,14 +557,14 @@ export default function AddDoctorPage() {
           {currentStep === 2 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Professional Information
+                {t('clinical.doctorForm.professionalInformation')}
               </h2>
 
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Department <span className="text-red-500">*</span>
+                      {t('clinical.doctorForm.department')} <span className="text-red-500">*</span>
                     </label>
                     <select
                       name="departmentId"
@@ -542,7 +572,7 @@ export default function AddDoctorPage() {
                       onChange={handleChange}
                       className={inputClassName('departmentId')}
                     >
-                      <option value="">Select department</option>
+                      <option value="">{t('clinical.doctorForm.selectDepartment')}</option>
                       {departments.map((dept) => (
                         <option key={dept.id} value={dept.id}>{dept.name}</option>
                       ))}
@@ -554,7 +584,7 @@ export default function AddDoctorPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      License Number <span className="text-red-500">*</span>
+                      {t('clinical.doctorForm.licenseNumber')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -562,7 +592,7 @@ export default function AddDoctorPage() {
                       value={formData.licenseNumber}
                       onChange={handleChange}
                       className={inputClassName('licenseNumber')}
-                      placeholder="Enter medical license number"
+                      placeholder={t('clinical.doctorForm.enterMedicalLicenseNumber')}
                     />
                     {errors.licenseNumber && (
                       <p className="mt-1 text-sm text-red-500">{errors.licenseNumber}</p>
@@ -573,7 +603,7 @@ export default function AddDoctorPage() {
                 {/* Specializations */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Specializations <span className="text-red-500">*</span>
+                    {t('clinical.doctorForm.specializations')} <span className="text-red-500">*</span>
                   </label>
                   <div className="flex gap-2 mb-2">
                     <select
@@ -581,7 +611,7 @@ export default function AddDoctorPage() {
                       onChange={(e) => setNewSpecialization(e.target.value)}
                       className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                     >
-                      <option value="">Select or type a specialization</option>
+                      <option value="">{t('clinical.doctorForm.selectOrTypeASpecialization')}</option>
                       {commonSpecializations
                         .filter((s) => !formData.specializations.includes(s))
                         .map((spec) => (
@@ -599,14 +629,14 @@ export default function AddDoctorPage() {
                         }
                       }}
                       className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                      placeholder="Or type custom"
+                      placeholder={t('clinical.doctorForm.orTypeCustom')}
                     />
                     <button
                       type="button"
                       onClick={() => addToList('specializations', newSpecialization)}
                       className="px-4 py-2.5 bg-lime-600 text-white rounded-lg hover:bg-lime-700"
                     >
-                      Add
+                      {t('clinical.doctorForm.add')}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -636,7 +666,7 @@ export default function AddDoctorPage() {
                 {/* Qualifications */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Qualifications <span className="text-red-500">*</span>
+                    {t('clinical.doctorForm.qualifications')} <span className="text-red-500">*</span>
                   </label>
                   <div className="flex gap-2 mb-2">
                     <select
@@ -644,7 +674,7 @@ export default function AddDoctorPage() {
                       onChange={(e) => setNewQualification(e.target.value)}
                       className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                     >
-                      <option value="">Select or type a qualification</option>
+                      <option value="">{t('clinical.doctorForm.selectOrTypeAQualification')}</option>
                       {commonQualifications
                         .filter((q) => !formData.qualifications.includes(q))
                         .map((qual) => (
@@ -662,14 +692,14 @@ export default function AddDoctorPage() {
                         }
                       }}
                       className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                      placeholder="Or type custom"
+                      placeholder={t('clinical.doctorForm.orTypeCustom')}
                     />
                     <button
                       type="button"
                       onClick={() => addToList('qualifications', newQualification)}
                       className="px-4 py-2.5 bg-lime-600 text-white rounded-lg hover:bg-lime-700"
                     >
-                      Add
+                      {t('clinical.doctorForm.add')}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -703,14 +733,14 @@ export default function AddDoctorPage() {
           {currentStep === 3 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Consultation Details
+                {t('clinical.doctorForm.consultationDetails')}
               </h2>
 
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Consultation Fee (FCFA) <span className="text-red-500">*</span>
+                      {t('clinical.doctorForm.consultationFeeFcfa')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
@@ -718,7 +748,7 @@ export default function AddDoctorPage() {
                       value={formData.consultationFee}
                       onChange={handleChange}
                       className={inputClassName('consultationFee')}
-                      placeholder="Enter fee amount"
+                      placeholder={t('clinical.doctorForm.enterFeeAmount')}
                       min="0"
                       step="0.01"
                     />
@@ -731,7 +761,7 @@ export default function AddDoctorPage() {
                 {/* Languages */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Languages Spoken <span className="text-red-500">*</span>
+                    {t('clinical.doctorForm.languagesSpoken')} <span className="text-red-500">*</span>
                   </label>
                   <div className="flex gap-2 mb-2">
                     <select
@@ -739,7 +769,7 @@ export default function AddDoctorPage() {
                       onChange={(e) => setNewLanguage(e.target.value)}
                       className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                     >
-                      <option value="">Select a language</option>
+                      <option value="">{t('clinical.doctorForm.selectALanguage')}</option>
                       {commonLanguages
                         .filter((l) => !formData.languages.includes(l))
                         .map((lang) => (
@@ -757,14 +787,14 @@ export default function AddDoctorPage() {
                         }
                       }}
                       className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                      placeholder="Or type custom"
+                      placeholder={t('clinical.doctorForm.orTypeCustom')}
                     />
                     <button
                       type="button"
                       onClick={() => addToList('languages', newLanguage)}
                       className="px-4 py-2.5 bg-lime-600 text-white rounded-lg hover:bg-lime-700"
                     >
-                      Add
+                      {t('clinical.doctorForm.add')}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -794,7 +824,7 @@ export default function AddDoctorPage() {
                 {/* Bio */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Professional Bio
+                    {t('clinical.doctorForm.professionalBio')}
                   </label>
                   <textarea
                     name="bio"
@@ -802,10 +832,10 @@ export default function AddDoctorPage() {
                     onChange={handleChange}
                     rows={4}
                     className={inputClassName('bio')}
-                    placeholder="Write a brief professional biography..."
+                    placeholder={t('clinical.doctorForm.writeABriefProfessionalBiography')}
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    This will be displayed on the doctor&apos;s public profile
+                    {t('clinical.doctorForm.thisWillBeDisplayedOnThe')}
                   </p>
                 </div>
               </div>
@@ -816,12 +846,11 @@ export default function AddDoctorPage() {
           {currentStep === 4 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Set Availability Schedule
+                {t('clinical.doctorForm.setAvailabilitySchedule')}
               </h2>
 
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Select the days this doctor is available and set working hours for each day.
-                Click on a day to enable it, then configure the start time, end time, and appointment slot duration.
+                {t('clinical.doctorForm.scheduleIntro')}
               </p>
 
               {/* Quick Actions */}
@@ -839,7 +868,7 @@ export default function AddDoctorPage() {
                   }}
                   className="px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 >
-                  Select Weekdays (Mon-Fri)
+                  {t('clinical.doctorForm.selectWeekdaysMonFri')}
                 </button>
                 <button
                   type="button"
@@ -854,7 +883,7 @@ export default function AddDoctorPage() {
                   }}
                   className="px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 >
-                  Clear All
+                  {t('clinical.doctorForm.clearAll')}
                 </button>
               </div>
 
@@ -866,11 +895,11 @@ export default function AddDoctorPage() {
                   </svg>
                   <span className="text-sm text-blue-700 dark:text-blue-300">
                     {formData.schedule.filter((d) => d.isActive).length === 0 ? (
-                      <span>No days selected. Please select at least one working day.</span>
+                      <span>{t('clinical.doctorForm.noDaysSelectedPleaseSelectAt')}</span>
                     ) : (
                       <span>
-                        <strong>{formData.schedule.filter((d) => d.isActive).length}</strong> day(s) selected: {' '}
-                        {formData.schedule.filter((d) => d.isActive).map((d) => d.dayName).join(', ')}
+                        {t('clinical.doctorForm.daysSelected', { count: formData.schedule.filter((d) => d.isActive).length })}{' '}
+                        {formData.schedule.filter((d) => d.isActive).map((d) => dayLabel(d.dayOfWeek)).join(', ')}
                       </span>
                     )}
                   </span>
@@ -904,16 +933,16 @@ export default function AddDoctorPage() {
                         <span className={`text-sm font-medium ${
                           day.isActive ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'
                         }`}>
-                          {day.dayName}
+                          {dayLabel(day.dayOfWeek)}
                         </span>
                       </label>
                       {day.isActive ? (
                         <span className="text-xs bg-lime-100 dark:bg-lime-800 text-lime-700 dark:text-lime-300 px-2 py-1 rounded-full font-medium">
-                          Available
+                          {t('clinical.doctorForm.available')}
                         </span>
                       ) : (
                         <span className="text-xs text-gray-400 dark:text-gray-500">
-                          Click to enable
+                          {t('clinical.doctorForm.clickToEnable')}
                         </span>
                       )}
                     </div>
@@ -922,7 +951,7 @@ export default function AddDoctorPage() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-lime-200 dark:border-lime-800">
                         <div>
                           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                            Start Time
+                            {t('clinical.doctorForm.startTime')}
                           </label>
                           <input
                             type="time"
@@ -933,7 +962,7 @@ export default function AddDoctorPage() {
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                            End Time
+                            {t('clinical.doctorForm.endTime')}
                           </label>
                           <input
                             type="time"
@@ -944,18 +973,18 @@ export default function AddDoctorPage() {
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                            Slot Duration
+                            {t('clinical.doctorForm.slotDuration')}
                           </label>
                           <select
                             value={day.slotDuration}
                             onChange={(e) => handleScheduleChange(day.dayOfWeek, 'slotDuration', parseInt(e.target.value))}
                             className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-lime-500 focus:border-transparent"
                           >
-                            <option value={15}>15 minutes</option>
-                            <option value={20}>20 minutes</option>
-                            <option value={30}>30 minutes</option>
-                            <option value={45}>45 minutes</option>
-                            <option value={60}>60 minutes</option>
+                            <option value={15}>{t('clinical.doctorForm.minutes', { count: 15 })}</option>
+                            <option value={20}>{t('clinical.doctorForm.minutes', { count: 20 })}</option>
+                            <option value={30}>{t('clinical.doctorForm.minutes', { count: 30 })}</option>
+                            <option value={45}>{t('clinical.doctorForm.minutes', { count: 45 })}</option>
+                            <option value={60}>{t('clinical.doctorForm.minutes', { count: 60 })}</option>
                           </select>
                         </div>
                       </div>
@@ -966,12 +995,12 @@ export default function AddDoctorPage() {
 
               {/* Help Text */}
               <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Tips:</h4>
+                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">{t('clinical.doctorForm.tips')}</h4>
                 <ul className="text-xs text-gray-500 dark:text-gray-400 space-y-1 list-disc list-inside">
-                  <li>Select only the days the doctor is available for appointments</li>
-                  <li>Set accurate working hours to ensure proper appointment scheduling</li>
-                  <li>Slot duration determines how long each appointment will be</li>
-                  <li>The schedule can be modified later from the doctor&apos;s profile</li>
+                  <li>{t('clinical.doctorForm.selectOnlyTheDaysTheDoctor')}</li>
+                  <li>{t('clinical.doctorForm.setAccurateWorkingHoursToEnsure')}</li>
+                  <li>{t('clinical.doctorForm.slotDurationDeterminesHowLongEach')}</li>
+                  <li>{t('clinical.doctorForm.theScheduleCanBeModifiedLater')}</li>
                 </ul>
               </div>
             </div>
@@ -986,7 +1015,7 @@ export default function AddDoctorPage() {
                   onClick={handlePrevious}
                   className="px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  Previous
+                  {t('clinical.doctorForm.previous')}
                 </button>
               )}
             </div>
@@ -995,18 +1024,18 @@ export default function AddDoctorPage() {
                 href="/dashboard/doctors"
                 className="px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
               >
-                Cancel
+                {t('clinical.doctorForm.cancel')}
               </Link>
               {currentStep < 4 ? (
-                <button
+                <button key="step-next"
                   type="button"
                   onClick={handleNext}
                   className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 text-white text-sm font-medium rounded-lg transition-colors"
                 >
-                  Next Step
+                  {t('clinical.doctorForm.nextStep')}
                 </button>
               ) : (
-                <button
+                <button key="step-submit"
                   type="submit"
                   disabled={isSubmitting}
                   className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 disabled:bg-lime-400 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center gap-2"
@@ -1017,14 +1046,14 @@ export default function AddDoctorPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Creating Doctor...
+                      {t('clinical.doctorForm.creatingDoctor')}
                     </>
                   ) : (
                     <>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Create Doctor
+                      {t('clinical.doctorForm.createDoctor')}
                     </>
                   )}
                 </button>

@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode, useEffect, useRef, useCallback, createContext, useContext, useId } from 'react';
+import { useLanguage } from '@/context/language-context';
 import { createPortal } from 'react-dom';
 
 // Modal size variants
@@ -182,6 +183,7 @@ interface ModalHeaderProps {
 
 function ModalHeader({ children, showCloseButton = true, className = '' }: ModalHeaderProps) {
   const { titleId, onClose } = useModalContext();
+  const { t } = useLanguage();
 
   return (
     <div className={`flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 ${className}`}>
@@ -192,7 +194,7 @@ function ModalHeader({ children, showCloseButton = true, className = '' }: Modal
         <button
           onClick={onClose}
           className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          aria-label="Close modal"
+          aria-label={t('common.close')}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

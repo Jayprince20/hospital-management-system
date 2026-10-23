@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useAuth } from '@/context/auth-context';
 import { ThemeToggle } from '@/context/theme-context';
 import { LanguageToggle, useLanguage } from '@/context/language-context';
+import { ApiError } from '@/lib/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -30,7 +31,7 @@ export default function LoginPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-lime-100 dark:from-gray-900 dark:to-gray-800">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">{t('admin.login.loading')}</p>
         </div>
       </div>
     );
@@ -42,7 +43,7 @@ export default function LoginPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-lime-100 dark:from-gray-900 dark:to-gray-800">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Redirecting to dashboard...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">{t('admin.login.redirectingToDashboard')}</p>
         </div>
       </div>
     );
@@ -57,7 +58,11 @@ export default function LoginPage() {
       await login({ email, password, rememberMe });
       router.push('/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      if (err instanceof ApiError && err.status === 401) {
+        setError(t('auth.invalidCredentials'));
+      } else {
+        setError(err instanceof Error ? err.message : t('auth.loginFailed'));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -112,7 +117,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-lime-500 focus:border-transparent transition-colors"
-                placeholder="Enter your email"
+                placeholder={t('admin.login.enterYourEmail')}
               />
             </div>
 
@@ -130,7 +135,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-lime-500 focus:border-transparent transition-colors"
-                placeholder="Enter your password"
+                placeholder={t('admin.login.enterYourPassword')}
               />
             </div>
 
