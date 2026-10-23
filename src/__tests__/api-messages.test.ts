@@ -49,6 +49,11 @@ describe('localizeServerMessage', () => {
     'Invalid administration time: 25:00',
     'At most 8 administration times per day',
     'Invalid note type: X',
+    'Not enough stock for Paracétamol: 12 available',
+    'Invalid movement type: STOLEN',
+    'Paracétamol 500mg is no longer sold',
+    'Quantity exceeds the prescribed quantity for Amoxicilline 500mg',
+    'A prescription is required for Amoxicilline 500mg',
   ];
 
   it('has a sample for every message pattern', () => {

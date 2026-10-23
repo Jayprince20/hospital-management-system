@@ -827,8 +827,12 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         toDate(value).toLocaleDateString(locale, options),
       formatDateTime: (value: string | Date, options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) =>
         toDate(value).toLocaleString(locale, options),
+      // Accepts a time of day ("08:30", "08:30:00") or a full date-time (ISO string)
       formatTime: (value: string, options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }) =>
-        new Date(`1970-01-01T${value.length === 5 ? `${value}:00` : value}`).toLocaleTimeString(locale, options),
+        (/^\d{1,2}:\d{2}(:\d{2})?$/.test(value)
+          ? new Date(`1970-01-01T${value.length === 5 ? `${value}:00` : value.padStart(8, '0')}`)
+          : new Date(value)
+        ).toLocaleTimeString(locale, options),
       // Cameroon uses XAF; always render as "15 000 FCFA" regardless of UI language
       formatCurrency: (amount: number | string | null | undefined) => {
         const n = Math.round(Number(amount) || 0);

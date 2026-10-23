@@ -430,6 +430,41 @@ export const navigationItems: NavItem[] = [
     permission: 'pharmacy:dispense', // Only pharmacists who can dispense
   },
   {
+    label: 'Pharmacy POS',
+    href: '/dashboard/pharmacy/pos',
+    icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z',
+    permission: 'pharmacy:dispense',
+    roles: ['ADMIN', 'PHARMACIST'], // Counter sales (caisse)
+  },
+  {
+    label: 'Pharmacy Prescriptions',
+    href: '/dashboard/pharmacy/prescriptions',
+    icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
+    permission: 'pharmacy:dispense',
+    roles: ['ADMIN', 'PHARMACIST'], // In-house prescriptions to dispense
+  },
+  {
+    label: 'Pharmacy Sales',
+    href: '/dashboard/pharmacy/sales',
+    icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z',
+    permission: 'pharmacy:dispense',
+    roles: ['ADMIN', 'PHARMACIST'], // Sales, returns, receipts
+  },
+  {
+    label: 'Pharmacy Stock',
+    href: '/dashboard/pharmacy/stock',
+    icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
+    permission: 'pharmacy:dispense',
+    roles: ['ADMIN', 'PHARMACIST'], // Stock by batch, receipts, expiry
+  },
+  {
+    label: 'Till Sessions',
+    href: '/dashboard/pharmacy/sessions',
+    icon: 'M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z',
+    permission: 'pharmacy:dispense',
+    roles: ['ADMIN', 'PHARMACIST'], // Till sessions and daily report
+  },
+  {
     label: 'Laboratory',
     href: '/dashboard/laboratory',
     icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z',
@@ -573,6 +608,11 @@ export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/wards': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
   '/dashboard/admissions': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST'],
   '/dashboard/mar-round': ['NURSE', 'ADMIN', 'DOCTOR'],
+  '/dashboard/pharmacy/pos': ['ADMIN', 'PHARMACIST'],
+  '/dashboard/pharmacy/prescriptions': ['ADMIN', 'PHARMACIST'],
+  '/dashboard/pharmacy/sales': ['ADMIN', 'PHARMACIST'],
+  '/dashboard/pharmacy/stock': ['ADMIN', 'PHARMACIST'],
+  '/dashboard/pharmacy/sessions': ['ADMIN', 'PHARMACIST'],
   '/dashboard/claims': ['ADMIN', 'RECEPTIONIST'],
   '/dashboard/receivables': ['ADMIN', 'RECEPTIONIST'],
 };

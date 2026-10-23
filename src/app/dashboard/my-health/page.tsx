@@ -9,6 +9,7 @@ import { MyConsents } from '@/components/consent';
 import { isInsured, patientDue } from '@/lib/insurance';
 import { MyTicketCard } from '@/components/queue';
 import { MyAdmissionCard } from '@/components/inpatient';
+import { MyPharmacyPurchases } from '@/components/pharmacy/my-purchases';
 
 type TabType = 'overview' | 'appointments' | 'vitals' | 'lab-results' | 'prescriptions' | 'consultations' | 'billing' | 'privacy';
 
@@ -163,6 +164,9 @@ export default function MyHealthPage() {
             <>
               {patientData?.id && <PayInvoices patientId={patientData.id} phone={patientData.phoneNumber} onPaid={() => setRefreshKey((n) => n + 1)} />}
               <BillingTab billing={patientData?.billing || []} />
+              <div className="mt-8">
+                <MyPharmacyPurchases />
+              </div>
             </>
           )}
           {activeTab === 'privacy' && patientData?.id && <MyConsents patientId={patientData.id} />}

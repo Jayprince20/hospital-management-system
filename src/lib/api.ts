@@ -2032,6 +2032,260 @@ interface MyAdmissions {
   past: AdmissionSummary[];
 }
 
+// ---- Pharmacy counter (vente au comptoir), stock by batch, till sessions ----
+type SalePaymentMethod = 'CASH' | 'CARD' | 'MTN_MOMO' | 'ORANGE_MONEY';
+type PharmacySaleStatus = 'COMPLETED' | 'PARTIALLY_RETURNED' | 'RETURNED' | 'VOIDED';
+type StockMovementType = 'RECEIPT' | 'SALE' | 'RETURN' | 'DISPENSE' | 'ADJUSTMENT' | 'BREAKAGE' | 'EXPIRED';
+type StockAdjustmentType = 'ADJUSTMENT' | 'BREAKAGE' | 'EXPIRED';
+type CashSessionStatus = 'OPEN' | 'CLOSED';
+type MethodTotals = Record<SalePaymentMethod, number>;
+
+interface StockBatch {
+  id: string;
+  batchNumber: string;
+  expiryDate: string;
+  quantity: number;
+  costPrice: number | null;
+  daysToExpiry: number;
+  isExpired: boolean;
+}
+
+interface StockMedication {
+  id: string;
+  name: string;
+  genericName: string;
+  strength: string;
+  dosageForm: string;
+  category: string;
+  unitPrice: number;
+  requiresRx: boolean;
+  stockQuantity: number;
+  sellableQuantity: number;
+  reorderLevel: number;
+  isLow: boolean;
+  nearestExpiry: string | null;
+  hasExpiredStock?: boolean;
+  batches: StockBatch[];
+}
+
+interface StockReceiptInput {
+  supplierId?: string;
+  reference?: string;
+  items: Array<{ medicationId: string; batchNumber: string; expiryDate: string; quantity: number; costPrice?: number }>;
+}
+
+interface StockAdjustmentInput {
+  batchId: string;
+  type: StockAdjustmentType;
+  quantity: number;
+  reason: string;
+}
+
+interface StockMovementEntry {
+  id: string;
+  type: StockMovementType;
+  quantity: number;
+  balanceAfter: number;
+  reason: string | null;
+  batchId?: string;
+  medicationId?: string;
+  reference: { type: string; id: string; number: string | null } | null;
+  batchNumber: string;
+  medicationName: string;
+  userName: string | null;
+  createdAt: string;
+}
+
+interface StockMovementsResponse {
+  movements: StockMovementEntry[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+interface ExpiringBatch extends StockBatch {
+  medication: { id: string; name: string; strength: string };
+  value: number;
+}
+
+interface CashSessionTotals {
+  salesCount: number;
+  salesTotal: number;
+  byMethod: MethodTotals;
+  refunds: MethodTotals;
+  refundsTotal: number;
+  net: number;
+  expectedCashNow: number;
+}
+
+interface CashSessionSummary {
+  id: string;
+  number: string;
+  status: CashSessionStatus;
+  openedAt: string;
+  openedByName: string | null;
+  openingFloat: number;
+  closedAt: string | null;
+  closedByName: string | null;
+  countedCash: number | null;
+  expectedCash: number | null;
+  variance: number | null;
+  closingNotes?: string | null;
+  totals: CashSessionTotals;
+}
+
+interface PharmacySaleSummary {
+  id: string;
+  number: string;
+  status: PharmacySaleStatus;
+  createdAt: string;
+  customerLabel?: string | null;
+  patient?: { id: string; patientId: string; name: string } | null;
+  customerName?: string | null;
+  total: number;
+  refundedAmount?: number;
+  paymentMethod: SalePaymentMethod;
+  soldByName?: string | null;
+  itemCount?: number;
+  returnCount?: number;
+  items?: Array<{ description: string; quantity: number; total?: number }>;
+}
+
+interface PharmacyReturnSummary {
+  id: string;
+  number: string;
+  createdAt: string;
+  reason: string;
+  refundAmount: number;
+  refundMethod: SalePaymentMethod;
+  restock: boolean;
+  createdByName?: string | null;
+  saleId?: string;
+  saleNumber?: string;
+}
+
+interface CashSessionDetail extends CashSessionSummary {
+  sales: PharmacySaleSummary[];
+  returns: PharmacyReturnSummary[];
+}
+
+interface PharmacySaleItem {
+  id: string;
+  medicationId: string;
+  description: string;
+  batchNumber: string;
+  expiryDate: string;
+  quantity: number;
+  returnedQty: number;
+  unitPrice: number;
+  total: number;
+}
+
+interface PharmacySale {
+  id: string;
+  number: string;
+  status: PharmacySaleStatus;
+  createdAt: string;
+  soldByName: string | null;
+  session: { id: string; number: string };
+  patient: { id: string; patientId: string; name: string } | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  prescription: { id: string; doctorName: string; createdAt: string } | null;
+  external: { prescriber: string; date: string; ref: string | null } | null;
+  items: PharmacySaleItem[];
+  subtotal: number;
+  discount: number;
+  total: number;
+  paymentMethod: SalePaymentMethod;
+  amountTendered: number | null;
+  changeGiven: number | null;
+  paymentReference: string | null;
+  refundedAmount: number;
+  returns: PharmacyReturnSummary[];
+  voided: { at: string; byName: string | null; reason: string } | null;
+}
+
+interface SaleQuoteLine {
+  medicationId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  requiresRx: boolean;
+  sellable: number;
+  batches: Array<{ batchNumber: string; expiryDate: string; quantity: number }>;
+  warning: 'NOT_ENOUGH_STOCK' | null;
+  /** Recorded allergy this drug matches (directly or by drug family), for the sale's patient */
+  allergy?: string | null;
+}
+
+interface SaleQuote {
+  lines: SaleQuoteLine[];
+  subtotal: number;
+  rxRequired: boolean;
+}
+
+interface CreatePharmacySaleInput {
+  items: Array<{ medicationId: string; quantity: number; prescriptionItemId?: string }>;
+  patientId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  prescriptionId?: string;
+  externalPrescriber?: string;
+  externalRxDate?: string;
+  externalRxRef?: string;
+  discount?: number;
+  allergyOverrideReason?: string;
+  paymentMethod: SalePaymentMethod;
+  amountTendered?: number;
+  paymentReference?: string;
+  notes?: string;
+}
+
+interface PharmacySalesResponse {
+  sales: PharmacySaleSummary[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+  totals: { count: number; total: number; refunded?: number };
+}
+
+interface PendingPrescriptionItem {
+  id: string;
+  medicationId: string;
+  name: string;
+  strength: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  quantity: number;
+  isDispensed: boolean;
+  stockSellable: number;
+}
+
+interface PendingPrescription {
+  id: string;
+  patient: { id: string; patientId: string; name: string };
+  doctorName: string;
+  createdAt: string;
+  items: PendingPrescriptionItem[];
+}
+
+interface PharmacyReturnInput {
+  items: Array<{ saleItemId: string; quantity: number }>;
+  reason: string;
+  refundMethod?: SalePaymentMethod;
+  restock?: boolean;
+}
+
+interface PharmacyDailyReport {
+  date: string;
+  salesCount: number;
+  total: number;
+  byMethod: MethodTotals;
+  refundsTotal: number;
+  net: number;
+  topMedications: Array<{ name: string; quantity: number; total: number }>;
+  grossMargin: number | null;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -3307,6 +3561,122 @@ class ApiClient {
     return this.data<Receivables>('/api/receivables');
   }
 
+  // Pharmacy counter: stock by batch
+  async getPharmacyStock(filters: { search?: string; lowStock?: boolean; expiringWithinDays?: number } = {}): Promise<StockMedication[]> {
+    const params = new URLSearchParams();
+    if (filters.search) params.append('search', filters.search);
+    if (filters.lowStock) params.append('lowStock', 'true');
+    if (filters.expiringWithinDays) params.append('expiringWithinDays', String(filters.expiringWithinDays));
+    return (await this.data<{ medications: StockMedication[] }>(`/api/pharmacy/stock?${params.toString()}`)).medications;
+  }
+
+  async receivePharmacyStock(data: StockReceiptInput): Promise<unknown> {
+    return this.data<unknown>('/api/pharmacy/stock/receipts', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async adjustPharmacyStock(data: StockAdjustmentInput): Promise<unknown> {
+    return this.data<unknown>('/api/pharmacy/stock/adjustments', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getStockMovements(filters: { medicationId?: string; batchId?: string; type?: StockMovementType; from?: string; to?: string; page?: number } = {}): Promise<StockMovementsResponse> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== '') params.append(key, String(value));
+    return this.data<StockMovementsResponse>(`/api/pharmacy/stock/movements?${params.toString()}`);
+  }
+
+  async getExpiringBatches(days = 90): Promise<ExpiringBatch[]> {
+    return (await this.data<{ batches: ExpiringBatch[] }>(`/api/pharmacy/stock/expiring?days=${days}`)).batches;
+  }
+
+  // Pharmacy counter: till sessions
+  async openCashSession(openingFloat: number): Promise<CashSessionSummary> {
+    return this.data<CashSessionSummary>('/api/pharmacy/sessions', { method: 'POST', body: JSON.stringify({ openingFloat }) });
+  }
+
+  async getCurrentCashSession(): Promise<CashSessionSummary | null> {
+    return (await this.data<{ session: CashSessionSummary | null }>('/api/pharmacy/sessions/current')).session;
+  }
+
+  async getCashSessions(page = 1): Promise<CashSessionSummary[]> {
+    return (await this.data<{ sessions: CashSessionSummary[] }>(`/api/pharmacy/sessions?page=${page}`)).sessions;
+  }
+
+  async getCashSession(id: string): Promise<CashSessionDetail> {
+    return this.data<CashSessionDetail>(`/api/pharmacy/sessions/${id}`);
+  }
+
+  async closeCashSession(id: string, data: { countedCash: number; notes?: string }): Promise<CashSessionSummary> {
+    return this.data<CashSessionSummary>(`/api/pharmacy/sessions/${id}/close`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  // Pharmacy counter: sales
+  async quotePharmacySale(data: { items: Array<{ medicationId: string; quantity: number }>; prescriptionId?: string; patientId?: string }): Promise<SaleQuote> {
+    return this.data<SaleQuote>('/api/pharmacy/sales/quote', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async createPharmacySale(data: CreatePharmacySaleInput): Promise<PharmacySale> {
+    return this.data<PharmacySale>('/api/pharmacy/sales', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getPharmacySales(filters: { from?: string; to?: string; search?: string; sessionId?: string; page?: number } = {}): Promise<PharmacySalesResponse> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== '') params.append(key, String(value));
+    return this.data<PharmacySalesResponse>(`/api/pharmacy/sales?${params.toString()}`);
+  }
+
+  async getPharmacySale(id: string): Promise<PharmacySale> {
+    return this.data<PharmacySale>(`/api/pharmacy/sales/${id}`);
+  }
+
+  async voidPharmacySale(id: string, reason: string): Promise<PharmacySale> {
+    return this.data<PharmacySale>(`/api/pharmacy/sales/${id}/void`, { method: 'POST', body: JSON.stringify({ reason }) });
+  }
+
+  async returnPharmacySale(id: string, data: PharmacyReturnInput): Promise<PharmacyReturnSummary & { lines?: Array<{ saleItemId: string; quantity: number; restocked: boolean }>; sale?: PharmacySale }> {
+    return this.data(`/api/pharmacy/sales/${id}/returns`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getMyPharmacySales(): Promise<PharmacySale[]> {
+    const data = await this.data<{ sales: PharmacySale[] } | PharmacySale[]>('/api/pharmacy/sales/mine');
+    return Array.isArray(data) ? data : data.sales;
+  }
+
+  async getPendingPharmacyPrescriptions(): Promise<PendingPrescription[]> {
+    const data = await this.data<{ prescriptions: PendingPrescription[] } | PendingPrescription[]>('/api/pharmacy/prescriptions/pending');
+    return Array.isArray(data) ? data : data.prescriptions;
+  }
+
+  async getPharmacyDailyReport(date?: string): Promise<PharmacyDailyReport> {
+    return this.data<PharmacyDailyReport>(`/api/pharmacy/reports/daily${date ? `?date=${date}` : ''}`);
+  }
+
+  /** Fetch a pharmacy PDF (receipt, Z report) with the session token and open it in a new tab */
+  async openPharmacyPdf(kind: 'receipt' | 'session-report', id: string, lang: 'fr' | 'en' = 'fr'): Promise<void> {
+    const path = kind === 'receipt' ? `/api/pharmacy/sales/${id}/receipt?format=pdf&lang=${lang}` : `/api/pharmacy/sessions/${id}/report?format=pdf&lang=${lang}`;
+    const token = this.getAccessToken();
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch {
+      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new ApiError(localizeServerMessage(data.error || data.message || 'Request failed'), response.status);
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const opened = window.open(url, '_blank');
+    if (!opened) {
+      // Pop-up blocked: download instead
+      const fileName = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '')?.[1] || `${kind}-${id}.pdf`;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
   // Invoice methods
   async getInvoices(filters: { search?: string; status?: InvoiceStatus; patientId?: string; payerId?: string; insured?: boolean; startDate?: string; endDate?: string; page?: number; limit?: number } = {}): Promise<InvoicesResponse> {
     const params = new URLSearchParams();
@@ -3884,6 +4254,34 @@ class ApiClient {
 
 export const api = new ApiClient(API_URL);
 export type {
+  SalePaymentMethod,
+  PharmacySaleStatus,
+  StockMovementType,
+  StockAdjustmentType,
+  CashSessionStatus,
+  MethodTotals,
+  StockBatch,
+  StockMedication,
+  StockReceiptInput,
+  StockAdjustmentInput,
+  StockMovementEntry,
+  StockMovementsResponse,
+  ExpiringBatch,
+  CashSessionTotals,
+  CashSessionSummary,
+  CashSessionDetail,
+  PharmacySaleSummary,
+  PharmacyReturnSummary,
+  PharmacySaleItem,
+  PharmacySale,
+  SaleQuoteLine,
+  SaleQuote,
+  CreatePharmacySaleInput,
+  PharmacySalesResponse,
+  PendingPrescriptionItem,
+  PendingPrescription,
+  PharmacyReturnInput,
+  PharmacyDailyReport,
   WardType,
   WardGender,
   BedStatus,
