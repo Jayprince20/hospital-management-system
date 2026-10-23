@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { useToast } from '@/components/toast';
@@ -156,6 +157,9 @@ export default function SchedulePage() {
         <p className="text-gray-600 dark:text-gray-400 mt-1">
           {t('schedule.subtitle')}
         </p>
+        <Link href="/dashboard/my-schedule" className="inline-block mt-2 text-sm text-lime-700 dark:text-lime-400 hover:underline">
+          {t('ros.mine.seeShifts')}
+        </Link>
       </div>
 
 

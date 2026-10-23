@@ -2917,6 +2917,136 @@ interface InboundSmsResult {
   reply?: string | null;
 }
 
+// ---- Staff rosters (planning, on-call, leave, swaps) ----
+
+interface ShiftType {
+  id: string;
+  code: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  isOnCall: boolean;
+  color: string;
+  isActive: boolean;
+}
+
+type ShiftTypeInput = Pick<ShiftType, 'code' | 'name' | 'startTime' | 'endTime' | 'isOnCall' | 'color'> & { isActive?: boolean };
+
+interface RosterStaffMember {
+  userId: string;
+  name: string;
+  role: string;
+  title?: string | null;
+}
+
+interface RosterDepartment {
+  id: string;
+  name: string;
+  head: { id: string; name: string } | null;
+  staff: RosterStaffMember[];
+}
+
+type RosterPeriodStatus = 'DRAFT' | 'PUBLISHED';
+
+interface RosterShift {
+  id: string;
+  userId: string;
+  userName: string;
+  role?: string;
+  departmentId: string;
+  departmentName?: string;
+  date: string;
+  shiftType: Pick<ShiftType, 'id' | 'code' | 'name' | 'startTime' | 'endTime' | 'isOnCall' | 'color'>;
+  startsAt: string;
+  endsAt: string;
+  status: 'PLANNED' | 'CANCELLED';
+  note?: string | null;
+}
+
+interface RosterWarning {
+  type: string;
+  userId?: string | null;
+  userName?: string | null;
+  date: string;
+  message?: string;
+}
+
+interface PublicHoliday {
+  id?: string;
+  date: string;
+  name: string;
+}
+
+type LeaveType = 'ANNUAL' | 'SICK' | 'MATERNITY' | 'PATERNITY' | 'TRAINING' | 'UNPAID' | 'OTHER';
+type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+interface LeaveRequest {
+  id: string;
+  userId: string;
+  userName?: string;
+  user?: { id: string; name?: string; firstName?: string; lastName?: string; role?: string };
+  department?: { id: string; name: string } | string | null;
+  type: LeaveType;
+  startDate: string;
+  endDate: string;
+  days: number;
+  reason?: string | null;
+  status: LeaveStatus;
+  decidedAt?: string | null;
+  decidedByName?: string | null;
+  decisionNote?: string | null;
+  /** Planned shifts of the person during the leave (manager view) */
+  conflicts?: number;
+  createdAt?: string;
+}
+
+interface LeaveBalance {
+  year: number;
+  entitlement: number;
+  taken: number;
+  pending: number;
+  remaining: number;
+}
+
+interface RosterView {
+  period: { id: string; status: RosterPeriodStatus; publishedAt?: string | null } | null;
+  month: string;
+  department?: { id: string; name: string };
+  staff: RosterStaffMember[];
+  shifts: RosterShift[];
+  leave: LeaveRequest[];
+  holidays: PublicHoliday[];
+  warnings: RosterWarning[];
+  coverage: Array<{ date: string; onCall: string[]; count: number }>;
+}
+
+type SwapStatus = 'PENDING_PEER' | 'PENDING_MANAGER' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+interface ShiftSwap {
+  id: string;
+  fromShift: RosterShift;
+  toShift?: RosterShift | null;
+  requesterId: string;
+  requesterName?: string;
+  peerId: string;
+  peerName?: string;
+  status: SwapStatus;
+  message?: string | null;
+  decisionNote?: string | null;
+  createdAt: string;
+}
+
+interface OnCallEntry {
+  userId: string;
+  name: string;
+  role: string;
+  phone?: string | null;
+  department?: string | { id: string; name: string } | null;
+  shiftType?: Pick<ShiftType, 'code' | 'name' | 'isOnCall' | 'color'> | string | null;
+  until?: string | null;
+}
+
+
 class ApiClient {
   private baseUrl: string;
 
@@ -5334,10 +5464,208 @@ class ApiClient {
   async simulateInboundSms(data: { from: string; text: string }): Promise<InboundSmsResult> {
     return (await this.data<InboundSmsResult | null>('/api/dev/messages/inbound', { method: 'POST', body: JSON.stringify(data) })) ?? {};
   }
+  // ---- Staff rosters ----
+
+  /** Fetch a protected file (CSV…) with the session token and save it */
+  private async downloadProtected(path: string, fallbackName: string): Promise<void> {
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, { headers: this.authHeaders() });
+    } catch {
+      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new ApiError(localizeServerMessage(data.error || data.message || 'Request failed'), response.status);
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '')?.[1] || fallbackName;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  async getRosterDepartments(): Promise<RosterDepartment[]> {
+    const data = await this.data<RosterDepartment[] | { departments: RosterDepartment[] }>('/api/rosters/departments');
+    return Array.isArray(data) ? data : data.departments ?? [];
+  }
+
+  async setDepartmentHead(departmentId: string, userId: string | null): Promise<void> {
+    await this.data(`/api/rosters/departments/${departmentId}/head`, { method: 'PATCH', body: JSON.stringify({ userId }) });
+  }
+
+  async getRoster(departmentId: string, month: string): Promise<RosterView> {
+    const params = new URLSearchParams({ departmentId, month });
+    const data = await this.data<RosterView>(`/api/rosters?${params.toString()}`);
+    return {
+      ...data,
+      staff: data.staff ?? [],
+      shifts: data.shifts ?? [],
+      leave: data.leave ?? [],
+      holidays: data.holidays ?? [],
+      warnings: data.warnings ?? [],
+      coverage: data.coverage ?? [],
+    };
+  }
+
+  async createRosterShift(input: { userId: string; departmentId: string; date: string; shiftTypeId: string; note?: string }): Promise<{ shift: RosterShift; warnings: RosterWarning[] }> {
+    const data = await this.data<{ shift: RosterShift; warnings?: RosterWarning[] }>('/api/rosters/shifts', { method: 'POST', body: JSON.stringify(input) });
+    return { shift: data.shift, warnings: data.warnings ?? [] };
+  }
+
+  async bulkRosterShifts(departmentId: string, shifts: Array<{ userId: string; date: string; shiftTypeId: string }>): Promise<{ created: number; errors: Array<{ index: number; error: string }>; warnings: RosterWarning[] }> {
+    const data = await this.data<{ created: number | RosterShift[]; errors?: Array<{ index: number; error: string }>; warnings?: RosterWarning[] }>(
+      '/api/rosters/shifts/bulk',
+      { method: 'POST', body: JSON.stringify({ departmentId, shifts }) }
+    );
+    return { created: Array.isArray(data.created) ? data.created.length : data.created ?? 0, errors: data.errors ?? [], warnings: data.warnings ?? [] };
+  }
+
+  async copyRosterWeek(departmentId: string, fromWeekStart: string, toWeekStart: string): Promise<{ created?: number; copied?: number; skipped?: number }> {
+    return this.data('/api/rosters/copy-week', { method: 'POST', body: JSON.stringify({ departmentId, fromWeekStart, toWeekStart }) });
+  }
+
+  async updateRosterShift(id: string, data: { shiftTypeId?: string; note?: string | null; userId?: string }): Promise<RosterShift> {
+    const res = await this.data<RosterShift | { shift: RosterShift }>(`/api/rosters/shifts/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+    return 'shift' in res ? res.shift : res;
+  }
+
+  async deleteRosterShift(id: string): Promise<void> {
+    await this.request(`/api/rosters/shifts/${id}`, { method: 'DELETE' });
+  }
+
+  async publishRoster(departmentId: string, month: string): Promise<{ warnings: RosterWarning[] }> {
+    const data = await this.data<{ warnings?: RosterWarning[] } | null>('/api/rosters/publish', { method: 'POST', body: JSON.stringify({ departmentId, month }) });
+    return { warnings: data?.warnings ?? [] };
+  }
+
+  async getMyRoster(from: string, to: string): Promise<{ shifts: RosterShift[]; leave: LeaveRequest[] }> {
+    const data = await this.data<{ shifts?: RosterShift[]; leave?: LeaveRequest[] }>(`/api/rosters/mine?from=${from}&to=${to}`);
+    return { shifts: data.shifts ?? [], leave: data.leave ?? [] };
+  }
+
+  async exportRoster(departmentId: string, month: string, format: 'pdf' | 'csv'): Promise<void> {
+    const path = `/api/rosters/export?departmentId=${encodeURIComponent(departmentId)}&month=${month}&format=${format}`;
+    if (format === 'pdf') await this.openProtectedPdf(path, `planning-${month}.pdf`);
+    else await this.downloadProtected(path, `planning-${month}.csv`);
+  }
+
+  async getShiftTypes(includeInactive = false): Promise<ShiftType[]> {
+    const data = await this.data<ShiftType[] | { shiftTypes: ShiftType[] }>(`/api/shift-types${includeInactive ? '?all=true' : ''}`);
+    return Array.isArray(data) ? data : data.shiftTypes ?? [];
+  }
+
+  async createShiftType(input: ShiftTypeInput): Promise<ShiftType> {
+    return this.data<ShiftType>('/api/shift-types', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updateShiftType(id: string, input: Partial<ShiftTypeInput>): Promise<ShiftType> {
+    return this.data<ShiftType>(`/api/shift-types/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  }
+
+  async getOnCall(filters: { departmentId?: string; at?: string } = {}): Promise<{ at: string; onCall: OnCallEntry[] }> {
+    const params = new URLSearchParams();
+    if (filters.departmentId) params.set('departmentId', filters.departmentId);
+    if (filters.at) params.set('at', filters.at);
+    const data = await this.data<{ at?: string; onCall?: OnCallEntry[] }>(`/api/on-call?${params.toString()}`);
+    return { at: data.at ?? new Date().toISOString(), onCall: data.onCall ?? [] };
+  }
+
+  async getPublicHolidays(year?: number): Promise<PublicHoliday[]> {
+    const data = await this.data<PublicHoliday[] | { holidays: PublicHoliday[] }>(`/api/public-holidays${year ? `?year=${year}` : ''}`);
+    return Array.isArray(data) ? data : data.holidays ?? [];
+  }
+
+  async getMyLeave(): Promise<{ requests: LeaveRequest[]; balance: LeaveBalance | null }> {
+    const data = await this.data<{ requests?: LeaveRequest[]; balance?: LeaveBalance }>('/api/leave/mine');
+    return { requests: data.requests ?? [], balance: data.balance ?? null };
+  }
+
+  async requestLeave(input: { type: LeaveType; startDate: string; endDate: string; reason?: string }): Promise<LeaveRequest> {
+    return this.data<LeaveRequest>('/api/leave', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async cancelLeave(id: string): Promise<void> {
+    await this.data(`/api/leave/${id}/cancel`, { method: 'POST', body: '{}' });
+  }
+
+  async getLeaveRequests(filters: { status?: LeaveStatus; departmentId?: string; from?: string; to?: string } = {}): Promise<LeaveRequest[]> {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([k, v]) => v && params.set(k, v));
+    const data = await this.data<LeaveRequest[] | { requests: LeaveRequest[] }>(`/api/leave?${params.toString()}`);
+    return Array.isArray(data) ? data : data.requests ?? [];
+  }
+
+  async decideLeave(id: string, decision: 'APPROVE' | 'REJECT', note?: string): Promise<{ cancelledShifts: RosterShift[] }> {
+    const data = await this.data<{ cancelledShifts?: RosterShift[]; leave?: LeaveRequest } | null>(`/api/leave/${id}/decide`, {
+      method: 'POST',
+      body: JSON.stringify({ decision, ...(note ? { note } : {}) }),
+    });
+    return { cancelledShifts: data?.cancelledShifts ?? [] };
+  }
+
+  /** Who is off each day of a month in a department */
+  async getLeaveCalendar(departmentId: string, month: string): Promise<Array<{ date: string; people: Array<{ userId: string; name: string; type: LeaveType }> }>> {
+    const data = await this.data<
+      | Array<{ date: string; people: Array<{ userId: string; name: string; type: LeaveType }> }>
+      | { days?: Array<{ date: string; people: Array<{ userId: string; name: string; type: LeaveType }> }>; leave?: LeaveRequest[]; requests?: LeaveRequest[] }
+    >(`/api/leave/calendar?departmentId=${encodeURIComponent(departmentId)}&month=${month}`);
+    if (Array.isArray(data)) return data;
+    if (data.days) return data.days;
+    // Plain list of requests: spread them over the days of the month
+    const requests = data.leave ?? data.requests ?? [];
+    const [y, m] = month.split('-').map(Number);
+    const count = new Date(y, m, 0).getDate();
+    return Array.from({ length: count }, (_, i) => {
+      const date = `${month}-${String(i + 1).padStart(2, '0')}`;
+      const people = requests
+        .filter((r) => r.startDate.slice(0, 10) <= date && date <= r.endDate.slice(0, 10))
+        .map((r) => ({ userId: r.userId, name: r.userName ?? r.user?.name ?? `${r.user?.firstName ?? ''} ${r.user?.lastName ?? ''}`.trim(), type: r.type }));
+      return { date, people };
+    });
+  }
+
+  async getShiftSwaps(scope: 'mine' | 'to-approve'): Promise<ShiftSwap[]> {
+    const data = await this.data<ShiftSwap[] | { swaps: ShiftSwap[] }>(`/api/shift-swaps?scope=${scope}`);
+    return Array.isArray(data) ? data : data.swaps ?? [];
+  }
+
+  async requestShiftSwap(input: { fromShiftId: string; peerId: string; toShiftId?: string; message?: string }): Promise<ShiftSwap> {
+    return this.data<ShiftSwap>('/api/shift-swaps', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async answerShiftSwap(id: string, accept: boolean): Promise<void> {
+    await this.data(`/api/shift-swaps/${id}/answer`, { method: 'POST', body: JSON.stringify({ accept }) });
+  }
+
+  async decideShiftSwap(id: string, approve: boolean, note?: string): Promise<void> {
+    await this.data(`/api/shift-swaps/${id}/decide`, { method: 'POST', body: JSON.stringify({ approve, ...(note ? { note } : {}) }) });
+  }
+
+  async cancelShiftSwap(id: string): Promise<void> {
+    await this.data(`/api/shift-swaps/${id}/cancel`, { method: 'POST', body: '{}' });
+  }
 }
 
 export const api = new ApiClient(API_URL);
 export type {
+  ShiftType,
+  ShiftTypeInput,
+  RosterStaffMember,
+  RosterDepartment,
+  RosterPeriodStatus,
+  RosterShift,
+  RosterWarning,
+  RosterView,
+  PublicHoliday,
+  LeaveType,
+  LeaveStatus,
+  LeaveRequest,
+  LeaveBalance,
+  SwapStatus,
+  ShiftSwap,
+  OnCallEntry,
   LabResultType,
   LabResultStatus,
   LabReferenceRange,

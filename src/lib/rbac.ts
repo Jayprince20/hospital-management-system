@@ -348,6 +348,34 @@ export const navigationItems: NavItem[] = [
     roles: ['DOCTOR'],
   },
   {
+    label: 'Rosters',
+    href: '/dashboard/rosters',
+    icon: 'M3 10h18M3 14h18M10 3v18M14 3v18M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z',
+    permission: 'dashboard:view',
+    roles: ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH'],
+  },
+  {
+    label: 'My Shifts',
+    href: '/dashboard/my-schedule',
+    icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+    permission: 'dashboard:view',
+    roles: ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH'],
+  },
+  {
+    label: 'Leave',
+    href: '/dashboard/leave',
+    icon: 'M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z',
+    permission: 'dashboard:view',
+    roles: ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH'],
+  },
+  {
+    label: 'Roster Settings',
+    href: '/dashboard/rosters/settings',
+    icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z',
+    permission: 'dashboard:view',
+    roles: ['ADMIN'],
+  },
+  {
     label: 'My Patients',
     href: '/dashboard/my-patients',
     icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
@@ -646,6 +674,12 @@ export const routePermissions: Record<string, Permission> = {
 // Routes that only make sense for specific roles (e.g. a doctor's own schedule)
 export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/schedule': ['DOCTOR'],
+  // Rosters: settings first — the first matching prefix wins
+  '/dashboard/rosters/settings': ['ADMIN'],
+  '/dashboard/rosters': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH'],
+  '/dashboard/my-schedule': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH'],
+  '/dashboard/leave': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH'],
+  '/dashboard/on-call': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH'],
   '/dashboard/my-patients': ['DOCTOR'],
   '/dashboard/insurers': ['ADMIN', 'RECEPTIONIST'],
   '/dashboard/queue': ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR'],

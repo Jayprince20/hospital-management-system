@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ApiError, api, type ImagingOrder } from '@/lib/api';
 import { useLanguage } from '@/context/language-context';
 import { useToast } from '@/components/toast';
+import { OnCallSuggestion } from '@/components/rosters/on-call';
 import { CriticalBadge, DialogShell, ErrorBox, cancelBtn, cardClass, dangerBtn, inputClass, labelClass, messageOf, primaryBtn, smallBtn, useImagingPdf } from './ui';
 
 /** Radiologist's report, written once the images are acquired; signing makes it final */
@@ -79,6 +80,8 @@ export function ReportEditor({ order, onSigned }: { order: ImagingOrder; onSigne
           <span className="block text-xs text-gray-600 dark:text-gray-300">{t('img.report.criticalHint')}</span>
         </span>
       </label>
+      {/* Critical finding: who to call if the prescriber can't be reached */}
+      {critical && <OnCallSuggestion doctorId={order.orderedBy?.id} />}
       <div className="flex justify-end">
         <button type="button" onClick={check} disabled={saving} className={critical ? dangerBtn : primaryBtn}>{t('img.report.sign')}</button>
       </div>

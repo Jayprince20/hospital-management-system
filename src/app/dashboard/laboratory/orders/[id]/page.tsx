@@ -29,6 +29,7 @@ import {
   useLabPdf,
 } from '@/components/lab/ui';
 import { RejectDialog } from '@/components/lab/scan-panel';
+import { OnCallSuggestion } from '@/components/rosters/on-call';
 
 type Draft = { value: string; notes: string };
 
@@ -532,6 +533,7 @@ export default function LabOrderPage() {
         <CriticalCallDialog
           items={order.items.filter((i) => criticalDialog.includes(i.id) && (i.isCritical || isCriticalFlag(i.flag)) && !i.criticalCalledAt)}
           doctorName={`Dr ${order.doctor.firstName} ${order.doctor.lastName}`}
+          doctorId={order.doctor.id}
           busy={busy === 'validate'}
           onClose={() => setCriticalDialog(null)}
           onConfirm={(calledTo) => validate(criticalDialog, calledTo)}
@@ -581,12 +583,14 @@ export default function LabOrderPage() {
 function CriticalCallDialog({
   items,
   doctorName,
+  doctorId,
   busy,
   onClose,
   onConfirm,
 }: {
   items: LabOrderDetailItem[];
   doctorName: string;
+  doctorId?: string;
   busy: boolean;
   onClose: () => void;
   onConfirm: (calledTo: string) => void;
@@ -620,6 +624,8 @@ function CriticalCallDialog({
         <input id="critical-called" value={calledTo} onChange={(e) => setCalledTo(e.target.value)} className={inputClass} />
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('labw.critical.hint')}</p>
       </div>
+      {/* If the prescriber can't be reached: who is on call in their department */}
+      <OnCallSuggestion doctorId={doctorId} onPick={setCalledTo} />
     </DialogShell>
   );
 }

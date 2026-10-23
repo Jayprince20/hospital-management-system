@@ -63,6 +63,9 @@ describe('localizeServerMessage', () => {
     'Invalid numeric result for Hémoglobine',
     'A result is required for Potassium',
     'Invalid result for Goutte épaisse: expected one of Négative, Positive',
+    'Not enough leave days left (3 remaining)',
+    'This swap would create a conflict: Narcisse Eyong already works at that time',
+    'This swap would create a conflict: Odette Biya is on leave that day',
   ];
 
   it('has a sample for every message pattern', () => {

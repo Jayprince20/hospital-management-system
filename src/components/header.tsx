@@ -7,6 +7,7 @@ import { LanguageToggle, useLanguage } from '@/context/language-context';
 import { NotificationBell } from '@/components/notifications';
 import { GlobalSearch } from '@/components/global-search';
 import { ProfileSwitcher } from '@/components/family';
+import { OnCallButton } from '@/components/rosters/on-call';
 import { useActingPatient } from '@/context/acting-patient-context';
 
 export function Header() {
@@ -34,6 +35,9 @@ export function Header() {
 
           {/* Theme Toggle */}
           <ThemeToggle />
+
+          {/* Who is on call now (staff only) */}
+          <OnCallButton />
 
           {/* Notifications */}
           <NotificationBell />
