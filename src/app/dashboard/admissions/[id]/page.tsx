@@ -10,9 +10,10 @@ import { useToast } from '@/components/toast';
 import { AdmissionStatusBadge, DischargeDialog, ReasonDialog, TransferDialog, cardClass, useDaysLabel } from '@/components/inpatient';
 import { BillingTab, HistoryTab, MarTab, NotesTab, OrdersTab, OverviewTab } from '@/components/inpatient/admission-tabs';
 import { NewDocumentDialog } from '@/components/documents';
+import { NewImagingOrderDialog } from '@/components/imaging';
 
 type Tab = 'overview' | 'notes' | 'orders' | 'mar' | 'billing' | 'history';
-type Dialog = 'transfer' | 'discharge' | 'cancel' | 'sick-leave' | 'referral' | null;
+type Dialog = 'transfer' | 'discharge' | 'cancel' | 'sick-leave' | 'referral' | 'imaging' | null;
 
 export default function AdmissionPage() {
   const params = useParams<{ id: string }>();
@@ -119,6 +120,9 @@ export default function AdmissionPage() {
                 <button type="button" onClick={() => setDialog('referral')} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">{t('mdoc.shortcut.referral')}</button>
               </>
             )}
+            {admitted && isDoctor && (
+              <button type="button" onClick={() => setDialog('imaging')} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">{t('img.order.fromStay')}</button>
+            )}
             {admission.status === 'DISCHARGED' && (
               <button type="button" onClick={downloadSummary} disabled={downloading} className="px-4 py-2 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm disabled:opacity-50">{t('inp.detail.summaryPdf')}</button>
             )}
@@ -211,6 +215,20 @@ export default function AdmissionPage() {
             toast.success(t('inp.discharge.done', { number: a.number }));
             load();
           }}
+        />
+      )}
+      {dialog === 'imaging' && (
+        <NewImagingOrderDialog
+          patient={{ id: admission.patient.id, patientId: admission.patient.patientId, name: `${admission.patient.firstName} ${admission.patient.lastName}` }}
+          admissionId={admission.id}
+          prefillClinicalInfo={[
+            t('mdoc.prefill.stay', { number: admission.number, ward: admission.ward.name }),
+            admission.reason,
+            admission.provisionalDiagnosis ? `${t('mdoc.prefill.diagnosis')} : ${admission.provisionalDiagnosis}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n')}
+          onClose={() => setDialog(null)}
         />
       )}
       {(dialog === 'sick-leave' || dialog === 'referral') && (

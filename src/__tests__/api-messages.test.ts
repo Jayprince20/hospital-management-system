@@ -55,6 +55,11 @@ describe('localizeServerMessage', () => {
     'Quantity exceeds the prescribed quantity for Amoxicilline 500mg',
     'A prescription is required for Amoxicilline 500mg',
     'Invalid document type: LETTER',
+    'This action is not possible for an exam in status PERFORMED',
+    'File too large (max 10 MB)',
+    'An exam can have at most 20 files',
+    'Invalid modality: SCANNER',
+    'Invalid priority: HIGH',
   ];
 
   it('has a sample for every message pattern', () => {

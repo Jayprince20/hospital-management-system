@@ -375,6 +375,20 @@ export const navigationItems: NavItem[] = [
     roles: ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'], // Hospital stays
   },
   {
+    label: 'Imaging',
+    href: '/dashboard/imaging',
+    icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z',
+    permission: 'dashboard:view',
+    roles: ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'LAB_TECH'], // Radiology worklist, exams and reports
+  },
+  {
+    label: 'Imaging Catalogue',
+    href: '/dashboard/imaging/exams',
+    icon: 'M4 6h16M4 10h16M4 14h16M4 18h16',
+    permission: 'dashboard:view',
+    roles: ['ADMIN'], // Exams and prices
+  },
+  {
     label: 'Medical Documents',
     href: '/dashboard/documents',
     icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
@@ -622,6 +636,8 @@ export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/wards': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
   '/dashboard/admissions': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST'],
   '/dashboard/mar-round': ['NURSE', 'ADMIN', 'DOCTOR'],
+  '/dashboard/imaging/exams': ['ADMIN'],
+  '/dashboard/imaging': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'LAB_TECH'],
   '/dashboard/documents': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
   '/dashboard/referrals': ['ADMIN', 'DOCTOR', 'RECEPTIONIST'],
   '/dashboard/pharmacy/pos': ['ADMIN', 'PHARMACIST'],

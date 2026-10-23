@@ -18,8 +18,9 @@ import { PatientConsentsPanel, PatientDataProtection } from '@/components/consen
 import { PatientCoveragePanel } from '@/components/insurance';
 import { AdmissionDialog } from '@/components/inpatient';
 import { PatientDocumentsPanel } from '@/components/documents';
+import { PatientImagingPanel } from '@/components/imaging';
 
-type TabType = 'overview' | 'appointments' | 'prescriptions' | 'lab-results' | 'vitals' | 'billing' | 'coverage' | 'documents' | 'consents';
+type TabType = 'overview' | 'appointments' | 'prescriptions' | 'lab-results' | 'imaging' | 'vitals' | 'billing' | 'coverage' | 'documents' | 'consents';
 
 export default function PatientDetailPage() {
   const params = useParams();
@@ -76,6 +77,7 @@ export default function PatientDetailPage() {
     { id: 'vitals', label: t('patientDetail.tabVitals'), icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
     { id: 'billing', label: t('patientDetail.tabBilling'), icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
     { id: 'coverage', label: t('ins.coverage.tab'), icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
+    { id: 'imaging', label: t('img.panel.tab'), icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
     { id: 'documents', label: t('mdoc.panel.tab'), icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
     { id: 'consents', label: t('privacy.tab'), icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
   ];
@@ -759,6 +761,9 @@ export default function PatientDetailPage() {
         )}
 
         {/* Medical documents: certificates, sick leave, referral letters */}
+        {activeTab === 'imaging' && (
+          <PatientImagingPanel patient={{ id: patient.id, patientId: patient.patientId, name: `${patient.firstName} ${patient.lastName}` }} />
+        )}
         {activeTab === 'documents' && (
           <PatientDocumentsPanel patient={{ id: patient.id, patientId: patient.patientId, name: `${patient.firstName} ${patient.lastName}` }} />
         )}

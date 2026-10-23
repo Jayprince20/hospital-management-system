@@ -2415,6 +2415,141 @@ interface DocumentVerification {
   revokedAt?: string | null;
 }
 
+// ---- Imaging (radiology) ----
+type ImagingModality = 'XRAY' | 'ULTRASOUND' | 'CT' | 'MRI' | 'MAMMOGRAPHY' | 'FLUOROSCOPY';
+type ImagingOrderStatus = 'ORDERED' | 'SCHEDULED' | 'ARRIVED' | 'PERFORMED' | 'REPORTED' | 'CANCELLED';
+type ImagingPriority = 'ROUTINE' | 'URGENT' | 'STAT';
+type PregnancyStatus = 'NOT_APPLICABLE' | 'NOT_PREGNANT' | 'POSSIBLE' | 'PREGNANT';
+
+interface ImagingExam {
+  id: string;
+  code: string;
+  name: string;
+  modality: ImagingModality;
+  bodyPart: string;
+  price: number;
+  durationMinutes: number;
+  preparation: string | null;
+  usesContrast: boolean;
+  isActive: boolean;
+}
+
+interface ImagingExamInput {
+  code: string;
+  name: string;
+  modality: ImagingModality;
+  bodyPart: string;
+  price: number;
+  durationMinutes?: number;
+  preparation?: string | null;
+  usesContrast?: boolean;
+  isActive?: boolean;
+}
+
+interface ImagingAddendum {
+  text: string;
+  at: string;
+  byName: string;
+}
+
+interface ImagingAttachment {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  caption: string | null;
+  uploadedByName?: string | null;
+  createdAt: string;
+}
+
+interface ImagingOrder {
+  id: string;
+  number: string;
+  status: ImagingOrderStatus;
+  priority: ImagingPriority;
+  patient: { id: string; patientId: string; name: string; gender?: string | null; age?: number | null; allergies?: string[]; phoneMasked?: string | null };
+  exam: ImagingExam;
+  orderedBy: { id: string; name: string };
+  consultationId: string | null;
+  admissionId: string | null;
+  clinicalInfo: string;
+  question: string | null;
+  scheduledAt: string | null;
+  room: string | null;
+  arrivedAt: string | null;
+  pregnancyStatus?: PregnancyStatus | null;
+  contrastChecked?: boolean;
+  creatinine?: number | null;
+  safetyNotes?: string | null;
+  performedAt: string | null;
+  performedByName?: string | null;
+  technique: string | null;
+  findings: string | null;
+  conclusion: string | null;
+  isCritical: boolean;
+  reportedBy: { id: string; name: string } | null;
+  reportedAt: string | null;
+  addenda: ImagingAddendum[];
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  invoice: { id: string; invoiceNumber: string; status: string } | null;
+  chargedToStay: boolean;
+  attachments: ImagingAttachment[];
+  warnings: string[];
+  createdAt: string;
+}
+
+/** Worklist rows: the server may send fewer fields than the full order */
+type ImagingOrderSummary = Pick<ImagingOrder, 'id' | 'number' | 'status' | 'priority' | 'patient' | 'orderedBy' | 'scheduledAt' | 'room' | 'createdAt'> &
+  Partial<Omit<ImagingOrder, 'id' | 'number' | 'status' | 'priority' | 'patient' | 'orderedBy' | 'scheduledAt' | 'room' | 'createdAt' | 'exam'>> & {
+    exam: Pick<ImagingExam, 'id' | 'name' | 'modality'> & Partial<ImagingExam>;
+  };
+
+interface ImagingOrdersResponse {
+  orders: ImagingOrderSummary[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+  counts: Partial<Record<ImagingOrderStatus, number>>;
+}
+
+interface ImagingOrderFilters {
+  status?: ImagingOrderStatus | '';
+  modality?: ImagingModality | '';
+  priority?: ImagingPriority | '';
+  date?: string;
+  patientId?: string;
+  orderedById?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+interface CreateImagingOrderInput {
+  patientId: string;
+  examId: string;
+  priority?: ImagingPriority;
+  clinicalInfo: string;
+  question?: string;
+  consultationId?: string;
+  admissionId?: string;
+  orderedById?: string;
+}
+
+type ImagingOrderAction =
+  | { action: 'schedule'; scheduledAt: string; room?: string }
+  | { action: 'arrive' }
+  | { action: 'safety'; pregnancyStatus?: PregnancyStatus; contrastChecked?: boolean; creatinine?: number | null; safetyNotes?: string }
+  | { action: 'perform'; radiologistAgreed?: boolean; overrideReason?: string }
+  | { action: 'cancel'; reason: string };
+
+interface ImagingStats {
+  date: string;
+  byStatus: Partial<Record<ImagingOrderStatus, number>>;
+  byModality: Partial<Record<ImagingModality, number>>;
+  avgOrderToReportHours: number | null;
+  pendingReports: number;
+  criticalToday: number;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -3890,6 +4025,127 @@ class ApiClient {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
+  // ---- Imaging (radiology) ----
+  async getImagingExams(filters: { modality?: ImagingModality; active?: boolean } = {}): Promise<ImagingExam[]> {
+    const params = new URLSearchParams();
+    if (filters.modality) params.append('modality', filters.modality);
+    if (filters.active !== undefined) params.append('active', String(filters.active));
+    return (await this.data<{ exams: ImagingExam[] }>(`/api/imaging/exams?${params.toString()}`)).exams;
+  }
+
+  async createImagingExam(data: ImagingExamInput): Promise<ImagingExam> {
+    return this.data<ImagingExam>('/api/imaging/exams', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateImagingExam(id: string, data: Partial<ImagingExamInput>): Promise<ImagingExam> {
+    return this.data<ImagingExam>(`/api/imaging/exams/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async createImagingOrder(data: CreateImagingOrderInput): Promise<ImagingOrder> {
+    return this.data<ImagingOrder>('/api/imaging/orders', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getImagingOrders(filters: ImagingOrderFilters = {}): Promise<ImagingOrdersResponse> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== '') params.append(key, String(value));
+    const data = await this.data<ImagingOrdersResponse>(`/api/imaging/orders?${params.toString()}`);
+    return { orders: data.orders ?? [], pagination: data.pagination ?? { page: 1, limit: 20, total: 0, totalPages: 1 }, counts: data.counts ?? {} };
+  }
+
+  async getImagingOrder(id: string): Promise<ImagingOrder> {
+    return this.data<ImagingOrder>(`/api/imaging/orders/${id}`);
+  }
+
+  async getMyImagingOrders(): Promise<ImagingOrder[]> {
+    return (await this.data<{ orders: ImagingOrder[] }>('/api/imaging/orders/mine')).orders;
+  }
+
+  async updateImagingOrder(id: string, body: ImagingOrderAction): Promise<ImagingOrder> {
+    return this.data<ImagingOrder>(`/api/imaging/orders/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+
+  async reportImagingOrder(id: string, data: { technique?: string; findings: string; conclusion: string; isCritical?: boolean }): Promise<ImagingOrder> {
+    return this.data<ImagingOrder>(`/api/imaging/orders/${id}/report`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async addImagingAddendum(id: string, text: string): Promise<ImagingOrder> {
+    return this.data<ImagingOrder>(`/api/imaging/orders/${id}/addendum`, { method: 'POST', body: JSON.stringify({ text }) });
+  }
+
+  async billImagingOrder(id: string): Promise<{ invoice: { id: string; invoiceNumber: string } }> {
+    return this.data<{ invoice: { id: string; invoiceNumber: string } }>(`/api/imaging/orders/${id}/bill`, { method: 'POST' });
+  }
+
+  async getImagingStats(date?: string): Promise<ImagingStats> {
+    return this.data<ImagingStats>(`/api/imaging/stats${date ? `?date=${encodeURIComponent(date)}` : ''}`);
+  }
+
+  /** Upload one file (multipart), reporting progress from 0 to 1 */
+  uploadImagingAttachment(orderId: string, file: File, caption: string | undefined, onProgress?: (fraction: number) => void): Promise<ImagingAttachment> {
+    return new Promise((resolve, reject) => {
+      const form = new FormData();
+      form.append('file', file);
+      if (caption) form.append('caption', caption);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${this.baseUrl}/api/imaging/orders/${orderId}/attachments`);
+      const token = this.getAccessToken();
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+      };
+      xhr.onload = () => {
+        let body: { success?: boolean; data?: ImagingAttachment; error?: string; message?: string } = {};
+        try {
+          body = JSON.parse(xhr.responseText || '{}');
+        } catch {
+          body = {};
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && body.data) resolve(body.data);
+        else reject(new ApiError(localizeServerMessage(body.error || body.message || 'Request failed'), xhr.status));
+      };
+      xhr.onerror = () => reject(new ApiError(localizeServerMessage('Unable to reach the server'), 0));
+      xhr.send(form);
+    });
+  }
+
+  async deleteImagingAttachment(orderId: string, attachmentId: string): Promise<void> {
+    // request() throws on any error status; a success may come without data
+    await this.request<unknown>(`/api/imaging/orders/${orderId}/attachments/${attachmentId}`, { method: 'DELETE' });
+  }
+
+  /** Fetch a protected file (image, PDF) with the session token as an object URL */
+  async fetchImagingBlobUrl(path: string): Promise<string> {
+    const token = this.getAccessToken();
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch {
+      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new ApiError(localizeServerMessage(data.error || data.message || 'Request failed'), response.status);
+    }
+    return URL.createObjectURL(await response.blob());
+  }
+
+  imagingAttachmentPath(orderId: string, attachmentId: string): string {
+    return `/api/imaging/orders/${orderId}/attachments/${attachmentId}`;
+  }
+
+  /** Open the signed report PDF in a new tab (download when pop-ups are blocked) */
+  async openImagingReportPdf(id: string, lang: 'fr' | 'en' = 'fr'): Promise<void> {
+    const url = await this.fetchImagingBlobUrl(`/api/imaging/orders/${id}/pdf?lang=${lang}`);
+    const opened = window.open(url, '_blank');
+    if (!opened) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `compte-rendu-imagerie-${id}.pdf`;
+      link.click();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
   // Invoice methods
   async getInvoices(filters: { search?: string; status?: InvoiceStatus; patientId?: string; payerId?: string; insured?: boolean; startDate?: string; endDate?: string; page?: number; limit?: number } = {}): Promise<InvoicesResponse> {
     const params = new URLSearchParams();
@@ -4467,6 +4723,21 @@ class ApiClient {
 
 export const api = new ApiClient(API_URL);
 export type {
+  ImagingModality,
+  ImagingOrderStatus,
+  ImagingPriority,
+  PregnancyStatus,
+  ImagingExam,
+  ImagingExamInput,
+  ImagingAddendum,
+  ImagingAttachment,
+  ImagingOrder,
+  ImagingOrderSummary,
+  ImagingOrdersResponse,
+  ImagingOrderFilters,
+  CreateImagingOrderInput,
+  ImagingOrderAction,
+  ImagingStats,
   MedicalDocument,
   MedicalDocumentType,
   MedicalDocumentStatus,
