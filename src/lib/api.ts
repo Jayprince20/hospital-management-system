@@ -97,6 +97,39 @@ interface AuditLogEntry {
   createdAt: string;
 }
 
+/** Admin system status. Every field is optional: the page renders whatever the server reports. */
+interface SystemStatus {
+  health?: {
+    status?: 'ok' | 'degraded' | 'down' | string;
+    checks?: {
+      database?: { ok?: boolean; latencyMs?: number };
+      disk?: { ok?: boolean; freeBytes?: number };
+      lastBackup?: { ok?: boolean; ageHours?: number | null; file?: string | null };
+    };
+    version?: string;
+    uptimeSec?: number;
+  };
+  lastRestoreDrill?: { ok?: boolean; at?: string; checkedTables?: number; mismatches?: number | string[] } | null;
+  counts?: {
+    users?: number;
+    patients?: number;
+    auditLast24h?: number;
+    failedLoginsLast24h?: number;
+    mfaEnrolled?: number;
+    mfaRequired?: number;
+  };
+  recentErrors?: Array<{ time?: string; msg?: string; route?: string; requestId?: string }>;
+}
+
+/** /api/system-status as the backend sends it; mapped to SystemStatus by getSystemStatus() */
+interface SystemStatusResponse {
+  health?: SystemStatus['health'];
+  restoreDrill?: SystemStatus['lastRestoreDrill'];
+  counts?: { activeUsers?: number; patients?: number; auditEntries24h?: number; failedLogins24h?: number };
+  mfa?: { enrolled?: number; required?: number };
+  recentErrors?: Array<{ time?: string; msg?: string; route?: string; requestId?: string; error?: { message?: string } }>;
+}
+
 interface AuditLogsResponse {
   logs: AuditLogEntry[];
   pagination: { page: number; limit: number; total: number; totalPages: number };
@@ -1197,7 +1230,7 @@ interface CreateNotificationInput {
 }
 
 // The backend answers in English; show its messages in French when the UI is in French
-function localizeServerMessage(message: string): string {
+export function localizeServerMessage(message: string): string {
   if (typeof window === 'undefined' || localStorage.getItem('language') === 'en') return message;
   if (backendErrorsFr[message]) return backendErrorsFr[message];
   const tEnum = (value: string) => extraTranslations.fr[`enum.${value}`] || value;
@@ -1451,6 +1484,32 @@ class ApiClient {
   /** Admin: right to erasure. Identifiers are removed; clinical and billing records are kept. */
   async anonymizePatient(patientId: string, data: { reason: string; confirmPatientId: string }): Promise<void> {
     await this.request(`/api/patients/${patientId}/anonymize`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getSystemStatus(): Promise<SystemStatus> {
+    const response = await this.request<SystemStatusResponse>('/api/system-status');
+    if (response.success && response.data) {
+      // The API groups figures differently from the page; translate once here
+      const { restoreDrill, counts, mfa, recentErrors, ...rest } = response.data;
+      return {
+        ...rest,
+        // Show the first line of the underlying error next to the log message
+        recentErrors: recentErrors?.map(({ error, ...entry }) => ({
+          ...entry,
+          msg: [entry.msg, error?.message?.trim().split('\n')[0]].filter(Boolean).join(' '),
+        })),
+        lastRestoreDrill: restoreDrill ?? null,
+        counts: {
+          users: counts?.activeUsers,
+          patients: counts?.patients,
+          auditLast24h: counts?.auditEntries24h,
+          failedLoginsLast24h: counts?.failedLogins24h,
+          mfaEnrolled: mfa?.enrolled,
+          mfaRequired: mfa?.required,
+        },
+      };
+    }
+    throw new Error(response.message || response.error || 'Failed to fetch system status');
   }
 
   async getAuditLogs(filters: {
@@ -2638,6 +2697,7 @@ class ApiClient {
 
 export const api = new ApiClient(API_URL);
 export type {
+  SystemStatus,
   MfaChallenge,
   ConsentType,
   ConsentMethod,

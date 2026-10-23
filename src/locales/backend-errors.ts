@@ -1,5 +1,6 @@
 // English backend messages → French. The API client translates exact matches when the UI is in French.
 export const backendErrorsFr: Record<string, string> = {
+  "Only doctors can order lab tests": "Seuls les médecins peuvent prescrire des analyses",
   "This patient has been anonymised and can no longer be changed": "Ce patient a été anonymisé : son dossier ne peut plus être modifié",
   "This patient has been anonymised and can no longer be booked": "Ce patient a été anonymisé : aucun rendez-vous ne peut plus lui être attribué",
   // Sprint 1: access control, two-factor authentication, consent, export, erasure

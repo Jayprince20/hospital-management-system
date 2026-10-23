@@ -275,7 +275,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     ];
 
     // Sync notifications on connect
-    emit(ClientEvents.NOTIFICATIONS_SYNC, { since: notifications[0]?.createdAt });
+    emit(ClientEvents.NOTIFICATIONS_SYNC, { lastSyncTimestamp: notifications[0]?.createdAt });
 
     return () => {
       cleanups.forEach((cleanup) => cleanup());
