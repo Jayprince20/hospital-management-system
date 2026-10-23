@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { LoadingState, ErrorState } from '@/components/ui';
 import { useLanguage } from '@/context/language-context';
 import { toLocalDateString } from '@/lib/formatters';
+import { MyTicketCard } from '@/components/queue';
 
 interface PatientAppointment {
   id: string;
@@ -240,6 +241,8 @@ export function PatientDashboard() {
             : t('admin.patient.portalReady')}
         </p>
       </div>
+
+      <MyTicketCard />
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">

@@ -43,6 +43,8 @@ describe('localizeServerMessage', () => {
     'Orange Money refused the payment request (HTTP 502)',
     'REVIEW: provider confirmed 9000 XAF instead of 10000 XAF',
     'Payment exceeds the insurer balance of invoice INV-2026-00012',
+    'Invalid status: LOST',
+    'This action is not possible for a ticket in status DONE',
   ];
 
   it('has a sample for every message pattern', () => {

@@ -104,12 +104,16 @@ export function ReceptionistDashboard() {
   const handleCheckIn = async (appointment: Appointment) => {
     try {
       setCheckingIn(appointment.id);
-      await api.updateAppointment(appointment.id, { status: 'CHECKED_IN' });
-      toast.success(t('admin.reception.checkedInTitle'), t('admin.reception.checkedInMsg', { name: `${appointment.patient.firstName} ${appointment.patient.lastName}` }));
+      // Checking in puts the patient in the queue: the ticket number is what they wait with
+      const ticket = await api.createQueueTicket({ patientId: appointment.patientId, appointmentId: appointment.id });
+      toast.success(
+        t('q.checkIn.done', { number: ticket.number }),
+        t('q.checkIn.message', { name: `${appointment.patient.firstName} ${appointment.patient.lastName}`, number: ticket.number })
+      );
       fetchData();
     } catch (error) {
       console.error('Failed to check in:', error);
-      toast.error(t('admin.reception.checkInFailed'), t('admin.reception.tryAgain'));
+      toast.error(t('admin.reception.checkInFailed'), error instanceof Error && error.message ? error.message : t('admin.reception.tryAgain'));
     } finally {
       setCheckingIn(null);
     }

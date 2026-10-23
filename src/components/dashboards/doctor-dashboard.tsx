@@ -6,6 +6,7 @@ import { useAuth } from '@/context/auth-context';
 import { api, Appointment } from '@/lib/api';
 import { LoadingState, ErrorState } from '@/components/ui';
 import { useLanguage } from '@/context/language-context';
+import { DoctorQueueCard } from '@/components/queue';
 
 interface DoctorAppointment {
   id: string;
@@ -204,6 +205,8 @@ export function DoctorDashboard() {
           {t(stats.pendingToday === 1 ? 'clinical.doctorDashboard.waitingOne' : 'clinical.doctorDashboard.waitingMany', { count: stats.pendingToday })}
         </p>
       </div>
+
+      <DoctorQueueCard />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

@@ -1578,6 +1578,159 @@ interface Receivables {
   patient: { outstanding: number; invoiceCount: number };
 }
 
+// Queue & triage
+type VisitSource = 'APPOINTMENT' | 'WALK_IN' | 'EMERGENCY';
+type QueueTicketStatus = 'WAITING_TRIAGE' | 'WAITING' | 'CALLED' | 'IN_SERVICE' | 'DONE' | 'NO_SHOW' | 'CANCELLED';
+type TriageLevel = 'RED' | 'ORANGE' | 'YELLOW' | 'GREEN';
+type TriageMobility = 'WALKING' | 'WITH_HELP' | 'STRETCHER';
+type TriageAvpu = 'ALERT' | 'CONFUSED' | 'VOICE' | 'PAIN' | 'UNRESPONSIVE';
+
+interface TriageSummary {
+  id: string;
+  level: TriageLevel;
+  suggestedLevel: TriageLevel;
+  tewsScore: number | null;
+  chiefComplaint: string;
+  discriminators: string[];
+  overrideReason: string | null;
+  assessedByName?: string | null;
+  createdAt: string;
+  mobility?: TriageMobility;
+  avpu?: TriageAvpu;
+  trauma?: boolean;
+  notes?: string | null;
+}
+
+interface QueueTicket {
+  id: string;
+  number: string;
+  sequence: number;
+  serviceDate: string;
+  status: QueueTicketStatus;
+  source: VisitSource;
+  needsTriage: boolean;
+  triageLevel: TriageLevel | null;
+  priority: number;
+  department: { id: string; name: string };
+  doctor: { id: string; name: string } | null;
+  room: string | null;
+  callCount: number;
+  patient: {
+    id: string;
+    patientId: string;
+    firstName: string;
+    lastName: string;
+    gender?: string;
+    age?: number | null;
+    phoneMasked?: string | null;
+    allergies: string[];
+  };
+  appointment: { id: string; startTime: string; reason: string } | null;
+  arrivedAt: string;
+  triagedAt: string | null;
+  calledAt: string | null;
+  serviceStartedAt: string | null;
+  completedAt: string | null;
+  waitMinutes: number;
+  targetMinutes: number | null;
+  overdue: boolean;
+  position: number | null;
+  latestTriage: TriageSummary | null;
+  notes: string | null;
+  cancelReason?: string | null;
+  triages?: TriageSummary[];
+}
+
+type QueueStatusCounts = Record<QueueTicketStatus, number>;
+type QueueLevelCounts = Record<TriageLevel | 'UNTRIAGED', number>;
+
+interface QueueList {
+  date: string;
+  tickets: QueueTicket[];
+  counts: QueueStatusCounts;
+  byLevel: QueueLevelCounts;
+}
+
+interface QueueStats {
+  date: string;
+  waitingNow: number;
+  longestWaitMinutes: number | null;
+  avgWaitToTriageMinutes: number | null;
+  avgWaitToServiceMinutes: number | null;
+  avgServiceMinutes: number | null;
+  served: number;
+  noShows: number;
+  overdueNow: number;
+  byLevel: Record<TriageLevel, { count: number; avgWaitMinutes: number | null; withinTargetPct: number | null }>;
+  perHour: Array<{ hour: number; arrivals: number }>;
+}
+
+interface CreateQueueTicketInput {
+  patientId: string;
+  departmentId?: string;
+  doctorId?: string;
+  appointmentId?: string;
+  source?: 'WALK_IN' | 'EMERGENCY';
+  needsTriage?: boolean;
+  notes?: string;
+}
+
+type QueueTicketAction =
+  | { action: 'call'; room: string }
+  | { action: 'recall'; room?: string }
+  | { action: 'start' }
+  | { action: 'complete' }
+  | { action: 'no-show' }
+  | { action: 'cancel'; reason: string }
+  | { action: 'requeue' }
+  | { action: 'transfer'; departmentId?: string; doctorId?: string | null; reason?: string };
+
+interface TriageVitalsInput {
+  respiratoryRate?: number;
+  heartRate?: number;
+  systolic?: number;
+  diastolic?: number;
+  temperature?: number;
+  oxygenSaturation?: number;
+  weight?: number;
+  height?: number;
+}
+
+interface TriageInput {
+  chiefComplaint: string;
+  mobility: TriageMobility;
+  avpu: TriageAvpu;
+  trauma: boolean;
+  vitals: TriageVitalsInput;
+  discriminators: string[];
+}
+
+interface TriageScore {
+  tewsScore: number | null;
+  suggestedLevel: TriageLevel;
+  reasons: string[];
+  missing: string[];
+}
+
+interface QueueDisplayData {
+  departmentName: string | null;
+  now: string;
+  called: Array<{ number: string; room: string | null; calledAt: string; departmentName?: string | null }>;
+  waitingCount: number;
+  nextNumbers: string[];
+  averageWaitMinutes: number | null;
+}
+
+interface MyQueueTicket {
+  number: string;
+  status: QueueTicketStatus;
+  department: { id: string; name: string } | string;
+  room: string | null;
+  position: number | null;
+  estimatedWaitMinutes: number | null;
+  calledAt: string | null;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -2642,6 +2795,74 @@ class ApiClient {
     return fileName;
   }
 
+  // Queue & triage
+  async getQueue(filters: { departmentId?: string; doctorId?: string; date?: string; status?: QueueTicketStatus[]; includeDone?: boolean } = {}): Promise<QueueList> {
+    const params = new URLSearchParams();
+    if (filters.departmentId) params.append('departmentId', filters.departmentId);
+    if (filters.doctorId) params.append('doctorId', filters.doctorId);
+    if (filters.date) params.append('date', filters.date);
+    if (filters.status?.length) params.append('status', filters.status.join(','));
+    if (filters.includeDone !== undefined) params.append('includeDone', String(filters.includeDone));
+    return this.data<QueueList>(`/api/queue?${params.toString()}`);
+  }
+
+  async getQueueTicket(id: string): Promise<QueueTicket> {
+    return this.data<QueueTicket>(`/api/queue/tickets/${id}`);
+  }
+
+  async createQueueTicket(data: CreateQueueTicketInput): Promise<QueueTicket> {
+    return this.data<QueueTicket>('/api/queue/tickets', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateQueueTicket(id: string, data: QueueTicketAction): Promise<QueueTicket> {
+    return this.data<QueueTicket>(`/api/queue/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async callNextInQueue(data: { departmentId: string; doctorId?: string; room: string }): Promise<QueueTicket> {
+    return this.data<QueueTicket>('/api/queue/call-next', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getQueueStats(filters: { departmentId?: string; date?: string } = {}): Promise<QueueStats> {
+    const params = new URLSearchParams();
+    if (filters.departmentId) params.append('departmentId', filters.departmentId);
+    if (filters.date) params.append('date', filters.date);
+    return this.data<QueueStats>(`/api/queue/stats?${params.toString()}`);
+  }
+
+  async scoreTriage(data: TriageInput): Promise<TriageScore> {
+    return this.data<TriageScore>('/api/triage/score', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async triageTicket(id: string, data: TriageInput & { level: TriageLevel; overrideReason?: string; notes?: string }): Promise<{ ticket: QueueTicket; assessment: TriageSummary }> {
+    return this.data<{ ticket: QueueTicket; assessment: TriageSummary }>(`/api/queue/tickets/${id}/triage`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async createQueueDisplayToken(departmentId?: string): Promise<{ token: string; expiresAt: string; path: string }> {
+    return this.data<{ token: string; expiresAt: string; path: string }>('/api/queue/display-token', {
+      method: 'POST',
+      body: JSON.stringify(departmentId ? { departmentId } : {}),
+    });
+  }
+
+  /** Waiting-room screen: public, authorised by its display link only (never sends a session token) */
+  async getQueueDisplay(token: string): Promise<QueueDisplayData> {
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/api/queue/display?token=${encodeURIComponent(token)}`);
+    } catch {
+      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
+    }
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || !body.success) {
+      throw new ApiError(localizeServerMessage(body.error || body.message || 'Request failed'), response.status);
+    }
+    return body.data as QueueDisplayData;
+  }
+
+  async getMyQueueTicket(): Promise<MyQueueTicket | null> {
+    return (await this.data<{ ticket: MyQueueTicket | null }>('/api/queue/my-ticket')).ticket;
+  }
+
   async getReceivables(): Promise<Receivables> {
     return this.data<Receivables>('/api/receivables');
   }
@@ -3223,6 +3444,22 @@ class ApiClient {
 
 export const api = new ApiClient(API_URL);
 export type {
+  VisitSource,
+  QueueTicketStatus,
+  TriageLevel,
+  TriageMobility,
+  TriageAvpu,
+  TriageSummary,
+  QueueTicket,
+  QueueList,
+  QueueStats,
+  CreateQueueTicketInput,
+  QueueTicketAction,
+  TriageVitalsInput,
+  TriageInput,
+  TriageScore,
+  QueueDisplayData,
+  MyQueueTicket,
   PayerType,
   BillingCategory,
   CoverageRelationship,

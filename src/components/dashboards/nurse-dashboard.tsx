@@ -7,6 +7,7 @@ import { api, Appointment } from '@/lib/api';
 import { LoadingState, ErrorState } from '@/components/ui';
 import { useLanguage } from '@/context/language-context';
 import { useToast } from '@/components/toast';
+import { TriageQueueCard } from '@/components/queue';
 
 interface WaitingPatient {
   id: string;
@@ -202,6 +203,8 @@ export function NurseDashboard() {
           {t(stats.waitingPatients === 1 ? 'clinical.nurseDashboard.waitingOne' : 'clinical.nurseDashboard.waitingMany', { count: stats.waitingPatients })}
         </p>
       </div>
+
+      <TriageQueueCard />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
