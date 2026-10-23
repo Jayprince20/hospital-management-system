@@ -13,8 +13,10 @@ import {
   PatientBilling,
 } from '@/lib/api';
 import { useLanguage } from '@/context/language-context';
+import { useAuth } from '@/context/auth-context';
+import { PatientConsentsPanel, PatientDataProtection } from '@/components/consent';
 
-type TabType = 'overview' | 'appointments' | 'prescriptions' | 'lab-results' | 'vitals' | 'billing' | 'documents';
+type TabType = 'overview' | 'appointments' | 'prescriptions' | 'lab-results' | 'vitals' | 'billing' | 'documents' | 'consents';
 
 export default function PatientDetailPage() {
   const params = useParams();
@@ -24,6 +26,8 @@ export default function PatientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
   const [deleting, setDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -67,6 +71,7 @@ export default function PatientDetailPage() {
     { id: 'vitals', label: t('patientDetail.tabVitals'), icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
     { id: 'billing', label: t('patientDetail.tabBilling'), icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
     { id: 'documents', label: t('patientDetail.tabDocuments'), icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
+    { id: 'consents', label: t('privacy.tab'), icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
   ];
 
   const calculateAge = (dateOfBirth: string) => {
@@ -161,6 +166,8 @@ export default function PatientDetailPage() {
               {t('patientForm.patientIdValue', { id: patient.patientId })}
             </p>
           </div>
+          {/* An anonymised record is frozen: no new visits, no edits that could bring identity back */}
+          {!patient.anonymizedAt && (
           <div className="flex items-center gap-3">
             <Link
               href={`/dashboard/appointments/new?patientId=${patient.id}`}
@@ -190,6 +197,7 @@ export default function PatientDetailPage() {
               {t('patientDetail.delete')}
             </button>
           </div>
+          )}
         </div>
       </div>
 
@@ -243,7 +251,7 @@ export default function PatientDetailPage() {
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{t('patientDetail.address')}</p>
               <p className="text-sm text-gray-900 dark:text-white">
-                {patient.city}, {patient.state}
+                {[patient.city, patient.state].filter(Boolean).join(', ') || '—'}
               </p>
             </div>
           </div>
@@ -268,6 +276,20 @@ export default function PatientDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Patients registered before consent capture: prompt staff to collect it */}
+      {!patient.anonymizedAt && patient.dataProcessingConsent !== true && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          <span>{t('privacy.missingBanner')}</span>
+          <button
+            type="button"
+            onClick={() => setActiveTab('consents')}
+            className="rounded-lg bg-amber-600 px-3 py-1.5 font-medium text-white hover:bg-amber-700"
+          >
+            {t('privacy.missingBannerAction')}
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
@@ -325,7 +347,7 @@ export default function PatientDetailPage() {
                   <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.fullAddress')}</p>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
                     {patient.address}<br />
-                    {patient.city}, {patient.state} {patient.zipCode}<br />
+                    {[patient.city, [patient.state, patient.zipCode].filter(Boolean).join(' ')].filter(Boolean).join(', ')}<br />
                     {patient.country}
                   </p>
                 </div>
@@ -737,6 +759,20 @@ export default function PatientDetailPage() {
               <p className="text-gray-500 dark:text-gray-400 font-medium">{t('patientDetail.noDocuments')}</p>
               <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">{t('patientDetail.uploadHelp')}</p>
             </div>
+          </div>
+        )}
+        {activeTab === 'consents' && (
+          <div className="space-y-6">
+            <PatientConsentsPanel patientId={patient.id} canRecord={user?.role !== 'PATIENT'} />
+            {isAdmin && (
+              <PatientDataProtection
+                patientId={patient.id}
+                hospitalId={patient.patientId}
+                // Anonymised accounts get a placeholder email on an invalid domain
+                anonymized={Boolean(patient.anonymizedAt)}
+                onAnonymized={fetchPatient}
+              />
+            )}
           </div>
         )}
       </div>

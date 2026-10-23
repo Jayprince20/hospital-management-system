@@ -9,6 +9,8 @@ import { TableSkeleton, ErrorState, NoResults, Modal } from '@/components/ui';
 import { ButtonSpinner } from '@/components/ui/loading-spinner';
 import { getRoleColorClasses, getActiveStatusColorClasses } from '@/lib/formatters';
 import { PermissionGate } from '@/components/permission-gate';
+import { ConfirmModal } from '@/components/confirm-modal';
+import { useAuth } from '@/context/auth-context';
 
 interface UserFormData {
   email: string;
@@ -58,6 +60,10 @@ export default function UsersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [resetPasswordResult, setResetPasswordResult] = useState<{ temporaryPassword: string } | null>(null);
+  // Two-factor reset after a lost phone (never offered on the admin's own row)
+  const { user: currentUser } = useAuth();
+  const [mfaResetUser, setMfaResetUser] = useState<UserDetail | null>(null);
+  const [resettingMfa, setResettingMfa] = useState(false);
   const [copiedPassword, setCopiedPassword] = useState(false);
 
   const fetchUsers = useCallback(async () => {
@@ -239,6 +245,21 @@ export default function UsersPage() {
     }
 
     return password.split('').sort(() => Math.random() - 0.5).join('');
+  };
+
+  const handleResetMfa = async () => {
+    if (!mfaResetUser) return;
+    const name = `${mfaResetUser.firstName} ${mfaResetUser.lastName}`;
+    setResettingMfa(true);
+    try {
+      await api.resetUserMfa(mfaResetUser.id);
+      toast.success(t('security.users.resetDone', { name }));
+      setMfaResetUser(null);
+    } catch (err) {
+      toast.error(t('security.users.resetFailed'), err instanceof Error ? err.message : undefined);
+    } finally {
+      setResettingMfa(false);
+    }
   };
 
   const handleResetPassword = async () => {
@@ -475,6 +496,20 @@ export default function UsersPage() {
                             </svg>
                           </button>
                         </PermissionGate>
+                        {user.id !== currentUser?.id && (
+                          <PermissionGate permission="users:edit">
+                            <button
+                              onClick={() => setMfaResetUser(user)}
+                              className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/50 rounded-lg transition-colors"
+                              title={t('security.users.resetMfa')}
+                              aria-label={t('security.users.resetMfa')}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                            </button>
+                          </PermissionGate>
+                        )}
                         <PermissionGate permission="users:delete">
                           <button
                             onClick={() => openDeleteModal(user)}
@@ -838,6 +873,17 @@ export default function UsersPage() {
           )}
         </Modal.Footer>
       </Modal>
+      <ConfirmModal
+        isOpen={!!mfaResetUser}
+        onClose={() => setMfaResetUser(null)}
+        onConfirm={handleResetMfa}
+        title={t('security.users.resetMfa')}
+        message={t('security.users.resetMessage', { name: `${mfaResetUser?.firstName ?? ''} ${mfaResetUser?.lastName ?? ''}`.trim() })}
+        confirmText={t('security.users.resetConfirm')}
+        cancelText={t('security.settings.cancel')}
+        variant="warning"
+        isLoading={resettingMfa}
+      />
     </div>
   );
 }

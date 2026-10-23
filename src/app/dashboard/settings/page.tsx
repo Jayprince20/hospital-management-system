@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
+import { TwoFactorSettings } from '@/components/two-factor-settings';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -287,13 +288,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="pt-6 mt-6 border-t border-gray-100 dark:border-gray-700">
-                  <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">{t('settings.twoFactor')}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    {t('settings.twoFactorDesc')}
-                  </p>
-                  <button className="px-4 py-2 text-sm text-lime-600 border border-lime-600 rounded-lg hover:bg-lime-50 dark:hover:bg-lime-900/50">
-                    {t('settings.enable2FA')}
-                  </button>
+                  <TwoFactorSettings />
                 </div>
               </div>
             )}

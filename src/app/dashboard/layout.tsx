@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { Sidebar } from '@/components/sidebar';
+import { SessionTimeout } from '@/components/session-timeout';
 import { Header } from '@/components/header';
 import { AccessDenied } from '@/components/permission-gate';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -14,7 +15,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isLoading, isAuthenticated, canAccess } = useAuth();
+  const { isLoading, isAuthenticated, canAccess, mustChangePassword, mfaSetupRequired } = useAuth();
   const { t } = useLanguage();
   const pathname = usePathname();
 
@@ -37,11 +38,21 @@ export default function DashboardLayout({
     );
   }
 
+  // Password change or 2FA enrolment comes first; the AuthProvider is redirecting there
+  if (mustChangePassword || mfaSetupRequired) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <LoadingState label={t('admin.layout.redirecting')} minHeight="h-32" />
+      </div>
+    );
+  }
+
   // Check if user has access to the current route
   const hasAccess = canAccess(pathname || '/dashboard');
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <SessionTimeout />
       <Sidebar />
       <div className="ml-64">
         <Header />

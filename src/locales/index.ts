@@ -6,9 +6,12 @@ import appointments from './appointments';
 import pharmacy from './pharmacy';
 import clinical from './clinical';
 import admin from './admin';
+import audit from './audit';
+import privacy from './privacy';
+import security from './security';
 
 // Register feature dictionaries here. Later entries override earlier ones.
-const dictionaries: LocaleDictionary[] = [common, lab, patients, appointments, pharmacy, clinical, admin];
+const dictionaries: LocaleDictionary[] = [common, lab, patients, appointments, pharmacy, clinical, admin, audit, privacy, security];
 
 export const extraTranslations: LocaleDictionary = dictionaries.reduce<LocaleDictionary>(
   (acc, dict) => ({ en: { ...acc.en, ...dict.en }, fr: { ...acc.fr, ...dict.fr } }),

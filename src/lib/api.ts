@@ -42,12 +42,64 @@ interface LoginResponse {
     doctorId?: string;
     patientId?: string;
     mustChangePassword?: boolean;
+    mfaEnabled?: boolean;
+    mfaSetupRequired?: boolean;
   };
   tokens: {
     accessToken: string;
     refreshToken: string;
     expiresIn: number;
   };
+}
+
+/** Password accepted, but the account has two-factor authentication: a code is needed */
+interface MfaChallenge {
+  mfaRequired: true;
+  mfaToken: string;
+}
+
+type ConsentType = 'DATA_PROCESSING' | 'SMS_REMINDERS' | 'DATA_SHARING';
+type ConsentMethod = 'SIGNED_FORM' | 'VERBAL' | 'PORTAL';
+
+interface ConsentStatus {
+  currentVersion: string;
+  current: Array<{ type: ConsentType; granted: boolean; version: string | null; method: ConsentMethod | null; decidedAt: string | null }>;
+  history: Array<{
+    id: string;
+    type: ConsentType;
+    granted: boolean;
+    method: ConsentMethod;
+    version: string;
+    grantedAt: string;
+    withdrawnAt: string | null;
+    notes: string | null;
+    recordedBy: string | null;
+  }>;
+}
+
+interface ConsentTexts {
+  version: string;
+  required: ConsentType[];
+  texts: Record<ConsentType, { fr: string; en: string }>;
+}
+
+interface AuditLogEntry {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  entityLabel: string | null;
+  user: { id: string; name: string; role: string; email: string } | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  oldData: Record<string, unknown> | null;
+  newData: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+interface AuditLogsResponse {
+  logs: AuditLogEntry[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
 interface User {
@@ -63,6 +115,8 @@ interface User {
   doctorId?: string;  // For doctor users
   patientId?: string; // For patient users
   mustChangePassword?: boolean; // For force password change on first login
+  mfaEnabled?: boolean; // Two-factor authentication active
+  mfaSetupRequired?: boolean; // Admin/doctor who must enrol before using the system
 }
 
 // Patient types
@@ -184,6 +238,8 @@ interface VitalsResponse {
 }
 
 interface PatientDetail extends Patient {
+  anonymizedAt?: string | null; // Set once the patient's identity has been erased
+  dataProcessingConsent?: boolean | null; // Latest decision; null when never recorded
   appointments: PatientAppointment[];
   prescriptions: PatientPrescription[];
   labResults: PatientLabResult[];
@@ -1290,15 +1346,16 @@ class ApiClient {
   }
 
   // Auth methods
-  async login(credentials: LoginRequest): Promise<LoginResponse> {
+  async login(credentials: LoginRequest): Promise<LoginResponse | MfaChallenge> {
     const { rememberMe, ...loginData } = credentials;
 
-    const response = await this.request<LoginResponse>('/api/auth/login', {
+    const response = await this.request<LoginResponse | MfaChallenge>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(loginData),
     });
 
     if (response.success && response.data) {
+      if ('mfaRequired' in response.data) return response.data;
       // Tokens are nested inside response.data.tokens
       const { tokens } = response.data;
       this.setTokens(tokens.accessToken, tokens.refreshToken, rememberMe || true);
@@ -1306,6 +1363,113 @@ class ApiClient {
     }
 
     throw new Error(response.message || response.error || 'Login failed');
+  }
+
+  /** Second login step: a code from the authenticator app, or a single-use recovery code */
+  async verifyMfa(data: { mfaToken: string; code?: string; recoveryCode?: string }): Promise<LoginResponse> {
+    const response = await this.request<LoginResponse>('/api/auth/mfa/verify', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (response.success && response.data) {
+      this.setTokens(response.data.tokens.accessToken, response.data.tokens.refreshToken, true);
+      return response.data;
+    }
+    throw new Error(response.message || response.error || 'Verification failed');
+  }
+
+  async setupMfa(): Promise<{ qrDataUrl: string; otpauthUrl: string; secret: string }> {
+    const response = await this.request<{ qrDataUrl: string; otpauthUrl: string; secret: string }>('/api/auth/mfa/setup', { method: 'POST' });
+    if (response.success && response.data) return response.data;
+    throw new Error(response.message || response.error || 'Two-factor setup failed');
+  }
+
+  async enableMfa(code: string): Promise<{ recoveryCodes: string[] }> {
+    const response = await this.request<{ recoveryCodes: string[] }>('/api/auth/mfa/enable', { method: 'POST', body: JSON.stringify({ code }) });
+    if (response.success && response.data) return response.data;
+    throw new Error(response.message || response.error || 'Two-factor setup failed');
+  }
+
+  async disableMfa(code: string): Promise<void> {
+    await this.request('/api/auth/mfa/disable', { method: 'POST', body: JSON.stringify({ code }) });
+  }
+
+  /** Admin: clear another user's 2FA after a lost phone; they enrol again at next login */
+  async resetUserMfa(userId: string): Promise<void> {
+    await this.request(`/api/users/${userId}/mfa-reset`, { method: 'POST' });
+  }
+
+  async getConsentTexts(): Promise<ConsentTexts> {
+    const response = await this.request<ConsentTexts>('/api/consents/texts');
+    if (response.success && response.data) return response.data;
+    throw new Error('Failed to fetch consent texts');
+  }
+
+  async getPatientConsents(patientId: string): Promise<ConsentStatus> {
+    const response = await this.request<ConsentStatus>(`/api/patients/${patientId}/consents`);
+    if (response.success && response.data) return response.data;
+    throw new Error('Failed to fetch consents');
+  }
+
+  async recordPatientConsent(
+    patientId: string,
+    data: { type: ConsentType; granted: boolean; method?: ConsentMethod; notes?: string }
+  ): Promise<ConsentStatus> {
+    const response = await this.request<ConsentStatus>(`/api/patients/${patientId}/consents`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (response.success && response.data) return response.data;
+    throw new Error(response.message || response.error || 'Failed to record consent');
+  }
+
+  /** Download everything held about a patient as a JSON file; resolves to the file name */
+  async exportPatientData(patientId: string): Promise<string> {
+    const token = this.getAccessToken();
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/api/patients/${patientId}/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch {
+      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new ApiError(localizeServerMessage(data.error || data.message || 'Request failed'), response.status);
+    }
+    const fileName = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') || '')?.[1] || `dossier-${patientId}.json`;
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+    return fileName;
+  }
+
+  /** Admin: right to erasure. Identifiers are removed; clinical and billing records are kept. */
+  async anonymizePatient(patientId: string, data: { reason: string; confirmPatientId: string }): Promise<void> {
+    await this.request(`/api/patients/${patientId}/anonymize`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getAuditLogs(filters: {
+    userId?: string;
+    entityType?: string;
+    entityId?: string;
+    action?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<AuditLogsResponse> {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') params.append(key, String(value));
+    });
+    const response = await this.request<AuditLogsResponse>(`/api/audit-logs?${params.toString()}`);
+    if (response.success && response.data) return response.data;
+    throw new Error('Failed to fetch audit logs');
   }
 
   async logout(): Promise<void> {
@@ -2160,6 +2324,7 @@ class ApiClient {
       coverageType: string;
     };
     createUserAccount: boolean;
+    consents: Array<{ type: ConsentType; granted: boolean; method: 'SIGNED_FORM' | 'VERBAL' }>;
   }): Promise<{
     patient: Patient;
     user?: UserDetail;
@@ -2473,6 +2638,13 @@ class ApiClient {
 
 export const api = new ApiClient(API_URL);
 export type {
+  MfaChallenge,
+  ConsentType,
+  ConsentMethod,
+  ConsentStatus,
+  ConsentTexts,
+  AuditLogEntry,
+  AuditLogsResponse,
   User,
   LoginRequest,
   LoginResponse,

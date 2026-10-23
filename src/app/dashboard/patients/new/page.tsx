@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, Patient } from '@/lib/api';
 import { useLanguage } from '@/context/language-context';
+import { ConsentCapture, initialConsentCapture, type ConsentCaptureValue } from '@/components/consent';
+import { CONSENT_TYPE_ORDER } from '@/components/consent/consent-utils';
 
 interface PatientFormData {
   // Personal Information
@@ -94,6 +96,9 @@ export default function AddPatientPage() {
   const [errors, setErrors] = useState<Partial<Record<keyof PatientFormData | 'submit', string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [consent, setConsent] = useState<ConsentCaptureValue>(initialConsentCapture);
+  const [consentError, setConsentError] = useState<string | undefined>();
+  const lastStep = 5;
 
   // Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -105,6 +110,7 @@ export default function AddPatientPage() {
     { id: 2, name: t('patientForm.stepContact'), icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
     { id: 3, name: t('patientForm.stepMedical'), icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
     { id: 4, name: t('patientForm.stepInsurance'), icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+    { id: 5, name: t('privacy.consent.stepName'), icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
   ];
 
   // Default the country to Cameroon in the current UI language (only while untouched)
@@ -165,12 +171,20 @@ export default function AddPatientPage() {
     }
 
     setErrors(newErrors);
+
+    // Consent to the processing of health data is required by Law n° 2024/017
+    if (step === 5) {
+      const missing = !consent.granted.DATA_PROCESSING;
+      setConsentError(missing ? t('privacy.consent.errRequired') : undefined);
+      if (missing) return false;
+    }
+
     return Object.keys(newErrors).length === 0;
   };
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep((prev) => Math.min(prev + 1, 4));
+      setCurrentStep((prev) => Math.min(prev + 1, lastStep));
     }
   };
 
@@ -190,7 +204,7 @@ export default function AddPatientPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentStep < 4) {
+    if (currentStep < lastStep) {
       handleNext();
       return;
     }
@@ -244,6 +258,7 @@ export default function AddPatientPage() {
         notes: formData.notes || undefined,
         insurance,
         createUserAccount: formData.createUserAccount,
+        consents: CONSENT_TYPE_ORDER.map((type) => ({ type, granted: consent.granted[type], method: consent.method })),
       });
 
       setRegistrationResult({
@@ -865,6 +880,19 @@ export default function AddPatientPage() {
             </div>
           )}
 
+          {currentStep === 5 && (
+            <div className="p-6">
+              <ConsentCapture
+                value={consent}
+                onChange={(value) => {
+                  setConsent(value);
+                  if (value.granted.DATA_PROCESSING) setConsentError(undefined);
+                }}
+                error={consentError}
+              />
+            </div>
+          )}
+
           {/* Form Actions */}
           <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-700 rounded-b-xl flex items-center justify-between">
             <div>
@@ -885,7 +913,7 @@ export default function AddPatientPage() {
               >
                 {t('patientForm.cancel')}
               </Link>
-              {currentStep < 4 ? (
+              {currentStep < lastStep ? (
                 <button key="step-next"
                   type="button"
                   onClick={handleNext}

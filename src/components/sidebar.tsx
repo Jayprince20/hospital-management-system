@@ -29,6 +29,7 @@ const navTranslationKeys: Record<string, string> = {
   'Inventory': 'nav.inventory',
   'Reports': 'nav.reports',
   'Users': 'nav.users',
+  'Audit Log': 'nav.audit',
   'Notifications': 'nav.notifications',
   'Settings': 'nav.settings',
 };

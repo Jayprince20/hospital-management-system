@@ -6,6 +6,7 @@ import { useLanguage } from '@/context/language-context';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
 import { roleColors, UserRole } from '@/lib/rbac';
+import { TwoFactorSettings } from '@/components/two-factor-settings';
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -367,6 +368,9 @@ export default function ProfilePage() {
             >
               {t('admin.profile.changePassword')}
             </a>
+          </div>
+          <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+            <TwoFactorSettings />
           </div>
         </div>
       </div>

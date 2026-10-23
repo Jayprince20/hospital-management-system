@@ -12,12 +12,22 @@ import {
   roleDisplayNames,
 } from '@/lib/rbac';
 
+// The session user also carries its two-factor state (from login, MFA verify and /auth/me)
+export type SessionUser = User & { mfaEnabled?: boolean; mfaSetupRequired?: boolean };
+
+/** What a password submission led to: signed in, or a verification code is needed first */
+export type LoginResult = { mfaRequired: false } | { mfaRequired: true; mfaToken: string };
+
 interface AuthContextType {
-  user: User | null;
+  user: SessionUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   mustChangePassword: boolean;
-  login: (credentials: LoginRequest) => Promise<void>;
+  /** Admins and doctors without 2FA must enrol before using the dashboard */
+  mfaSetupRequired: boolean;
+  login: (credentials: LoginRequest) => Promise<LoginResult>;
+  verifyMfa: (data: { mfaToken: string; code?: string; recoveryCode?: string }) => Promise<void>;
+  refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
   checkPermission: (permission: Permission) => boolean;
   checkAnyPermission: (permissions: Permission[]) => boolean;
@@ -29,7 +39,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [mustChangePassword, setMustChangePassword] = useState(false);
@@ -56,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await new Promise((resolve) => setTimeout(resolve, 1500));
           }
         }
-        setUser(currentUser);
+        setUser(currentUser as SessionUser);
         // Check if user needs to change password
         if (currentUser.mustChangePassword) {
           setMustChangePassword(true);
@@ -83,6 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, [checkAuth]);
 
+  const mfaSetupRequired = !!user?.mfaSetupRequired;
+
+  // Where a signed-in user must go before anything else: password change, then 2FA enrolment
+  const pendingStep = mustChangePassword ? '/change-password' : mfaSetupRequired ? '/setup-2fa' : null;
+
   // Handle route access based on permissions
   useEffect(() => {
     if (!isInitialized || isLoading) return;
@@ -90,48 +105,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isDashboardRoute = pathname?.startsWith('/dashboard');
     const isLoginRoute = pathname === '/login';
     const isChangePasswordRoute = pathname === '/change-password';
+    const isSetupMfaRoute = pathname === '/setup-2fa';
 
-    if (isDashboardRoute && !user) {
+    if ((isDashboardRoute || isChangePasswordRoute || isSetupMfaRoute) && !user) {
       // Not authenticated, redirect to login
       router.push('/login');
     } else if (isDashboardRoute && user) {
-      // Check if user needs to change password first
-      if (mustChangePassword) {
-        router.push('/change-password');
-        return;
-      }
+      if (pendingStep) router.push(pendingStep);
     } else if (isLoginRoute && user) {
       // Already authenticated
-      if (mustChangePassword) {
+      router.push(pendingStep ?? '/dashboard');
+    } else if (isChangePasswordRoute && user && !mustChangePassword) {
+      router.push(pendingStep ?? '/dashboard');
+    } else if (isSetupMfaRoute && user && mustChangePassword) {
+      router.push('/change-password');
+    } else if (isSetupMfaRoute && user && user.mfaEnabled) {
+      // Already enrolled
+      router.push('/dashboard');
+    }
+  }, [isInitialized, isLoading, user, pathname, router, mustChangePassword, pendingStep]);
+
+  // A user who passed every login step: keep them and send them to their next step
+  const startSession = useCallback(
+    (sessionUser: SessionUser) => {
+      setUser(sessionUser);
+      if (sessionUser.mustChangePassword) {
+        setMustChangePassword(true);
         router.push('/change-password');
+      } else if (sessionUser.mfaSetupRequired) {
+        router.push('/setup-2fa');
       } else {
         router.push('/dashboard');
       }
-    } else if (isChangePasswordRoute && user && !mustChangePassword) {
-      // User doesn't need to change password, redirect to dashboard
-      router.push('/dashboard');
-    } else if (isChangePasswordRoute && !user) {
-      // Not authenticated, redirect to login
-      router.push('/login');
-    }
-  }, [isInitialized, isLoading, user, pathname, router, mustChangePassword]);
+    },
+    [router]
+  );
 
-  const login = async (credentials: LoginRequest) => {
+  const login = async (credentials: LoginRequest): Promise<LoginResult> => {
     const response = await api.login({
       email: credentials.email,
       password: credentials.password,
       rememberMe: credentials.rememberMe,
     });
-    setUser(response.user as User);
-
-    // Check if user needs to change password
-    if (response.user.mustChangePassword) {
-      setMustChangePassword(true);
-      router.push('/change-password');
-    } else {
-      router.push('/dashboard');
+    if ('mfaRequired' in response) {
+      return { mfaRequired: true, mfaToken: response.mfaToken };
     }
+    startSession(response.user as SessionUser);
+    return { mfaRequired: false };
   };
+
+  const verifyMfa = async (data: { mfaToken: string; code?: string; recoveryCode?: string }) => {
+    const response = await api.verifyMfa(data);
+    startSession(response.user as SessionUser);
+  };
+
+  // Re-read the user after a change made elsewhere (2FA enrolled, profile edited)
+  const refreshUser = useCallback(async () => {
+    const currentUser = await api.getCurrentUser();
+    setUser(currentUser as SessionUser);
+  }, []);
 
   const logout = async () => {
     try {
@@ -184,7 +216,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         mustChangePassword,
+        mfaSetupRequired,
         login,
+        verifyMfa,
+        refreshUser,
         logout,
         checkPermission,
         checkAnyPermission,
