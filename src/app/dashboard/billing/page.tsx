@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { api, Invoice, InvoiceStatus, PaymentMethod, Patient } from '@/lib/api';
 import { PermissionGate } from '@/components/permission-gate';
+import { MobileMoneyPayment, MobileMoneyReconciliationPanel } from '@/components/payments';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 
@@ -64,6 +65,7 @@ export default function BillingPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [mobileMoneyInvoice, setMobileMoneyInvoice] = useState<Invoice | null>(null);
   const [invoiceForm, setInvoiceForm] = useState<InvoiceFormData>(initialInvoiceForm);
   const [paymentForm, setPaymentForm] = useState<PaymentFormData>(initialPaymentForm);
   const [saving, setSaving] = useState(false);
@@ -497,6 +499,12 @@ export default function BillingPage() {
                             >
                               {t('admin.billing.pay')}
                             </button>
+                            <button
+                              onClick={() => setMobileMoneyInvoice(invoice)}
+                              className="text-amber-600 hover:text-amber-800 text-sm font-medium"
+                            >
+                              {t('pay.action')}
+                            </button>
                           </PermissionGate>
                         )}
                       </div>
@@ -778,6 +786,21 @@ export default function BillingPage() {
         </div>
       )}
 
+      {mobileMoneyInvoice && (
+        <MobileMoneyPayment
+          isOpen
+          invoice={{
+            id: mobileMoneyInvoice.id,
+            invoiceNumber: mobileMoneyInvoice.invoiceNumber,
+            balance: mobileMoneyInvoice.balance,
+            patientName: mobileMoneyInvoice.patientName,
+          }}
+          canSimulate={user?.role === 'ADMIN' || user?.role === 'RECEPTIONIST'}
+          onFinished={() => fetchInvoices()}
+          onClose={() => setMobileMoneyInvoice(null)}
+        />
+      )}
+
       {/* Record Payment Modal */}
       {showPaymentModal && selectedInvoice && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -894,6 +917,9 @@ export default function BillingPage() {
           </div>
         </div>
       )}
+
+      {/* The cash desk reconciles the day's mobile money here (admins also see it under Paiements) */}
+      {user?.role === 'RECEPTIONIST' && <MobileMoneyReconciliationPanel />}
     </div>
   );
 }

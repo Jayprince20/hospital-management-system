@@ -37,6 +37,10 @@ describe('localizeServerMessage', () => {
     'Cannot delete lab test with existing orders. This lab test has been used in 4 lab orders. Consider deactivating it instead.',
     'Insufficient stock: Amoxicilline requires 30 units but only 12 available',
     'Invalid action: foo',
+    'Cannot cancel a successful transaction',
+    'MTN MoMo is not configured for live payments (missing MTN_MOMO_API_KEY)',
+    'Orange Money refused the payment request (HTTP 502)',
+    'REVIEW: provider confirmed 9000 XAF instead of 10000 XAF',
   ];
 
   it('has a sample for every message pattern', () => {
@@ -48,7 +52,7 @@ describe('localizeServerMessage', () => {
   it.each(samples)('translates "%s"', (sample) => {
     const result = localizeServerMessage(sample);
     expect(result).not.toBe(sample);
-    expect(result).toMatch(/[éèàç]|Impossible|Stock|Action|Nombre|montant/i);
+    expect(result).toMatch(/[éèàç]|Impossible|Stock|Action|Nombre|montant|indisponible|vérifier/i);
   });
 
   it('formats amounts and enum values inside patterns', () => {

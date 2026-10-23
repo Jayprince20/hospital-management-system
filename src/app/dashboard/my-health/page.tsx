@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
-import { api, PatientDetail } from '@/lib/api';
+import { api, PatientDetail, type Invoice } from '@/lib/api';
+import { MobileMoneyPayment } from '@/components/payments';
 import { useLanguage } from '@/context/language-context';
 import { MyConsents } from '@/components/consent';
 
@@ -15,6 +16,8 @@ export default function MyHealthPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  // Bumped after a payment so balances and the billing summary are re-read
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const fetchPatientData = async () => {
@@ -59,7 +62,7 @@ export default function MyHealthPage() {
     };
 
     fetchPatientData();
-  }, [user, t]);
+  }, [user, t, refreshKey]);
 
   const tabs: { id: TabType; label: string; icon: string }[] = [
     { id: 'overview', label: t('admin.health.tab.overview'), icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -150,7 +153,12 @@ export default function MyHealthPage() {
           {activeTab === 'lab-results' && <LabResultsTab labResults={patientData?.labResults || []} />}
           {activeTab === 'prescriptions' && <PrescriptionsTab prescriptions={patientData?.prescriptions || []} />}
           {activeTab === 'consultations' && <ConsultationsTab patientId={patientData?.id} />}
-          {activeTab === 'billing' && <BillingTab billing={patientData?.billing || []} />}
+          {activeTab === 'billing' && (
+            <>
+              {patientData?.id && <PayInvoices patientId={patientData.id} phone={patientData.phoneNumber} onPaid={() => setRefreshKey((n) => n + 1)} />}
+              <BillingTab billing={patientData?.billing || []} />
+            </>
+          )}
           {activeTab === 'privacy' && patientData?.id && <MyConsents patientId={patientData.id} />}
         </div>
       </div>
@@ -713,6 +721,77 @@ function ConsultationsTab({ patientId }: { patientId?: string }) {
 }
 
 // Billing Tab Component
+/** Unpaid invoices the patient can settle themselves by Mobile Money */
+function PayInvoices({ patientId, phone, onPaid }: { patientId: string; phone?: string; onPaid?: () => void }) {
+  const { t, tEnum, formatCurrency, formatDate } = useLanguage();
+  const [invoices, setInvoices] = useState<Invoice[] | null>(null);
+  const [paying, setPaying] = useState<Invoice | null>(null);
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getInvoices({ patientId, limit: 50 })
+      .then((res) => {
+        if (!cancelled) setInvoices(res.invoices.filter((inv) => inv.balance > 0 && inv.status !== 'CANCELLED' && inv.status !== 'DRAFT'));
+      })
+      .catch(() => {
+        if (!cancelled) setInvoices([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [patientId, reload]);
+
+  if (!invoices) return null;
+
+  return (
+    <div className="mb-6 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <div className="border-b border-gray-100 dark:border-gray-700 p-4">
+        <h3 className="font-semibold text-gray-900 dark:text-white">{t('pay.portal.title')}</h3>
+      </div>
+      {invoices.length === 0 ? (
+        <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{t('pay.portal.nothingDue')}</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+          {invoices.map((inv) => (
+            <li key={inv.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">{t('pay.invoice', { number: inv.invoiceNumber })}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {formatDate(inv.createdAt)} · {tEnum(inv.status)}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="font-semibold text-orange-600">{formatCurrency(inv.balance)}</span>
+                <button
+                  type="button"
+                  onClick={() => setPaying(inv)}
+                  className="rounded-lg bg-lime-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-lime-700"
+                >
+                  {t('pay.portal.payNow')}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {paying && (
+        <MobileMoneyPayment
+          isOpen
+          payerIsUser
+          invoice={{ id: paying.id, invoiceNumber: paying.invoiceNumber, balance: paying.balance, patientPhone: phone }}
+          onFinished={() => {
+            setReload((n) => n + 1);
+            onPaid?.();
+          }}
+          onClose={() => setPaying(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 function BillingTab({ billing }: { billing: PatientDetail['billing'] }) {
   const { t, tEnum, formatDate, formatCurrency } = useLanguage();
   const getStatusColor = (status: string) => {
@@ -771,7 +850,7 @@ function BillingTab({ billing }: { billing: PatientDetail['billing'] }) {
           <div key={bill.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-gray-900 dark:text-white">{bill.description}</p>
+                <p className="font-medium text-gray-900 dark:text-white">{t('pay.invoice', { number: bill.description })}</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {formatDate(bill.date, { year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>

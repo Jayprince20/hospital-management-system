@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { ThemeToggle } from '@/context/theme-context';
 import { LanguageToggle, useLanguage } from '@/context/language-context';
@@ -288,12 +289,12 @@ function LoginContent() {
                   {t('auth.rememberMe')}
                 </span>
               </label>
-              <a
-                href="#"
+              <Link
+                href="/forgot-password"
                 className="text-sm text-lime-600 dark:text-lime-400 hover:text-lime-500"
               >
                 {t('auth.forgotPassword')}
-              </a>
+              </Link>
             </div>
 
             <button

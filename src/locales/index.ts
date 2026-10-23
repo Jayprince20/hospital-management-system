@@ -10,9 +10,10 @@ import audit from './audit';
 import privacy from './privacy';
 import security from './security';
 import ops from './ops';
+import payments from './payments';
 
 // Register feature dictionaries here. Later entries override earlier ones.
-const dictionaries: LocaleDictionary[] = [common, lab, patients, appointments, pharmacy, clinical, admin, audit, privacy, security, ops];
+const dictionaries: LocaleDictionary[] = [common, lab, patients, appointments, pharmacy, clinical, admin, audit, privacy, security, ops, payments];
 
 export const extraTranslations: LocaleDictionary = dictionaries.reduce<LocaleDictionary>(
   (acc, dict) => ({ en: { ...acc.en, ...dict.en }, fr: { ...acc.fr, ...dict.fr } }),

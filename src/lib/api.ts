@@ -130,6 +130,83 @@ interface SystemStatusResponse {
   recentErrors?: Array<{ time?: string; msg?: string; route?: string; requestId?: string; error?: { message?: string } }>;
 }
 
+type MobileMoneyProvider = 'MTN_MOMO' | 'ORANGE_MONEY';
+type MobileMoneyStatus = 'PENDING' | 'PROCESSING' | 'SUCCESSFUL' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+
+interface MobileMoneyTransaction {
+  id: string;
+  invoiceId: string;
+  provider: MobileMoneyProvider;
+  gateway: string; // SANDBOX, MTN_MOMO, ORANGE_MONEY, NOTCHPAY…
+  phoneNumber: string; // masked
+  amount: number;
+  currency: string;
+  status: MobileMoneyStatus;
+  externalId: string;
+  providerRefId: string | null;
+  failureReason: string | null;
+  needsReview: boolean;
+  paymentId: string | null;
+  paymentUrl: string | null;
+  isComplete: boolean;
+  isSuccessful: boolean;
+  initiatedAt: string;
+  completedAt: string | null;
+  expiresAt: string;
+  invoice?: { status: string; paidAmount: number; balance: number };
+  invoiceNumber?: string;
+  operator?: unknown;
+}
+
+interface ReconciliationTotals {
+  count: number;
+  amount: number;
+}
+
+interface MobileMoneyReconciliation {
+  date: string;
+  mode: string;
+  aggregator: string;
+  transactions: Record<string, Record<string, ReconciliationTotals>>;
+  credited: Record<string, ReconciliationTotals>;
+  needsReview: MobileMoneyTransaction[];
+  invalidWebhooks: Array<Record<string, unknown>>;
+  unprocessedWebhooks: number;
+}
+
+type MessageChannel = 'SMS' | 'WHATSAPP' | 'EMAIL';
+type MessageStatus = 'QUEUED' | 'SENT' | 'DELIVERED' | 'FAILED' | 'SKIPPED';
+
+interface OutboundMessage {
+  id: string;
+  channel: MessageChannel;
+  to: string;
+  subject: string | null;
+  preview?: string;
+  body?: string; // full text, or the email HTML (detail only)
+  template: string;
+  language: string;
+  status: MessageStatus;
+  provider: string;
+  providerMessageId: string | null;
+  error: string | null;
+  attempts: number;
+  patient?: { id: string; hospitalId: string; name: string } | null;
+  relatedType: string | null;
+  relatedId: string | null;
+  createdAt: string;
+  sentAt: string | null;
+}
+
+interface MessagesResponse {
+  mode: string;
+  providers: { sms?: string; email?: string; whatsapp?: string };
+  messages: OutboundMessage[];
+  counts: Partial<Record<MessageStatus, number>>;
+  templates: string[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
 interface AuditLogsResponse {
   logs: AuditLogEntry[];
   pagination: { page: number; limit: number; total: number; totalPages: number };
@@ -1512,6 +1589,90 @@ class ApiClient {
     throw new Error(response.message || response.error || 'Failed to fetch system status');
   }
 
+  // ---- Mobile money (MTN MoMo, Orange Money) ----
+
+  /** Ask the payer to confirm on their phone; amount defaults to the invoice balance */
+  async payWithMobileMoney(data: { invoiceId: string; provider: MobileMoneyProvider; phoneNumber: string; amount?: number }): Promise<MobileMoneyTransaction> {
+    const response = await this.request<MobileMoneyTransaction>('/api/payments/mobile-money', { method: 'POST', body: JSON.stringify(data) });
+    if (response.success && response.data) return response.data;
+    throw new Error(response.message || response.error || 'Payment request failed');
+  }
+
+  /** Current state; the backend asks the operator while the request is still open */
+  async getMobileMoneyTransaction(id: string): Promise<MobileMoneyTransaction> {
+    const response = await this.request<MobileMoneyTransaction>(`/api/payments/mobile-money/${id}`);
+    if (response.success && response.data) return response.data;
+    throw new Error('Failed to fetch payment status');
+  }
+
+  async cancelMobileMoneyTransaction(id: string): Promise<void> {
+    await this.request(`/api/payments/mobile-money/${id}`, { method: 'DELETE' });
+  }
+
+  async getInvoiceMobileMoneyTransactions(invoiceId: string): Promise<MobileMoneyTransaction[]> {
+    const response = await this.request<{ transactions: MobileMoneyTransaction[] }>(`/api/payments/mobile-money?invoiceId=${encodeURIComponent(invoiceId)}`);
+    return response.data?.transactions ?? [];
+  }
+
+  /** Sandbox only: play the payer's answer (404 in live mode) */
+  async simulateMobileMoney(id: string, action: 'approve' | 'decline'): Promise<MobileMoneyTransaction> {
+    const response = await this.request<{ transaction: MobileMoneyTransaction }>(`/api/dev/payments/${id}/${action}`, { method: 'POST' });
+    if (response.success && response.data) return response.data.transaction;
+    throw new Error('Simulation failed');
+  }
+
+  async getMobileMoneyReconciliation(date: string): Promise<MobileMoneyReconciliation> {
+    const response = await this.request<MobileMoneyReconciliation>(`/api/payments/reconciliation?date=${encodeURIComponent(date)}`);
+    if (response.success && response.data) return response.data;
+    throw new Error('Failed to fetch reconciliation');
+  }
+
+  // ---- Outbound messages (SMS, WhatsApp, email) ----
+
+  async getMessages(filters: {
+    page?: number;
+    limit?: number;
+    channel?: string;
+    status?: string;
+    template?: string;
+    patientId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    search?: string;
+  } = {}): Promise<MessagesResponse> {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') params.append(key, String(value));
+    });
+    const response = await this.request<MessagesResponse>(`/api/messages?${params.toString()}`);
+    if (response.success && response.data) return response.data;
+    throw new Error('Failed to fetch messages');
+  }
+
+  async getMessage(id: string): Promise<OutboundMessage> {
+    const response = await this.request<OutboundMessage>(`/api/messages/${id}`);
+    if (response.success && response.data) return response.data;
+    throw new Error('Failed to fetch message');
+  }
+
+  async retryMessage(id: string): Promise<void> {
+    await this.request(`/api/messages/${id}/retry`, { method: 'POST' });
+  }
+
+  async sendTestMessage(data: { channel: MessageChannel; to: string; message: string }): Promise<void> {
+    await this.request('/api/messages/test', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  // ---- Password reset (public) ----
+
+  async forgotPassword(email: string): Promise<void> {
+    await this.request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
+  }
+
+  async resetPassword(data: { token: string; newPassword: string; confirmPassword: string }): Promise<void> {
+    await this.request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify(data) });
+  }
+
   async getAuditLogs(filters: {
     userId?: string;
     entityType?: string;
@@ -2697,6 +2858,14 @@ class ApiClient {
 
 export const api = new ApiClient(API_URL);
 export type {
+  MobileMoneyProvider,
+  MobileMoneyStatus,
+  MobileMoneyTransaction,
+  MobileMoneyReconciliation,
+  MessageChannel,
+  MessageStatus,
+  OutboundMessage,
+  MessagesResponse,
   SystemStatus,
   MfaChallenge,
   ConsentType,

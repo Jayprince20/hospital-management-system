@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { api, PaymentStats } from '@/lib/api';
 import { useLanguage } from '@/context/language-context';
+import { MobileMoneyReconciliationPanel } from '@/components/payments';
 import {
   LineChart,
   Line,
@@ -425,6 +426,8 @@ export default function PaymentsPage() {
           </div>
         </div>
       </div>
+
+      <MobileMoneyReconciliationPanel />
     </div>
   );
 }

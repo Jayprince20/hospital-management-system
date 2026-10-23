@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { api, InvoiceDetail, PaymentMethod } from '@/lib/api';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
+import { MobileMoneyPayment, MobileMoneyHistory } from '@/components/payments';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -36,6 +37,8 @@ export default function BillingDetailPage() {
 
   // Payment modal
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showMobileMoney, setShowMobileMoney] = useState(false);
+  const [mobileMoneyRefresh, setMobileMoneyRefresh] = useState(0);
   const [paymentForm, setPaymentForm] = useState<PaymentFormData>(initialPaymentForm);
   const [submitting, setSubmitting] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -44,9 +47,11 @@ export default function BillingDetailPage() {
     fetchInvoice();
   }, [invoiceId]);
 
+  // The spinner only covers the first load: later refreshes (after a payment) keep the page,
+  // and any open payment dialog, on screen
   const fetchInvoice = async () => {
     try {
-      setLoading(true);
+      if (!invoice) setLoading(true);
       setError('');
       const data = await api.getInvoice(invoiceId);
       setInvoice(data);
@@ -215,6 +220,15 @@ export default function BillingDetailPage() {
             )}
             {t('admin.invoice.downloadPdf')}
           </button>
+          {invoice.status !== 'PAID' && invoice.status !== 'CANCELLED' && invoice.balance > 0 && (
+            <button
+              onClick={() => setShowMobileMoney(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-amber-400 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+            >
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+              {t('pay.title')}
+            </button>
+          )}
           {invoice.status !== 'PAID' && invoice.status !== 'CANCELLED' && (
             <button
               onClick={() => {
@@ -344,6 +358,8 @@ export default function BillingDetailPage() {
               </div>
             )}
           </div>
+
+          <MobileMoneyHistory invoiceId={invoice.id} refreshKey={mobileMoneyRefresh} />
         </div>
 
         {/* Sidebar - Invoice Summary */}
@@ -416,6 +432,25 @@ export default function BillingDetailPage() {
           )}
         </div>
       </div>
+
+      {showMobileMoney && (
+        <MobileMoneyPayment
+          isOpen
+          invoice={{
+            id: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            balance: invoice.balance,
+            patientName: `${invoice.patient.firstName} ${invoice.patient.lastName}`,
+            patientPhone: invoice.patient.phoneNumber,
+          }}
+          canSimulate={user?.role === 'ADMIN' || user?.role === 'RECEPTIONIST'}
+          onFinished={() => {
+            fetchInvoice();
+            setMobileMoneyRefresh((n) => n + 1);
+          }}
+          onClose={() => setShowMobileMoney(false)}
+        />
+      )}
 
       {/* Payment Modal */}
       {showPaymentModal && (
