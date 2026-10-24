@@ -37,6 +37,7 @@ import type {
   MonthlyReportDetail,
   MonthlyReportSummary,
 } from '@/lib/statistics';
+import type { TeleconsultDetail, TeleconsultEventType, TeleconsultListItem, TeleconsultOutcome } from '@/lib/teleconsultation';
 
 function getApiUrl(): string {
   if (typeof window !== 'undefined') {
@@ -5912,6 +5913,33 @@ class ApiClient {
 
   async updateFacilitySettings(input: FacilitySettingsInput): Promise<FacilitySettings> {
     return this.data<FacilitySettings>('/api/facility-settings', { method: 'PUT', body: JSON.stringify(input) });
+  }
+
+  // ---- Video teleconsultation ----
+
+  async getTeleconsultations(date?: string): Promise<TeleconsultListItem[]> {
+    return this.data<TeleconsultListItem[]>(`/api/teleconsultations${date ? `?date=${encodeURIComponent(date)}` : ''}`);
+  }
+
+  async getTeleconsultation(appointmentId: string): Promise<TeleconsultDetail> {
+    return this.data<TeleconsultDetail>(`/api/teleconsultations/${appointmentId}`);
+  }
+
+  async joinTeleconsultation(appointmentId: string): Promise<TeleconsultDetail> {
+    return this.data<TeleconsultDetail>(`/api/teleconsultations/${appointmentId}/join`, { method: 'POST', body: JSON.stringify({}) });
+  }
+
+  async acceptTeleconsultationConsent(appointmentId: string): Promise<void> {
+    // Only success matters (the body may carry no data)
+    await this.request(`/api/teleconsultations/${appointmentId}/consent`, { method: 'POST', body: JSON.stringify({ accepted: true }) });
+  }
+
+  async endTeleconsultation(appointmentId: string, input: { outcome: TeleconsultOutcome; notes?: string }): Promise<void> {
+    await this.request(`/api/teleconsultations/${appointmentId}/end`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async logTeleconsultationEvent(appointmentId: string, type: TeleconsultEventType): Promise<void> {
+    await this.request(`/api/teleconsultations/${appointmentId}/events`, { method: 'POST', body: JSON.stringify({ type }) });
   }
 }
 

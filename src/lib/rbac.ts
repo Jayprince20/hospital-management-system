@@ -107,6 +107,9 @@ export type Permission =
   | 'cash-desk:operate'
   | 'cash-desk:supervise'
 
+  // Video teleconsultation: the appointment's doctor and patient join; admins see the day's list
+  | 'teleconsultation:join'
+
   // Official monthly statistics (rapport mensuel d'activités, DHIS2): doctors read, admins validate and export
   | 'statistics:view'
   | 'statistics:manage'
@@ -200,6 +203,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'purchasing:manage',
     'cash-desk:operate', 'cash-desk:supervise',
     'statistics:view', 'statistics:manage',
+    'teleconsultation:join',
     'reports:view', 'reports:view_financial', 'reports:view_all', 'reports:export',
     'users:view', 'users:view_all', 'users:create', 'users:edit', 'users:delete', 'users:manage_roles',
     'settings:view', 'settings:edit', 'settings:manage_system',
@@ -229,6 +233,8 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'reports:view', 'reports:view_own',
     // Official monthly statistics - read only
     'statistics:view',
+    // Video consultations with own patients
+    'teleconsultation:join',
     // Notifications
     'notifications:view',
   ],
@@ -318,6 +324,8 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'records:view_own',
     'prescriptions:view_own',
     'laboratory:view_own_results',
+    // Own video appointments
+    'teleconsultation:join',
     // Notifications
     'notifications:view',
     // Note: Patients do NOT have access to:
@@ -407,6 +415,13 @@ export const navigationItems: NavItem[] = [
     href: '/dashboard/appointments',
     icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
     permission: 'appointments:view',
+  },
+  {
+    label: 'Teleconsultations',
+    href: '/dashboard/teleconsultations',
+    icon: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z',
+    permission: 'teleconsultation:join',
+    roles: ['DOCTOR', 'PATIENT'], // Video consultations: waiting patients, join
   },
   {
     label: 'Queue',
@@ -712,6 +727,7 @@ export const routePermissions: Record<string, Permission> = {
   '/dashboard/cash-desk/supervision': 'cash-desk:supervise', // Admin only
   '/dashboard/statistics/settings': 'statistics:manage', // Admin only: facility identity, DHIS2 mapping
   '/dashboard/statistics': 'statistics:view', // Admin, doctors (read)
+  '/dashboard/teleconsultations': 'teleconsultation:join', // Doctors, patients; admins see the list
   '/dashboard/reports': 'reports:view_all', // Admin only
   '/dashboard/users': 'users:view_all', // Admin only
   '/dashboard/audit': 'settings:manage_system', // Admin only
@@ -755,6 +771,7 @@ export const routeRoles: Record<string, UserRole[]> = {
   // Settings first — the first matching prefix wins
   '/dashboard/statistics/settings': ['ADMIN'],
   '/dashboard/statistics': ['ADMIN', 'DOCTOR'],
+  '/dashboard/teleconsultations': ['ADMIN', 'DOCTOR', 'PATIENT'],
   '/dashboard/claims': ['ADMIN', 'RECEPTIONIST'],
   '/dashboard/receivables': ['ADMIN', 'RECEPTIONIST'],
 };

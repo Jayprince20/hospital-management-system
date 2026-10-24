@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { JoinTeleconsultButton } from '@/components/teleconsultation/join-button';
 import { useParams, useRouter } from 'next/navigation';
 import { api, Appointment, AppointmentStatus } from '@/lib/api';
 import { useToast } from '@/components/toast';
@@ -233,6 +234,7 @@ export default function AppointmentDetailPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <JoinTeleconsultButton appointment={appointment} isDoctor={isDoctor} />
             {/* Cancel button - available to all users for non-completed/cancelled appointments */}
             {appointment.status !== 'CANCELLED' && appointment.status !== 'COMPLETED' && (
               <button

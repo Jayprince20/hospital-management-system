@@ -124,7 +124,7 @@ export default function EditAppointmentPage() {
 
   const typeOptions: { value: AppointmentType; label: string }[] = [
     { value: 'IN_PERSON', label: tEnum('IN_PERSON') },
-    { value: 'VIDEO', label: tEnum('VIDEO') },
+    { value: 'VIDEO', label: t('tele.booking.option') },
     { value: 'PHONE', label: tEnum('PHONE') },
   ];
 

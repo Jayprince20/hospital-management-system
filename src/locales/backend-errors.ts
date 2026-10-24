@@ -1101,6 +1101,25 @@ export const backendErrorsFr: Record<string, string> = {
   "Failed to export the monthly report": "Impossible d'exporter le rapport mensuel",
   "Failed to fetch facility settings": "Impossible de charger les paramètres de la formation sanitaire",
   "Failed to update facility settings": "Impossible d'enregistrer les paramètres de la formation sanitaire",
+  // Teleconsultation
+  "You are not a participant in this teleconsultation": "Vous ne participez pas à cette téléconsultation",
+  "This appointment is not a video consultation": "Ce rendez-vous n'est pas une téléconsultation",
+  "This teleconsultation is closed": "Cette téléconsultation est clôturée",
+  "The waiting room opens 15 minutes before the appointment": "La salle d'attente ouvre 15 minutes avant le rendez-vous",
+  "This appointment time has passed": "L'heure de ce rendez-vous est passée",
+  "Teleconsultation consent required": "Votre consentement à la téléconsultation est nécessaire",
+  "Only the doctor can end the teleconsultation": "Seul le médecin peut terminer la téléconsultation",
+  "This teleconsultation has ended": "Cette téléconsultation est terminée",
+  "The patient joined this teleconsultation": "Le patient a rejoint cette téléconsultation",
+  "Wait 15 minutes before marking a no-show": "Attendez 15 minutes avant de déclarer le patient absent",
+  "Join the teleconsultation first": "Rejoignez d'abord la téléconsultation",
+  "Consent must be accepted": "Le consentement doit être accepté",
+  "Failed to fetch teleconsultations": "Impossible de charger les téléconsultations",
+  "Failed to fetch the teleconsultation": "Impossible de charger la téléconsultation",
+  "Failed to join the teleconsultation": "Impossible de rejoindre la téléconsultation",
+  "Failed to record the consent": "Impossible d'enregistrer le consentement",
+  "Failed to end the teleconsultation": "Impossible de terminer la téléconsultation",
+  "Failed to log the event": "Impossible d'enregistrer l'événement",
 };
 
 // Backend messages that embed values. Each pattern must match the whole English message.

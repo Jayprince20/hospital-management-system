@@ -624,7 +624,7 @@ export function ReceptionistDashboard() {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                 >
                   <option value="IN_PERSON">{tEnum('IN_PERSON')}</option>
-                  <option value="VIDEO">{tEnum('VIDEO')}</option>
+                  <option value="VIDEO">{t('tele.booking.option')}</option>
                   <option value="PHONE">{tEnum('PHONE')}</option>
                 </select>
               </div>

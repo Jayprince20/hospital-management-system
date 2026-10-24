@@ -48,6 +48,13 @@ describe('localizeServerMessage', () => {
     expect(localizeServerMessage('Validation failed: Facility name is required')).toContain(backendErrorsFr['Facility name is required']);
   });
 
+  it('translates the teleconsultation messages', () => {
+    for (const message of ['Teleconsultation consent required', 'The waiting room opens 15 minutes before the appointment', 'This teleconsultation has ended', 'Only the doctor can end the teleconsultation']) {
+      expect(localizeServerMessage(message)).toBe(backendErrorsFr[message]);
+    }
+    expect(localizeServerMessage('Validation failed: Consent must be accepted')).toContain(backendErrorsFr['Consent must be accepted']);
+  });
+
   // One realistic sample per pattern: every pattern must match one of these
   const samples = [
     'Unknown indicator: cons.bogus',

@@ -867,9 +867,10 @@ export default function NewAppointmentPage() {
                     className={inputClassName('type')}
                   >
                     <option value="IN_PERSON">{tEnum('IN_PERSON')}</option>
-                    <option value="VIDEO">{tEnum('VIDEO')}</option>
+                    <option value="VIDEO">{t('tele.booking.option')}</option>
                     <option value="PHONE">{tEnum('PHONE')}</option>
                   </select>
+                  {formData.type === 'VIDEO' && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('tele.booking.hint')}</p>}
                 </div>
               </div>
 

@@ -38,6 +38,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/** Page to reopen after signing in (only teleconsultation links) */
+const RETURN_TO_KEY = 'auth_return_to';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -102,19 +105,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isInitialized || isLoading) return;
 
-    const isDashboardRoute = pathname?.startsWith('/dashboard');
+    // The full-screen video consultation page is signed-in only, like the dashboard
+    const isDashboardRoute = pathname?.startsWith('/dashboard') || pathname?.startsWith('/teleconsultation/');
     const isLoginRoute = pathname === '/login';
     const isChangePasswordRoute = pathname === '/change-password';
     const isSetupMfaRoute = pathname === '/setup-2fa';
 
     if ((isDashboardRoute || isChangePasswordRoute || isSetupMfaRoute) && !user) {
-      // Not authenticated, redirect to login
+      // Not authenticated, redirect to login; a teleconsultation link (SMS) is reopened after signing in
+      if (pathname?.startsWith('/teleconsultation/')) sessionStorage.setItem(RETURN_TO_KEY, pathname);
       router.push('/login');
     } else if (isDashboardRoute && user) {
       if (pendingStep) router.push(pendingStep);
     } else if (isLoginRoute && user) {
       // Already authenticated
-      router.push(pendingStep ?? '/dashboard');
+      const returnTo = sessionStorage.getItem(RETURN_TO_KEY);
+      sessionStorage.removeItem(RETURN_TO_KEY);
+      router.push(pendingStep ?? (returnTo?.startsWith('/teleconsultation/') ? returnTo : '/dashboard'));
     } else if (isChangePasswordRoute && user && !mustChangePassword) {
       router.push(pendingStep ?? '/dashboard');
     } else if (isSetupMfaRoute && user && mustChangePassword) {

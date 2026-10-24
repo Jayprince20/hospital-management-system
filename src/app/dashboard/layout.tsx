@@ -12,6 +12,7 @@ import { useLanguage } from '@/context/language-context';
 import { ActingPatientProvider, useActingPatient } from '@/context/acting-patient-context';
 import { ActingBanner, OwnerOnlyNotice } from '@/components/family';
 import { isOwnerOnlyPath } from '@/lib/patient-extras';
+import { TeleWaitingListener } from '@/components/teleconsultation/waiting-listener';
 
 export default function DashboardLayout({
   children,
@@ -57,6 +58,7 @@ export default function DashboardLayout({
     <ActingPatientProvider>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <SessionTimeout />
+        <TeleWaitingListener />
         <Sidebar />
         <div className="ml-64">
           <Header />

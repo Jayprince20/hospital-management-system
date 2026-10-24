@@ -9,6 +9,7 @@ import {
   ReactNode,
   useRef,
 } from 'react';
+import type { Socket } from 'socket.io-client';
 import { useSocket, ServerEvents, ClientEvents } from '@/hooks/useSocket';
 import { api } from '@/lib/api';
 import { useAuth } from './auth-context';
@@ -60,6 +61,8 @@ interface NotificationContextType {
   dismissToast: (id: string) => void;
   updateSettings: (settings: Partial<NotificationSettings>) => void;
   requestDesktopPermission: () => Promise<NotificationPermission>;
+  /** The shared Socket.io connection (one per tab), for teleconsultation signalling */
+  getSocket: () => Socket | null;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -114,7 +117,7 @@ const showDesktopNotification = (notification: Notification) => {
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
-  const { isConnected, on, emit, connect, disconnect } = useSocket({ autoConnect: false });
+  const { isConnected, on, emit, connect, disconnect, getSocket } = useSocket({ autoConnect: false });
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -384,6 +387,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         dismissToast,
         updateSettings,
         requestDesktopPermission,
+        getSocket,
       }}
     >
       {children}

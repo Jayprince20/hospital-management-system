@@ -11,6 +11,8 @@ import { TableSkeleton } from '@/components/ui';
 import { getStatusColorClasses } from '@/lib/formatters';
 import { ConfirmationBadge } from '@/components/confirmation';
 import { PermissionGate } from '@/components/permission-gate';
+import { useAuth } from '@/context/auth-context';
+import { JoinTeleconsultButton } from '@/components/teleconsultation/join-button';
 import {
   BarChart,
   Bar,
@@ -27,6 +29,7 @@ import {
 
 export default function AppointmentsPage() {
   const { t, tEnum, formatDate: formatDateBase, formatTime } = useLanguage();
+  const { user } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [stats, setStats] = useState({
     totalToday: 0,
@@ -429,6 +432,9 @@ export default function AppointmentsPage() {
                             {appointment.type === 'IN_PERSON' ? t('appointments.inPerson') :
                              appointment.type === 'VIDEO' ? t('appointments.video') : t('appointments.phone')}
                           </span>
+                        </div>
+                        <div className="mt-1">
+                          <JoinTeleconsultButton appointment={appointment} isDoctor={user?.role === 'DOCTOR'} compact />
                         </div>
                       </td>
                       <td className="px-6 py-4">

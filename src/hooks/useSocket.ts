@@ -42,6 +42,8 @@ export interface UseSocketReturn {
   emit: <T = unknown>(event: ClientEventType, data?: T) => void;
   on: <T = unknown>(event: ServerEventType, callback: (data: T) => void) => () => void;
   off: (event: ServerEventType) => void;
+  /** The underlying connection, for features with their own events and acks (teleconsultation) */
+  getSocket: () => Socket | null;
 }
 
 function getSocketUrl(): string {
@@ -195,6 +197,8 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [connect, disconnect]);
 
+  const getSocket = useCallback(() => socketRef.current, []);
+
   return {
     isConnected,
     isConnecting,
@@ -204,5 +208,6 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
     emit,
     on,
     off,
+    getSocket,
   };
 }
