@@ -19,6 +19,17 @@ import type {
   SupplierInvoiceStatus,
   SupplierPerformance,
 } from '@/lib/purchasing';
+import type {
+  CashDeskDaily,
+  CashMovementType,
+  CashierSessionDetail,
+  CashierSessionStatus,
+  CashierSessionSummary,
+  DenominationCounts,
+  DeskPaymentMethod,
+  InvoiceRefund,
+  RefundStatus,
+} from '@/lib/cash-desk';
 
 function getApiUrl(): string {
   if (typeof window !== 'undefined') {
@@ -1007,6 +1018,10 @@ interface Payment {
   notes?: string;
   processedBy: string;
   processedAt: string;
+  /** Reçu number (RC-YYYY-NNNNNN) for patient payments; null for insurer settlements */
+  receiptNumber?: string | null;
+  processedById?: string | null;
+  cashierSessionId?: string | null;
   /** Who paid: the patient (desk, mobile money) or the insurer (claim settlement) */
   source?: 'PATIENT' | 'INSURER';
   claimId?: string | null;
@@ -4843,14 +4858,16 @@ class ApiClient {
     throw new Error('Failed to update invoice');
   }
 
-  async addPayment(invoiceId: string, data: { amount: number; method: PaymentMethod; referenceNumber?: string; notes?: string; processedBy: string }): Promise<void> {
-    const response = await this.request(`/api/invoices/${invoiceId}/payments`, {
+  /** Desk payment; the server records the logged-in cashier and their open till */
+  async addPayment(invoiceId: string, data: { amount: number; method: PaymentMethod; referenceNumber?: string; notes?: string }): Promise<{ payment: Payment }> {
+    const response = await this.request<{ payment: Payment }>(`/api/invoices/${invoiceId}/payments`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    if (!response.success) {
+    if (!response.success || !response.data) {
       throw new Error('Failed to add payment');
     }
+    return response.data;
   }
 
   async deleteInvoice(id: string): Promise<void> {
@@ -5767,6 +5784,73 @@ class ApiClient {
     const data = await this.data<SupplierPerformance[] | { suppliers: SupplierPerformance[] } | { data: SupplierPerformance[] }>(`/api/purchasing/supplier-performance?months=${months}`);
     if (Array.isArray(data)) return data;
     return ('suppliers' in data ? data.suppliers : data.data) ?? [];
+  }
+
+  // ---- Main cash desk (caisse principale) ----
+
+  async getMyCashierSession(): Promise<CashierSessionSummary | null> {
+    return this.data<CashierSessionSummary | null>('/api/cash-desk/sessions/current');
+  }
+
+  async openCashierSession(openingFloat: number): Promise<CashierSessionSummary> {
+    return this.data<CashierSessionSummary>('/api/cash-desk/sessions', { method: 'POST', body: JSON.stringify({ openingFloat }) });
+  }
+
+  async getCashierSessions(filters: { date?: string; cashierId?: string; status?: CashierSessionStatus | ''; page?: number; limit?: number } = {}): Promise<CashierSessionSummary[]> {
+    const params = new URLSearchParams();
+    if (filters.date) params.append('date', filters.date);
+    if (filters.cashierId) params.append('cashierId', filters.cashierId);
+    if (filters.status) params.append('status', filters.status);
+    if (filters.page) params.append('page', String(filters.page));
+    if (filters.limit) params.append('limit', String(filters.limit));
+    return (await this.data<{ sessions: CashierSessionSummary[] }>(`/api/cash-desk/sessions?${params.toString()}`)).sessions;
+  }
+
+  async getCashierSession(id: string): Promise<CashierSessionDetail> {
+    return this.data<CashierSessionDetail>(`/api/cash-desk/sessions/${id}`);
+  }
+
+  async addCashMovement(sessionId: string, input: { type: CashMovementType; amount: number; reason: string; reference?: string }): Promise<void> {
+    await this.data(`/api/cash-desk/sessions/${sessionId}/movements`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async closeCashierSession(sessionId: string, input: { denominations: DenominationCounts; notes?: string }): Promise<CashierSessionSummary> {
+    return this.data<CashierSessionSummary>(`/api/cash-desk/sessions/${sessionId}/close`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async confirmCashierDeposit(sessionId: string, input: { amount: number; notes?: string }): Promise<CashierSessionSummary> {
+    return this.data<CashierSessionSummary>(`/api/cash-desk/sessions/${sessionId}/deposit`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async openCashierReportPdf(sessionId: string, number?: string): Promise<void> {
+    await this.openProtectedPdf(`/api/cash-desk/sessions/${sessionId}/report.pdf`, `${number || 'rapport-caisse'}.pdf`);
+  }
+
+  async openPaymentReceiptPdf(paymentId: string, receiptNumber?: string | null): Promise<void> {
+    await this.openProtectedPdf(`/api/payments/${paymentId}/receipt.pdf`, `${receiptNumber || 'recu'}.pdf`);
+  }
+
+  async requestRefund(input: { invoiceId: string; paymentId?: string; amount: number; method: DeskPaymentMethod; reason: string }): Promise<InvoiceRefund> {
+    return this.data<InvoiceRefund>('/api/cash-desk/refunds', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async getRefunds(filters: { status?: RefundStatus | ''; invoiceId?: string } = {}): Promise<InvoiceRefund[]> {
+    const params = new URLSearchParams();
+    if (filters.status) params.append('status', filters.status);
+    if (filters.invoiceId) params.append('invoiceId', filters.invoiceId);
+    return this.data<InvoiceRefund[]>(`/api/cash-desk/refunds?${params.toString()}`);
+  }
+
+  async decideRefund(id: string, input: { approve: boolean; note?: string }): Promise<InvoiceRefund> {
+    return this.data<InvoiceRefund>(`/api/cash-desk/refunds/${id}/decide`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async payRefund(id: string, input: { reference?: string } = {}): Promise<InvoiceRefund> {
+    return this.data<InvoiceRefund>(`/api/cash-desk/refunds/${id}/pay`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async getCashDeskDaily(date: string): Promise<CashDeskDaily> {
+    return this.data<CashDeskDaily>(`/api/cash-desk/daily?date=${encodeURIComponent(date)}`);
   }
 }
 

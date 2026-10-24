@@ -34,6 +34,13 @@ describe('localizeServerMessage', () => {
     expect(localizeServerMessage('Validation failed: At least one line is required')).toContain(backendErrorsFr['At least one line is required']);
   });
 
+  it('translates the cash desk messages', () => {
+    for (const message of ['Open your till before taking payments', 'Not enough cash in the till', 'Explain the difference before closing', 'Refund exceeds what the patient paid', 'Only an administrator can confirm the deposit', 'No receipt for this payment']) {
+      expect(localizeServerMessage(message)).toBe(backendErrorsFr[message]);
+    }
+    expect(localizeServerMessage('Validation failed: Unknown note or coin')).toContain(backendErrorsFr['Unknown note or coin']);
+  });
+
   // One realistic sample per pattern: every pattern must match one of these
   const samples = [
     'Cannot delete medication with existing prescriptions. This medication has been used in 3 prescription items. Consider deactivating it instead.',

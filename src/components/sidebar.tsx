@@ -46,6 +46,8 @@ const navTranslationKeys: Record<string, string> = {
   'Till Sessions': 'nav.pharmacySessions',
   'Laboratory': 'nav.laboratory',
   'Billing': 'nav.billing',
+  'Cash Desk': 'nav.cashDesk',
+  'Cash Desk Supervision': 'nav.cashDeskSupervision',
   'Insurers': 'nav.insurers',
   'Claims': 'nav.claims',
   'Receivables': 'nav.receivables',
@@ -71,6 +73,11 @@ export function Sidebar() {
   // Filter navigation items based on user permissions (owner-only pages hidden while acting for a relative)
   const filteredNavItems = navigationItems.filter((item) => isNavItemVisible(item, user?.role) && !(isActing && isOwnerOnlyPath(item.href)));
 
+  // Only the most specific entry is highlighted (e.g. Supervision, not also Caisse, on /dashboard/cash-desk/supervision)
+  // The dashboard home is a prefix of every page: it only counts on its own path
+  const matches = (href: string) => pathname === href || (href !== '/dashboard' && pathname.startsWith(href + '/'));
+  const activeHref = filteredNavItems.map((item) => item.href).filter(matches).sort((a, b) => b.length - a.length)[0];
+
   // Get translated label for nav item
   const getNavLabel = (label: string) => {
     const key = navTranslationKeys[label];
@@ -95,7 +102,7 @@ export function Sidebar() {
       <nav className="px-3 py-4 overflow-y-auto h-[calc(100vh-180px)]">
         <ul className="space-y-1">
           {filteredNavItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            const isActive = item.href === activeHref;
             return (
               <li key={item.href}>
                 <Link

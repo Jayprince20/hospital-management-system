@@ -8,6 +8,10 @@ import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { MobileMoneyPayment, MobileMoneyHistory } from '@/components/payments';
 import { isInsured, patientDue } from '@/lib/insurance';
+import type { InvoiceRefund } from '@/lib/cash-desk';
+import { NoTillBanner, ReceiptReadyBanner, RefundStatusBadge, smallBtn, useCashDeskPdf, useMyTill } from '@/components/cash-desk/ui';
+import { RefundRequestDialog } from '@/components/cash-desk/dialogs';
+import { useToast } from '@/components/toast';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -42,11 +46,28 @@ export default function BillingDetailPage() {
   const [mobileMoneyRefresh, setMobileMoneyRefresh] = useState(0);
   const [paymentForm, setPaymentForm] = useState<PaymentFormData>(initialPaymentForm);
   const [submitting, setSubmitting] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  // Cash desk: payments go into the cashier's open till and get a numbered receipt
+  const { session: till, loading: tillLoading } = useMyTill();
+  const cashDeskPdf = useCashDeskPdf();
+  const toast = useToast();
+  const [lastReceipt, setLastReceipt] = useState<{ paymentId: string; receiptNumber: string | null; amount: number } | null>(null);
+  const [refunds, setRefunds] = useState<InvoiceRefund[]>([]);
+  const [requestingRefund, setRequestingRefund] = useState(false);
 
   useEffect(() => {
     fetchInvoice();
+    fetchRefunds();
   }, [invoiceId]);
+
+  const fetchRefunds = async () => {
+    try {
+      setRefunds(await api.getRefunds({ invoiceId }));
+    } catch {
+      setRefunds([]);
+    }
+  };
 
   // The spinner only covers the first load: later refreshes (after a payment) keep the page,
   // and any open payment dialog, on screen
@@ -103,23 +124,24 @@ export default function BillingDetailPage() {
 
   const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!invoice || !user) return;
+    if (!invoice || !user || !till) return;
 
     try {
       setSubmitting(true);
-      await api.addPayment(invoice.id, {
+      setPaymentError('');
+      const { payment } = await api.addPayment(invoice.id, {
         amount: paymentForm.amount,
         method: paymentForm.method,
         referenceNumber: paymentForm.referenceNumber || undefined,
         notes: paymentForm.notes || undefined,
-        processedBy: `${user.firstName} ${user.lastName}`,
       });
       setShowPaymentModal(false);
       setPaymentForm(initialPaymentForm);
+      setLastReceipt({ paymentId: payment.id, receiptNumber: payment.receiptNumber ?? null, amount: Number(payment.amount) });
       fetchInvoice(); // Refresh data
     } catch (err) {
       console.error('Error adding payment:', err);
-      alert(err instanceof Error && err.message ? err.message : t('admin.invoice.addPaymentFailed'));
+      setPaymentError(err instanceof Error && err.message ? err.message : t('admin.invoice.addPaymentFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -146,6 +168,12 @@ export default function BillingDetailPage() {
   const insured = invoice ? isInsured(invoice) : false;
   const dueFromPatient = invoice ? patientDue(invoice) : 0;
   const canTakePatientPayment = Boolean(invoice) && invoice!.status !== 'PAID' && invoice!.status !== 'CANCELLED' && dueFromPatient > 0;
+  // What the patient paid (desk and mobile money) less refunds still standing: the most that can be given back
+  const patientPayments = invoice ? invoice.payments.filter((p) => p.source !== 'INSURER') : [];
+  const refundable = Math.max(
+    0,
+    patientPayments.reduce((sum, p) => sum + Number(p.amount), 0) - refunds.filter((r) => r.status !== 'REJECTED').reduce((sum, r) => sum + r.amount, 0)
+  );
 
   if (loading) {
     return (
@@ -238,6 +266,7 @@ export default function BillingDetailPage() {
             <button
               onClick={() => {
                 setPaymentForm({ ...initialPaymentForm, amount: dueFromPatient });
+                setPaymentError('');
                 setShowPaymentModal(true);
               }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors"
@@ -250,6 +279,8 @@ export default function BillingDetailPage() {
           )}
         </div>
       </div>
+
+      {lastReceipt && <ReceiptReadyBanner {...lastReceipt} onDismiss={() => setLastReceipt(null)} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
@@ -407,16 +438,19 @@ export default function BillingDetailPage() {
                   <thead className="bg-gray-50 dark:bg-gray-700/50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.invoice.date')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('cd.receiptNumber')}</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.invoice.method')}</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.invoice.reference')}</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.invoice.processedBy')}</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('admin.invoice.amount')}</th>
+                      <th className="px-4 py-3"><span className="sr-only">{t('cd.receipt')}</span></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {invoice.payments.map((payment) => (
                       <tr key={payment.id}>
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{formatDateTime(payment.processedAt)}</td>
+                        <td className="px-4 py-3 text-xs font-mono text-gray-600 dark:text-gray-400">{payment.receiptNumber || '—'}</td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                           {tEnum(payment.method)}
                           {payment.source === 'INSURER' && (
@@ -430,6 +464,11 @@ export default function BillingDetailPage() {
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{payment.referenceNumber || '-'}</td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{payment.processedBy}</td>
                         <td className="px-4 py-3 text-sm font-medium text-green-600 dark:text-green-400 text-right">+{formatCurrency(payment.amount)}</td>
+                        <td className="px-4 py-3 text-right">
+                          {payment.receiptNumber && (
+                            <button type="button" className={smallBtn} onClick={() => cashDeskPdf.receipt(payment.id, payment.receiptNumber)}>{t('cd.printReceipt')}</button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -439,6 +478,40 @@ export default function BillingDetailPage() {
           </div>
 
           <MobileMoneyHistory invoiceId={invoice.id} refreshKey={mobileMoneyRefresh} />
+
+          {/* Refunds to the patient (approved by an admin, paid at a till) */}
+          {(refunds.length > 0 || refundable > 0) && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('cd.refunds')}</h2>
+                {refundable > 0 && (
+                  <button type="button" className={smallBtn} onClick={() => setRequestingRefund(true)}>{t('cd.refund.requestButton')}</button>
+                )}
+              </div>
+              {refunds.length === 0 ? (
+                <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{t('cd.refund.none')}</p>
+              ) : (
+                <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {refunds.map((r) => (
+                    <li key={r.id} className="p-4 flex flex-wrap items-start justify-between gap-2 text-sm">
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          <span className="font-mono text-xs">{r.number}</span> · {formatCurrency(r.amount)} · {t(`cd.method.${r.method}`)}
+                        </p>
+                        <p className="text-gray-600 dark:text-gray-400">{r.reason}</p>
+                        <p className="text-xs text-gray-500">
+                          {t('cd.refund.requestedLine', { name: r.requestedBy?.name ?? '—', date: formatDateTime(r.requestedAt) })}
+                          {r.decisionNote ? ` · ${r.decisionNote}` : ''}
+                          {r.paidAt ? ` · ${t('cd.refund.paidLine', { name: r.paidBy?.name ?? '—', date: formatDateTime(r.paidAt) })}` : ''}
+                        </p>
+                      </div>
+                      <RefundStatusBadge status={r.status} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Sidebar - Invoice Summary */}
@@ -543,6 +616,21 @@ export default function BillingDetailPage() {
         />
       )}
 
+      {requestingRefund && (
+        <RefundRequestDialog
+          invoiceId={invoice.id}
+          invoiceNumber={invoice.invoiceNumber}
+          refundable={refundable}
+          payments={patientPayments.map((p) => ({ id: p.id, receiptNumber: p.receiptNumber, amount: Number(p.amount), method: p.method, processedAt: p.processedAt }))}
+          onClose={() => setRequestingRefund(false)}
+          onDone={(refund) => {
+            setRequestingRefund(false);
+            toast.success(t('cd.refund.requestedToast', { number: refund.number }));
+            fetchRefunds();
+          }}
+        />
+      )}
+
       {/* Payment Modal */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -560,6 +648,10 @@ export default function BillingDetailPage() {
             </div>
 
             <form onSubmit={handleAddPayment} className="p-4 space-y-4">
+              {!tillLoading && !till && <NoTillBanner />}
+              {paymentError && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg text-sm">{paymentError}</div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {t('admin.invoice.amount')} <span className="text-red-500">*</span>
@@ -635,7 +727,7 @@ export default function BillingDetailPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || paymentForm.amount <= 0}
+                  disabled={submitting || paymentForm.amount <= 0 || !till}
                   className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors"
                 >
                   {submitting ? t('admin.invoice.processing') : t('admin.invoice.recordPayment')}

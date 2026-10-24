@@ -9,6 +9,7 @@ import { PermissionGate } from '@/components/permission-gate';
 import { MobileMoneyPayment, MobileMoneyReconciliationPanel } from '@/components/payments';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
+import { NoTillBanner, ReceiptReadyBanner, useMyTill } from '@/components/cash-desk/ui';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -75,6 +76,9 @@ export default function BillingPage() {
   const [mobileMoneyInvoice, setMobileMoneyInvoice] = useState<Invoice | null>(null);
   const [invoiceForm, setInvoiceForm] = useState<InvoiceFormData>(initialInvoiceForm);
   const [paymentForm, setPaymentForm] = useState<PaymentFormData>(initialPaymentForm);
+  // Cash desk: payments go into the cashier's open till and get a numbered receipt
+  const { session: till, loading: tillLoading } = useMyTill();
+  const [lastReceipt, setLastReceipt] = useState<{ paymentId: string; receiptNumber: string | null; amount: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -299,7 +303,7 @@ export default function BillingPage() {
 
   // Add payment handler
   const handleAddPayment = async () => {
-    if (!selectedInvoice) return;
+    if (!selectedInvoice || !till) return;
     if (paymentForm.amount <= 0) {
       setError(t('admin.billing.amountPositive'));
       return;
@@ -312,13 +316,13 @@ export default function BillingPage() {
     try {
       setSaving(true);
       setError('');
-      await api.addPayment(selectedInvoice.id, {
+      const { payment } = await api.addPayment(selectedInvoice.id, {
         amount: paymentForm.amount,
         method: paymentForm.method,
         referenceNumber: paymentForm.referenceNumber || undefined,
         notes: paymentForm.notes || undefined,
-        processedBy: user ? `${user.firstName} ${user.lastName}` : 'Unknown',
       });
+      setLastReceipt({ paymentId: payment.id, receiptNumber: payment.receiptNumber ?? null, amount: Number(payment.amount) });
       closeModals();
       fetchInvoices();
     } catch (err) {
@@ -368,6 +372,8 @@ export default function BillingPage() {
           </button>
         </PermissionGate>
       </div>
+
+      {lastReceipt && <ReceiptReadyBanner {...lastReceipt} onDismiss={() => setLastReceipt(null)} />}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -877,6 +883,7 @@ export default function BillingPage() {
               </p>
             </div>
             <div className="p-6 space-y-4">
+              {!tillLoading && !till && <NoTillBanner />}
               {error && (
                 <div className="p-3 bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg text-sm">
                   {error}
@@ -977,7 +984,7 @@ export default function BillingPage() {
               </button>
               <button
                 onClick={handleAddPayment}
-                disabled={saving}
+                disabled={saving || !till}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
               >
                 {saving && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}

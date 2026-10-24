@@ -103,6 +103,10 @@ export type Permission =
   // Purchasing (orders to suppliers, goods receipt, supplier invoices)
   | 'purchasing:manage'
 
+  // Main cash desk: own till (open, take payments, cash in/out, close) and supervision of all tills
+  | 'cash-desk:operate'
+  | 'cash-desk:supervise'
+
   // Reports & Analytics
   | 'reports:view'
   | 'reports:view_own' // Doctor's own performance
@@ -190,6 +194,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'billing:view', 'billing:view_all', 'billing:create', 'billing:edit', 'billing:process_payments', 'billing:manage_all',
     'inventory:view', 'inventory:manage', 'inventory:manage_suppliers', 'inventory:manage_all',
     'purchasing:manage',
+    'cash-desk:operate', 'cash-desk:supervise',
     'reports:view', 'reports:view_financial', 'reports:view_all', 'reports:export',
     'users:view', 'users:view_all', 'users:create', 'users:edit', 'users:delete', 'users:manage_roles',
     'settings:view', 'settings:edit', 'settings:manage_system',
@@ -251,6 +256,8 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'departments:view',
     // Billing - create invoices, process payments
     'billing:view', 'billing:view_all', 'billing:create', 'billing:process_payments',
+    // Cash desk - own till; approvals and deposits stay with the admin
+    'cash-desk:operate',
     // Notifications
     'notifications:view', 'notifications:create',
   ],
@@ -559,6 +566,19 @@ export const navigationItems: NavItem[] = [
     permission: 'billing:view_all', // Only admin/receptionist who manage billing
   },
   {
+    label: 'Cash Desk',
+    href: '/dashboard/cash-desk',
+    icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z',
+    permission: 'cash-desk:operate',
+    roles: ['ADMIN', 'RECEPTIONIST'], // My till: payments, cash in/out, closing count
+  },
+  {
+    label: 'Cash Desk Supervision',
+    href: '/dashboard/cash-desk/supervision',
+    icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+    permission: 'cash-desk:supervise', // Admin: all tills, deposits, refund approvals
+  },
+  {
     label: 'Insurers',
     href: '/dashboard/insurers',
     icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
@@ -675,6 +695,8 @@ export const routePermissions: Record<string, Permission> = {
   '/dashboard/receivables': 'billing:view_all', // Insurer receivables ageing
   '/dashboard/inventory': 'inventory:manage', // Admin, pharmacist only
   '/dashboard/purchasing': 'purchasing:manage', // Admin, pharmacist only
+  '/dashboard/cash-desk': 'cash-desk:operate', // Admin, receptionist (own till)
+  '/dashboard/cash-desk/supervision': 'cash-desk:supervise', // Admin only
   '/dashboard/reports': 'reports:view_all', // Admin only
   '/dashboard/users': 'users:view_all', // Admin only
   '/dashboard/audit': 'settings:manage_system', // Admin only
@@ -712,6 +734,9 @@ export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/pharmacy/stock': ['ADMIN', 'PHARMACIST'],
   '/dashboard/pharmacy/sessions': ['ADMIN', 'PHARMACIST'],
   '/dashboard/purchasing': ['ADMIN', 'PHARMACIST'],
+  // Supervision first — the first matching prefix wins
+  '/dashboard/cash-desk/supervision': ['ADMIN'],
+  '/dashboard/cash-desk': ['ADMIN', 'RECEPTIONIST'],
   '/dashboard/claims': ['ADMIN', 'RECEPTIONIST'],
   '/dashboard/receivables': ['ADMIN', 'RECEPTIONIST'],
 };
