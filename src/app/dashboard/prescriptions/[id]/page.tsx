@@ -9,6 +9,7 @@ import { useToast } from '@/components/toast';
 import { PermissionGate } from '@/components/permission-gate';
 import { ConfirmModal } from '@/components/confirm-modal';
 import { useLanguage } from '@/context/language-context';
+import { PrescribedSafetyBox } from '@/components/clinical-safety/safety';
 
 export default function PrescriptionDetailPage() {
   const params = useParams();
@@ -194,6 +195,8 @@ export default function PrescriptionDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
+          <PrescribedSafetyBox alerts={prescription.safetyAlerts} override={prescription.safetyOverride} />
+
           {/* Medications */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
             <div className="flex items-center justify-between mb-4">

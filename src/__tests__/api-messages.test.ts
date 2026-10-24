@@ -55,8 +55,16 @@ describe('localizeServerMessage', () => {
     expect(localizeServerMessage('Validation failed: Consent must be accepted')).toContain(backendErrorsFr['Consent must be accepted']);
   });
 
+  it('translates the consultation safety messages', () => {
+    for (const message of ['Prescription safety check failed', 'A follow-up is already booked', 'Unknown ICD-10 code', 'The follow-up cannot be in the past']) {
+      expect(localizeServerMessage(message)).toBe(backendErrorsFr[message]);
+    }
+    expect(localizeServerMessage('Unknown ICD-10 code: X99.9')).toBe('Code CIM-10 non répertorié : X99.9');
+  });
+
   // One realistic sample per pattern: every pattern must match one of these
   const samples = [
+    'Unknown ICD-10 code: X99.9',
     'Unknown indicator: cons.bogus',
     'Invalid DHIS2 identifier for cons.total',
     'Cannot delete medication with existing prescriptions. This medication has been used in 3 prescription items. Consider deactivating it instead.',

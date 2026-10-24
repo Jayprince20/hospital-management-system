@@ -10,6 +10,8 @@ import { PermissionGate } from '@/components/permission-gate';
 import { useLanguage } from '@/context/language-context';
 import { NewDocumentDialog } from '@/components/documents';
 import { NewImagingOrderDialog } from '@/components/imaging';
+import { FollowUpDialog, FollowUpSummary } from '@/components/clinical-safety/follow-up';
+import type { FollowUpAppointment } from '@/lib/clinical-safety';
 
 interface ConsultationDetail {
   id: string;
@@ -28,6 +30,7 @@ interface ConsultationDetail {
   treatmentPlan?: string;
   notes?: string;
   followUpDate?: string;
+  followUpAppointment?: FollowUpAppointment | null;
   prescriptionCount: number;
   labOrderCount: number;
   createdAt: string;
@@ -82,6 +85,7 @@ export default function ConsultationDetailPage() {
   const [consultation, setConsultation] = useState<ConsultationDetail | null>(null);
   const [documentDialog, setDocumentDialog] = useState(false);
   const [imagingDialog, setImagingDialog] = useState(false);
+  const [followUpDialog, setFollowUpDialog] = useState(false);
   const canIssueDocuments = user?.role === 'DOCTOR' || user?.role === 'ADMIN';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -257,6 +261,7 @@ export default function ConsultationDetailPage() {
                 <div className="flex flex-wrap gap-2">
                   {consultation.diagnosis.map((d, i) => (
                     <span key={i} className="px-3 py-1 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded-full text-sm">
+                      {consultation.diagnosisCodes[i] && <span className="font-mono text-xs font-semibold mr-1.5">{consultation.diagnosisCodes[i]}</span>}
                       {d}
                     </span>
                   ))}
@@ -502,9 +507,9 @@ export default function ConsultationDetailPage() {
           </div>
 
           {/* Follow-up */}
-          {consultation.followUpDate && (
+          {(consultation.followUpDate || consultation.followUpAppointment || canIssueDocuments) && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-lime-200 dark:border-lime-800">
-              <div className="p-4">
+              <div className="p-4 space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-lime-100 dark:bg-lime-900/50 rounded-lg">
                     <svg className="w-5 h-5 text-lime-600 dark:text-lime-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -514,10 +519,13 @@ export default function ConsultationDetailPage() {
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.common.followUpDate')}</p>
                     <p className="font-semibold text-gray-900 dark:text-white">
-                      {formatDate(consultation.followUpDate)}
+                      {consultation.followUpDate ? formatDate(consultation.followUpDate) : '—'}
                     </p>
                   </div>
                 </div>
+                {(consultation.followUpAppointment || canIssueDocuments) && (
+                  <FollowUpSummary appointment={consultation.followUpAppointment} canBook={canIssueDocuments} onBook={() => setFollowUpDialog(true)} />
+                )}
               </div>
             </div>
           )}
@@ -540,6 +548,19 @@ export default function ConsultationDetailPage() {
           </div>
         </div>
       </div>
+      {followUpDialog && (
+        <FollowUpDialog
+          consultationId={consultation.id}
+          doctorId={consultation.doctor.id}
+          initialDate={consultation.followUpDate?.slice(0, 10)}
+          onClose={() => setFollowUpDialog(false)}
+          onBooked={() => {
+            setFollowUpDialog(false);
+            toast.success(t('cs.followUp.booked'));
+            void fetchConsultation();
+          }}
+        />
+      )}
       {imagingDialog && (
         <NewImagingOrderDialog
           patient={{ id: consultation.patient.id, patientId: consultation.patient.hospitalId, name: consultation.patient.name }}

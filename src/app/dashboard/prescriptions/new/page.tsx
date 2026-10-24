@@ -8,6 +8,8 @@ import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { useDebounce } from '@/hooks/use-debounce';
+import { PrescriptionSafetyPanel, usePrescriptionSafety } from '@/components/clinical-safety/safety';
+import { OVERRIDE_MIN_LENGTH, canSubmitPrescription, safetyAlertsFromError, type SafetyAlert } from '@/lib/clinical-safety';
 
 interface Medication {
   id: string;
@@ -102,6 +104,9 @@ function NewPrescriptionForm() {
 
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<PrescriptionItem[]>([]);
+  // Prescribing safety: justification when an alert blocks, and alerts returned by a refused save
+  const [safetyOverride, setSafetyOverride] = useState('');
+  const [savedAlerts, setSavedAlerts] = useState<SafetyAlert[] | null>(null);
 
   // Add medication modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -209,6 +214,12 @@ function NewPrescriptionForm() {
     setItems(items.filter((_, i) => i !== index));
   };
 
+  const safety = usePrescriptionSafety(patient?.id, items.map((item) => item.medicationId));
+  const rxAllowed = canSubmitPrescription(safety.check, savedAlerts, safetyOverride);
+  useEffect(() => {
+    setSavedAlerts(null);
+  }, [items]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -219,6 +230,11 @@ function NewPrescriptionForm() {
 
     if (items.length === 0) {
       toast.error(t('ph.new.noMedsTitle'), t('ph.new.noMedsDesc'));
+      return;
+    }
+
+    if (!rxAllowed) {
+      toast.error(t('ph.new.createFailed'), t('cs.safety.overrideRequired', { min: OVERRIDE_MIN_LENGTH }));
       return;
     }
 
@@ -233,6 +249,7 @@ function NewPrescriptionForm() {
         doctorId: doctorId,
         consultationId: consultationId || undefined,
         notes: notes || undefined,
+        ...(safetyOverride.trim() ? { safetyOverride: safetyOverride.trim() } : {}),
         items: items.map(item => ({
           medicationId: item.medicationId,
           dosage: item.dosage,
@@ -251,6 +268,12 @@ function NewPrescriptionForm() {
         router.push('/dashboard/prescriptions');
       }
     } catch (err) {
+      const alerts = safetyAlertsFromError(err);
+      if (alerts) {
+        setSavedAlerts(alerts);
+        toast.error(t('ph.new.createFailed'), err instanceof Error ? err.message : undefined);
+        return;
+      }
       const message = err instanceof Error ? err.message : t('ph.common.genericError');
       // The API rejects prescriptions from accounts without a doctor profile
       toast.error(
@@ -506,6 +529,20 @@ function NewPrescriptionForm() {
           )}
         </div>
 
+        {items.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mb-6">
+            <PrescriptionSafetyPanel
+              check={safety.check}
+              checking={safety.checking}
+              failed={safety.failed}
+              savedAlerts={savedAlerts}
+              override={safetyOverride}
+              onOverrideChange={setSafetyOverride}
+              hasItems={items.length > 0}
+            />
+          </div>
+        )}
+
         {/* Notes */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mb-6">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -530,7 +567,7 @@ function NewPrescriptionForm() {
           </Link>
           <button
             type="submit"
-            disabled={submitting || items.length === 0 || !patient}
+            disabled={submitting || items.length === 0 || !patient || !rxAllowed}
             className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? t('ph.common.creating') : t('ph.new.createPrescription')}

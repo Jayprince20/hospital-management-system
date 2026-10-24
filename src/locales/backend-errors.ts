@@ -1120,6 +1120,20 @@ export const backendErrorsFr: Record<string, string> = {
   "Failed to record the consent": "Impossible d'enregistrer le consentement",
   "Failed to end the teleconsultation": "Impossible de terminer la téléconsultation",
   "Failed to log the event": "Impossible d'enregistrer l'événement",
+  // Consultation: ICD-10 coding, prescribing safety, follow-up
+  "Unknown ICD-10 code": "Code CIM-10 non répertorié",
+  "Prescription safety check failed": "Contrôle de sécurité de l'ordonnance : alerte bloquante, justification obligatoire",
+  "A follow-up is already booked": "Un rendez-vous de suivi est déjà programmé",
+  "Only the consultation doctor can book its follow-up": "Seul le médecin de la consultation peut programmer le suivi",
+  "The follow-up cannot be in the past": "Le suivi ne peut pas être programmé dans le passé",
+  "This time slot is not available": "Ce créneau n'est pas disponible",
+  "Invalid time": "Heure non valide",
+  "Failed to search ICD-10 codes": "Impossible de rechercher les codes CIM-10",
+  "Failed to fetch the ICD-10 code": "Impossible de charger le code CIM-10",
+  "Failed to fetch drug interactions": "Impossible de charger les interactions médicamenteuses",
+  "Failed to check the prescription": "Impossible de vérifier l'ordonnance",
+  "Failed to book the follow-up": "Impossible de programmer le suivi",
+  "Failed to fetch follow-up slots": "Impossible de charger les créneaux de suivi",
 };
 
 // Backend messages that embed values. Each pattern must match the whole English message.
@@ -1231,4 +1245,6 @@ export const backendErrorPatternsFr: Array<[RegExp, (m: RegExpMatchArray, tEnum:
   // Official monthly statistics
   [/^Unknown indicator: (.+)$/, (m) => `Indicateur non répertorié : ${m[1]}`],
   [/^Invalid DHIS2 identifier for (.+)$/, (m) => `Identifiant DHIS2 erroné pour ${m[1]}`],
+  // ICD-10 coding
+  [/^Unknown ICD-10 code: (.+)$/, (m) => `Code CIM-10 non répertorié : ${m[1]}`],
 ];

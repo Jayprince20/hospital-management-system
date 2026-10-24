@@ -13,6 +13,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
+import { PrescriptionSafetyInfo } from '@/components/clinical-safety/safety';
 import { useToast } from '@/components/toast';
 import {
   CloseTillDialog,
@@ -595,6 +596,7 @@ function PharmacyPos() {
                         ))}
                       </ul>
                       <button type="button" className="text-xs text-purple-700 dark:text-purple-300 hover:underline" onClick={() => attachPrescription(prescription, true)}>{t('pos.rx.addItems')}</button>
+                      <PrescriptionSafetyInfo prescriptionId={prescription.id} />
                     </div>
                   ) : pending.length === 0 ? (
                     <p className="text-sm text-gray-500 dark:text-gray-400">{t('pos.rx.nonePending')}</p>

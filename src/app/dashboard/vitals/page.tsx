@@ -8,6 +8,8 @@ import { useAuth } from '@/context/auth-context';
 import { PermissionGate } from '@/components/permission-gate';
 import { TableSkeleton } from '@/components/ui';
 import { useLanguage } from '@/context/language-context';
+import { VitalFlagBadges, bpValueClass, vitalValueClass } from '@/components/clinical-safety/vitals';
+import { isCriticalFlag } from '@/lib/clinical-safety';
 
 interface VitalsFormData {
   patientId: string;
@@ -207,7 +209,7 @@ export default function VitalsPage() {
     try {
       setSubmitting(true);
 
-      await api.createVitals({
+      const created = await api.createVitals({
         patientId: selectedPatient.id,
         bloodPressureSys: formData.bloodPressureSys ? parseInt(formData.bloodPressureSys) : undefined,
         bloodPressureDia: formData.bloodPressureDia ? parseInt(formData.bloodPressureDia) : undefined,
@@ -222,6 +224,8 @@ export default function VitalsPage() {
       });
 
       toast.success(t('clinical.vitals.recorded'), t('clinical.vitals.recordedMessage', { name: `${selectedPatient.firstName} ${selectedPatient.lastName}` }));
+      const critical = (created.flags ?? []).filter(isCriticalFlag);
+      if (critical.length) toast.warning(t('cs.vitals.critical'), critical.map((f) => f.message).join(' · '));
       setShowAddModal(false);
       resetForm();
       fetchVitals();
@@ -445,14 +449,13 @@ export default function VitalsPage() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                           {formatDate(vital.recordedAt)}
+                          {vital.flags && vital.flags.length > 0 && (
+                            <div className="mt-1"><VitalFlagBadges flags={vital.flags} /></div>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           {vital.bloodPressure ? (
-                            <span className={`font-medium ${
-                              (vital.bloodPressureSys && vital.bloodPressureSys > 140) || (vital.bloodPressureDia && vital.bloodPressureDia > 90)
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-gray-900 dark:text-white'
-                            }`}>
+                            <span className={`font-medium ${bpValueClass(vital.flags)}`}>
                               {vital.bloodPressure} mmHg
                             </span>
                           ) : (
@@ -461,11 +464,7 @@ export default function VitalsPage() {
                         </td>
                         <td className="px-4 py-3">
                           {vital.heartRate ? (
-                            <span className={`font-medium ${
-                              vital.heartRate > 100 || vital.heartRate < 60
-                                ? 'text-orange-600 dark:text-orange-400'
-                                : 'text-gray-900 dark:text-white'
-                            }`}>
+                            <span className={`font-medium ${vitalValueClass(vital.flags, 'heartRate')}`}>
                               {vital.heartRate} {t('clinical.vitals.bpm')}
                             </span>
                           ) : (
@@ -474,11 +473,7 @@ export default function VitalsPage() {
                         </td>
                         <td className="px-4 py-3">
                           {vital.temperature ? (
-                            <span className={`font-medium ${
-                              vital.temperature > 37.5
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-gray-900 dark:text-white'
-                            }`}>
+                            <span className={`font-medium ${vitalValueClass(vital.flags, 'temperature')}`}>
                               {vital.temperature}°C
                             </span>
                           ) : (
@@ -487,11 +482,7 @@ export default function VitalsPage() {
                         </td>
                         <td className="px-4 py-3">
                           {vital.oxygenSaturation ? (
-                            <span className={`font-medium ${
-                              vital.oxygenSaturation < 95
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-gray-900 dark:text-white'
-                            }`}>
+                            <span className={`font-medium ${vitalValueClass(vital.flags, 'oxygenSaturation')}`}>
                               {vital.oxygenSaturation}%
                             </span>
                           ) : (

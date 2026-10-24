@@ -8,13 +8,26 @@ import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth-context';
 import { PermissionGate } from '@/components/permission-gate';
 import { useLanguage } from '@/context/language-context';
+import { DiagnosisPicker, MdoBanner } from '@/components/clinical-safety/diagnosis-picker';
+import { AllergyStrip, PrescriptionSafetyPanel, usePrescriptionSafety } from '@/components/clinical-safety/safety';
+import { LatestVitalsCard } from '@/components/clinical-safety/vitals';
+import { FollowUpDialog, FollowUpSummary } from '@/components/clinical-safety/follow-up';
+import {
+  canSubmitPrescription,
+  diagnosesFromArrays,
+  diagnosesPayload,
+  safetyAlertsFromError,
+  type DiagnosisEntry,
+  type FollowUpAppointment,
+  type MdoAlert,
+  type SafetyAlert,
+} from '@/lib/clinical-safety';
 
 interface ConsultationForm {
   chiefComplaint: string;
   symptoms: string[];
   examination: string;
-  diagnosis: string[];
-  diagnosisCodes: string[];
+  diagnoses: DiagnosisEntry[];
   treatmentPlan: string;
   notes: string;
   followUpDate: string;
@@ -54,8 +67,7 @@ export default function ConsultationPage() {
     chiefComplaint: '',
     symptoms: [],
     examination: '',
-    diagnosis: [],
-    diagnosisCodes: [],
+    diagnoses: [],
     treatmentPlan: '',
     notes: '',
     followUpDate: '',
@@ -64,7 +76,12 @@ export default function ConsultationPage() {
   const [prescriptionItems, setPrescriptionItems] = useState<PrescriptionItem[]>([]);
   const [labOrderItems, setLabOrderItems] = useState<LabOrderItem[]>([]);
   const [symptomInput, setSymptomInput] = useState('');
-  const [diagnosisInput, setDiagnosisInput] = useState('');
+  // Prescribing safety: justification when an alert blocks, and alerts returned by a refused save
+  const [safetyOverride, setSafetyOverride] = useState('');
+  const [savedAlerts, setSavedAlerts] = useState<SafetyAlert[] | null>(null);
+  const [mdoAlerts, setMdoAlerts] = useState<MdoAlert[]>([]);
+  const [followUp, setFollowUp] = useState<FollowUpAppointment | null>(null);
+  const [bookingFollowUp, setBookingFollowUp] = useState(false);
 
   const [medications, setMedications] = useState<Array<{ id: string; name: string; dosageForm: string }>>([]);
   const [labTests, setLabTests] = useState<Array<{ id: string; name: string; code: string }>>([]);
@@ -110,12 +127,12 @@ export default function ConsultationPage() {
             chiefComplaint: existing.chiefComplaint || '',
             symptoms: existing.symptoms || [],
             examination: existing.examination || '',
-            diagnosis: existing.diagnosis || [],
-            diagnosisCodes: existing.diagnosisCodes || [],
+            diagnoses: diagnosesFromArrays(existing.diagnosis, existing.diagnosisCodes),
             treatmentPlan: existing.treatmentPlan || '',
             notes: existing.notes || '',
             followUpDate: existing.followUpDate || '',
           });
+          api.getConsultation(existing.id).then((d) => setFollowUp(d.followUpAppointment ?? null)).catch(() => setFollowUp(null));
         }
       } catch {
         // No existing consultation, that's okay
@@ -146,23 +163,6 @@ export default function ConsultationPage() {
     setConsultationForm(prev => ({
       ...prev,
       symptoms: prev.symptoms.filter(s => s !== symptom),
-    }));
-  };
-
-  const handleAddDiagnosis = () => {
-    if (diagnosisInput.trim() && !consultationForm.diagnosis.includes(diagnosisInput.trim())) {
-      setConsultationForm(prev => ({
-        ...prev,
-        diagnosis: [...prev.diagnosis, diagnosisInput.trim()],
-      }));
-      setDiagnosisInput('');
-    }
-  };
-
-  const handleRemoveDiagnosis = (diagnosis: string) => {
-    setConsultationForm(prev => ({
-      ...prev,
-      diagnosis: prev.diagnosis.filter(d => d !== diagnosis),
     }));
   };
 
@@ -217,9 +217,40 @@ export default function ConsultationPage() {
     }));
   };
 
+  const safety = usePrescriptionSafety(appointment?.patient.id, prescriptionItems.map((item) => item.medicationId));
+  const hasRxItems = prescriptionItems.some((item) => item.medicationId);
+  const rxAllowed = !hasRxItems || canSubmitPrescription(safety.check, savedAlerts, safetyOverride);
+
+  // Alerts from a refused save no longer apply once the medicines change
+  useEffect(() => {
+    setSavedAlerts(null);
+  }, [prescriptionItems]);
+
+  const reloadFollowUp = async (consultationId: string) => {
+    try {
+      setFollowUp((await api.getConsultation(consultationId)).followUpAppointment ?? null);
+    } catch {
+      setFollowUp(null);
+    }
+  };
+
   const handleSaveConsultation = async () => {
     if (!appointment || !consultationForm.chiefComplaint) {
       toast.error(t('common.error'), t('consultationForm.errComplaint'));
+      return;
+    }
+
+    if (!rxAllowed) {
+      setActiveTab('prescription');
+      toast.error(t('common.error'), t('cs.safety.blockedOnSave'));
+      return;
+    }
+
+    // Check the prescription lines before saving anything (the server refuses lines without these fields)
+    const incomplete = prescriptionItems.findIndex((item) => item.medicationId && (!item.dosage.trim() || !item.frequency.trim() || !item.duration.trim()));
+    if (incomplete !== -1) {
+      setActiveTab('prescription');
+      toast.error(t('common.error'), t('cs.rx.incompleteLine', { n: incomplete + 1 }));
       return;
     }
 
@@ -227,46 +258,61 @@ export default function ConsultationPage() {
       setSaving(true);
 
       // Save or update consultation
-      if (existingConsultation) {
-        await api.updateConsultation(existingConsultation.id, {
-          chiefComplaint: consultationForm.chiefComplaint,
-          symptoms: consultationForm.symptoms,
-          examination: consultationForm.examination,
-          diagnosis: consultationForm.diagnosis,
-          diagnosisCodes: consultationForm.diagnosisCodes,
-          treatmentPlan: consultationForm.treatmentPlan,
-          notes: consultationForm.notes,
-          followUpDate: consultationForm.followUpDate || null,
-        });
-      } else {
-        await api.createConsultation({
-          appointmentId: appointment.id,
-          chiefComplaint: consultationForm.chiefComplaint,
-          symptoms: consultationForm.symptoms,
-          examination: consultationForm.examination,
-          diagnosis: consultationForm.diagnosis,
-          diagnosisCodes: consultationForm.diagnosisCodes,
-          treatmentPlan: consultationForm.treatmentPlan,
-          notes: consultationForm.notes,
-          followUpDate: consultationForm.followUpDate,
-        });
-      }
+      const diagnoses = diagnosesPayload(consultationForm.diagnoses);
+      const saved = existingConsultation
+        ? await api.updateConsultation(existingConsultation.id, {
+            chiefComplaint: consultationForm.chiefComplaint,
+            symptoms: consultationForm.symptoms,
+            examination: consultationForm.examination,
+            diagnoses,
+            treatmentPlan: consultationForm.treatmentPlan,
+            notes: consultationForm.notes,
+            followUpDate: consultationForm.followUpDate || null,
+          })
+        : await api.createConsultation({
+            appointmentId: appointment.id,
+            chiefComplaint: consultationForm.chiefComplaint,
+            symptoms: consultationForm.symptoms,
+            examination: consultationForm.examination,
+            diagnoses,
+            treatmentPlan: consultationForm.treatmentPlan,
+            notes: consultationForm.notes,
+            followUpDate: consultationForm.followUpDate,
+          });
+      // A retry after a refused prescription must update this consultation, not create another
+      setExistingConsultation(saved);
+      const newMdo = saved.mdoAlerts ?? [];
+      if (newMdo.length) setMdoAlerts(newMdo);
 
       // Create prescription if there are items
       if (prescriptionItems.length > 0 && prescriptionItems.some(item => item.medicationId)) {
         const validItems = prescriptionItems.filter(item => item.medicationId);
-        await api.createPrescription({
-          patientId: appointment.patient.id,
-          doctorId: appointment.doctor.id,
-          items: validItems.map(item => ({
+        try {
+          await api.createPrescription({
+            patientId: appointment.patient.id,
+            doctorId: appointment.doctor.id,
+            consultationId: saved.id,
+            ...(safetyOverride.trim() ? { safetyOverride: safetyOverride.trim() } : {}),
+            items: validItems.map(item => ({
             medicationId: item.medicationId,
             dosage: item.dosage,
             frequency: item.frequency,
             duration: item.duration,
             quantity: item.quantity,
             instructions: item.instructions,
-          })),
-        });
+            })),
+          });
+        } catch (err) {
+          const alerts = safetyAlertsFromError(err);
+          if (!alerts) throw err;
+          setSavedAlerts(alerts);
+          setActiveTab('prescription');
+          toast.error(t('common.error'), t('cs.safety.blockedOnSave'));
+          return;
+        }
+        // Saved: don't create the same prescription again on a later save
+        setPrescriptionItems([]);
+        setSafetyOverride('');
       }
 
       // Create lab orders if there are items
@@ -285,7 +331,8 @@ export default function ConsultationPage() {
       await api.updateAppointment(appointment.id, { status: 'COMPLETED' });
 
       toast.success(t('common.success'), t('consultationForm.saved'));
-      router.push(`/dashboard/appointments/${appointment.id}`);
+      // Stay on the page when a notifiable disease must be reported, so the banner is seen
+      if (newMdo.length === 0) router.push(`/dashboard/appointments/${appointment.id}`);
     } catch (err) {
       toast.error(t('common.error'), t('consultationForm.errSave'));
       console.error('Error saving consultation:', err);
@@ -388,6 +435,16 @@ export default function ConsultationPage() {
               )}
             </div>
           </div>
+        </div>
+
+        {mdoAlerts.length > 0 && (
+          <div className="mb-6">
+            <MdoBanner alerts={mdoAlerts} />
+          </div>
+        )}
+
+        <div className="mb-6">
+          <LatestVitalsCard patientId={appointment.patient.id} />
         </div>
 
         {/* Tabs */}
@@ -495,44 +552,11 @@ export default function ConsultationPage() {
                 />
               </div>
 
-              {/* Diagnosis */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('consultationForm.diagnosis')}
-                </label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={diagnosisInput}
-                    onChange={(e) => setDiagnosisInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddDiagnosis())}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
-                    placeholder={t('consultationForm.diagnosisPh')}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddDiagnosis}
-                    className="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500"
-                  >
-                    {t('consultationForm.add')}
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {consultationForm.diagnosis.map((diagnosis) => (
-                    <span
-                      key={diagnosis}
-                      className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full text-sm"
-                    >
-                      {diagnosis}
-                      <button onClick={() => handleRemoveDiagnosis(diagnosis)} className="hover:text-red-500">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
+              {/* Diagnosis (ICD-10) */}
+              <DiagnosisPicker
+                value={consultationForm.diagnoses}
+                onChange={(diagnoses) => setConsultationForm(prev => ({ ...prev, diagnoses }))}
+              />
 
               {/* Treatment Plan */}
               <div>
@@ -559,6 +583,14 @@ export default function ConsultationPage() {
                   onChange={(e) => setConsultationForm(prev => ({ ...prev, followUpDate: e.target.value }))}
                   className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                 />
+                <div className="mt-3">
+                  <FollowUpSummary
+                    appointment={followUp}
+                    canBook={Boolean(existingConsultation)}
+                    onBook={() => setBookingFollowUp(true)}
+                    hint={existingConsultation ? undefined : t('cs.followUp.saveFirst')}
+                  />
+                </div>
               </div>
 
               {/* Notes */}
@@ -594,6 +626,10 @@ export default function ConsultationPage() {
               </button>
             </div>
 
+            <div className="mb-4">
+              <AllergyStrip allergies={appointment.patient.allergies ?? []} />
+            </div>
+
             {prescriptionItems.length === 0 ? (
               <p className="text-center text-gray-500 dark:text-gray-400 py-8">
                 {t('consultationForm.noMedications')}
@@ -605,7 +641,10 @@ export default function ConsultationPage() {
                     <div className="flex justify-between items-start mb-4">
                       <h4 className="font-medium text-gray-900 dark:text-white">{t('consultationForm.medicationN', { n: index + 1 })}</h4>
                       <button
+                        type="button"
                         onClick={() => handleRemovePrescriptionItem(index)}
+                        aria-label={t('cs.rx.removeLine', { n: index + 1 })}
+                        title={t('cs.rx.removeLine', { n: index + 1 })}
                         className="text-red-500 hover:text-red-700"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -682,6 +721,18 @@ export default function ConsultationPage() {
                 ))}
               </div>
             )}
+
+            <div className="mt-6">
+              <PrescriptionSafetyPanel
+                check={safety.check}
+                checking={safety.checking}
+                failed={safety.failed}
+                savedAlerts={savedAlerts}
+                override={safetyOverride}
+                onOverrideChange={setSafetyOverride}
+                hasItems={hasRxItems}
+              />
+            </div>
           </div>
         )}
 
@@ -764,6 +815,19 @@ export default function ConsultationPage() {
           </div>
         )}
       </div>
+      {bookingFollowUp && existingConsultation && (
+        <FollowUpDialog
+          consultationId={existingConsultation.id}
+          doctorId={appointment.doctor.id}
+          initialDate={consultationForm.followUpDate || undefined}
+          onClose={() => setBookingFollowUp(false)}
+          onBooked={() => {
+            setBookingFollowUp(false);
+            toast.success(t('cs.followUp.booked'));
+            void reloadFollowUp(existingConsultation.id);
+          }}
+        />
+      )}
     </PermissionGate>
   );
 }

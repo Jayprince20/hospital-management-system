@@ -38,6 +38,7 @@ import type {
   MonthlyReportSummary,
 } from '@/lib/statistics';
 import type { TeleconsultDetail, TeleconsultEventType, TeleconsultListItem, TeleconsultOutcome } from '@/lib/teleconsultation';
+import type { DrugInteraction, FollowUpAppointment, FollowUpType, Icd10Code, MdoAlert, PrescriptionCheck, SafetyAlert, VitalFlag } from '@/lib/clinical-safety';
 
 function getApiUrl(): string {
   if (typeof window !== 'undefined') {
@@ -383,6 +384,8 @@ interface VitalSign {
   recordedBy: string;
   recordedAt: string;
   notes: string | null;
+  /** Abnormal / critical values for this reading */
+  flags?: VitalFlag[];
 }
 
 interface VitalsResponse {
@@ -1165,6 +1168,9 @@ interface Prescription {
   dispensedAt?: string;
   dispensedBy?: string;
   createdAt: string;
+  /** Checks shown to the doctor at prescribing, and their reason for going ahead despite a major alert */
+  safetyAlerts?: SafetyAlert[] | null;
+  safetyOverride?: string | null;
 }
 
 interface PrescriptionDetail {
@@ -1225,6 +1231,8 @@ interface PrescriptionDetail {
   totalCost: number;
   dispensedItemCount: number;
   pendingItemCount: number;
+  safetyAlerts?: SafetyAlert[] | null;
+  safetyOverride?: string | null;
 }
 
 interface PrescriptionsResponse {
@@ -1302,6 +1310,7 @@ interface Consultation {
 interface ConsultationDetail extends Consultation {
   examination?: string;
   notes?: string;
+  followUpAppointment?: FollowUpAppointment | null;
   patient: {
     id: string;
     hospitalId: string;
@@ -1368,6 +1377,15 @@ interface ConsultationDetail extends Consultation {
     createdAt: string;
   }>;
 }
+
+/** Diagnosis sent with a consultation; code null = free text */
+interface ConsultationDiagnosisInput {
+  label: string;
+  code: string | null;
+}
+
+/** Consultation create/update response: notifiable diseases newly recorded on it */
+type SavedConsultation = Consultation & { mdoAlerts?: MdoAlert[] };
 
 interface ConsultationsResponse {
   consultations: Consultation[];
@@ -1551,7 +1569,8 @@ export function localizeServerMessage(message: string): string {
 
 /** Error carrying the HTTP status; status 0 means the server could not be reached */
 export class ApiError extends Error {
-  constructor(message: string, public status: number) {
+  /** `data` of the error envelope when the server sends one (e.g. prescription safety alerts) */
+  constructor(message: string, public status: number, public data?: unknown) {
     super(message);
     this.name = 'ApiError';
   }
@@ -3199,7 +3218,7 @@ class ApiClient {
           return this.request<T>(endpoint, options);
         }
       }
-      throw new ApiError(localizeServerMessage(data.message || data.error || 'Request failed'), response.status);
+      throw new ApiError(localizeServerMessage(data.message || data.error || 'Request failed'), response.status, data.data);
     }
 
     return data;
@@ -4953,7 +4972,7 @@ class ApiClient {
     throw new Error('Failed to fetch prescription details');
   }
 
-  async createPrescription(data: { patientId: string; doctorId: string; consultationId?: string; notes?: string; items: Array<{ medicationId: string; dosage: string; frequency: string; duration: string; quantity: number; instructions?: string }> }): Promise<Prescription> {
+  async createPrescription(data: { patientId: string; doctorId: string; consultationId?: string; notes?: string; safetyOverride?: string; items: Array<{ medicationId: string; dosage: string; frequency: string; duration: string; quantity: number; instructions?: string }> }): Promise<Prescription> {
     const response = await this.request<Prescription>('/api/prescriptions', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -4962,6 +4981,30 @@ class ApiClient {
       return response.data;
     }
     throw new Error('Failed to create prescription');
+  }
+
+  /** Allergy, interaction, duplicate and age checks for a proposed prescription */
+  async checkPrescription(data: { patientId: string; items: Array<{ medicationId: string }> }): Promise<PrescriptionCheck> {
+    return this.data<PrescriptionCheck>('/api/prescriptions/check', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async searchIcd10(q: string, limit = 20): Promise<Icd10Code[]> {
+    const params = new URLSearchParams({ q, limit: String(limit) });
+    return this.data<Icd10Code[]>(`/api/icd10?${params.toString()}`);
+  }
+
+  async getIcd10(code: string): Promise<Icd10Code> {
+    return this.data<Icd10Code>(`/api/icd10/${encodeURIComponent(code)}`);
+  }
+
+  async getDrugInteractions(): Promise<DrugInteraction[]> {
+    return this.data<DrugInteraction[]>('/api/drug-interactions');
+  }
+
+  /** Books the follow-up appointment of a consultation (same doctor and patient) */
+  // The booked appointment is read back from the consultation (followUpAppointment)
+  async bookFollowUp(consultationId: string, data: { date: string; startTime: string; type: FollowUpType; reason?: string }): Promise<void> {
+    await this.data<unknown>(`/api/consultations/${consultationId}/follow-up`, { method: 'POST', body: JSON.stringify(data) });
   }
 
   async dispensePrescription(id: string, data: { itemIds: string[]; dispensedBy: string }): Promise<void> {
@@ -5146,8 +5189,8 @@ class ApiClient {
     throw new Error('Failed to fetch consultation');
   }
 
-  async createConsultation(data: { appointmentId: string; chiefComplaint: string; symptoms?: string[]; examination?: string; diagnosis?: string[]; diagnosisCodes?: string[]; treatmentPlan?: string; notes?: string; followUpDate?: string }): Promise<Consultation> {
-    const response = await this.request<Consultation>('/api/consultations', {
+  async createConsultation(data: { appointmentId: string; chiefComplaint: string; symptoms?: string[]; examination?: string; diagnosis?: string[]; diagnosisCodes?: string[]; diagnoses?: ConsultationDiagnosisInput[]; treatmentPlan?: string; notes?: string; followUpDate?: string }): Promise<SavedConsultation> {
+    const response = await this.request<SavedConsultation>('/api/consultations', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -5157,8 +5200,8 @@ class ApiClient {
     throw new Error('Failed to create consultation');
   }
 
-  async updateConsultation(id: string, data: Partial<{ chiefComplaint: string; symptoms: string[]; examination: string; diagnosis: string[]; diagnosisCodes: string[]; treatmentPlan: string; notes: string; followUpDate: string | null }>): Promise<Consultation> {
-    const response = await this.request<Consultation>(`/api/consultations/${id}`, {
+  async updateConsultation(id: string, data: Partial<{ chiefComplaint: string; symptoms: string[]; examination: string; diagnosis: string[]; diagnosisCodes: string[]; diagnoses: ConsultationDiagnosisInput[]; treatmentPlan: string; notes: string; followUpDate: string | null }>): Promise<SavedConsultation> {
+    const response = await this.request<SavedConsultation>(`/api/consultations/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });

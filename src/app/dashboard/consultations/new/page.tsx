@@ -8,13 +8,15 @@ import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { toLocalDateString } from '@/lib/formatters';
+import { DiagnosisPicker, MdoBanner } from '@/components/clinical-safety/diagnosis-picker';
+import { LatestVitalsCard } from '@/components/clinical-safety/vitals';
+import { diagnosesPayload, type DiagnosisEntry, type MdoAlert } from '@/lib/clinical-safety';
 
 interface ConsultationFormData {
   chiefComplaint: string;
   symptoms: string[];
   examination: string;
-  diagnosis: string[];
-  diagnosisCodes: string[];
+  diagnoses: DiagnosisEntry[];
   treatmentPlan: string;
   notes: string;
   followUpDate: string;
@@ -24,8 +26,7 @@ const initialFormData: ConsultationFormData = {
   chiefComplaint: '',
   symptoms: [],
   examination: '',
-  diagnosis: [],
-  diagnosisCodes: [],
+  diagnoses: [],
   treatmentPlan: '',
   notes: '',
   followUpDate: '',
@@ -45,7 +46,7 @@ export default function NewConsultationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState<ConsultationFormData>(initialFormData);
   const [symptomInput, setSymptomInput] = useState('');
-  const [diagnosisInput, setDiagnosisInput] = useState('');
+  const [mdoAlerts, setMdoAlerts] = useState<MdoAlert[]>([]);
 
   const fetchAppointment = useCallback(async () => {
     if (!appointmentId) {
@@ -90,20 +91,22 @@ export default function NewConsultationPage() {
     try {
       setSubmitting(true);
 
-      await api.createConsultation({
+      const diagnoses = diagnosesPayload(formData.diagnoses);
+      const saved = await api.createConsultation({
         appointmentId: appointment.id,
         chiefComplaint: formData.chiefComplaint,
         symptoms: formData.symptoms.length > 0 ? formData.symptoms : undefined,
         examination: formData.examination || undefined,
-        diagnosis: formData.diagnosis.length > 0 ? formData.diagnosis : undefined,
-        diagnosisCodes: formData.diagnosisCodes.length > 0 ? formData.diagnosisCodes : undefined,
+        diagnoses: diagnoses.length > 0 ? diagnoses : undefined,
         treatmentPlan: formData.treatmentPlan || undefined,
         notes: formData.notes || undefined,
         followUpDate: formData.followUpDate || undefined,
       });
 
       toast.success(t('clinical.consultations.created'), t('clinical.consultations.createdMessage', { name: `${appointment.patient.firstName} ${appointment.patient.lastName}` }));
-      router.push('/dashboard/consultations');
+      // A notifiable disease keeps the doctor here so the reporting banner is seen
+      if (saved.mdoAlerts?.length) setMdoAlerts(saved.mdoAlerts);
+      else router.push(`/dashboard/consultations/${saved.id}`);
     } catch (err) {
       toast.error(t('clinical.consultations.createFailed'), err instanceof Error ? err.message : t('clinical.common.genericError'));
     } finally {
@@ -120,17 +123,6 @@ export default function NewConsultationPage() {
 
   const removeSymptom = (symptom: string) => {
     setFormData({ ...formData, symptoms: formData.symptoms.filter(s => s !== symptom) });
-  };
-
-  const addDiagnosis = () => {
-    if (diagnosisInput.trim() && !formData.diagnosis.includes(diagnosisInput.trim())) {
-      setFormData({ ...formData, diagnosis: [...formData.diagnosis, diagnosisInput.trim()] });
-      setDiagnosisInput('');
-    }
-  };
-
-  const removeDiagnosis = (diagnosis: string) => {
-    setFormData({ ...formData, diagnosis: formData.diagnosis.filter(d => d !== diagnosis) });
   };
 
   const formatDate = (dateString: string) =>
@@ -226,6 +218,17 @@ export default function NewConsultationPage() {
         </div>
       </div>
 
+      {mdoAlerts.length > 0 && (
+        <div className="mb-6 space-y-2">
+          <MdoBanner alerts={mdoAlerts} />
+          <Link href="/dashboard/consultations" className="text-sm text-lime-700 dark:text-lime-400 hover:underline">{t('cs.backToConsultations')}</Link>
+        </div>
+      )}
+
+      <div className="mb-6">
+        <LatestVitalsCard patientId={appointment.patient.id} />
+      </div>
+
       {/* Consultation Form */}
       <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="p-6 space-y-6">
@@ -294,41 +297,8 @@ export default function NewConsultationPage() {
             />
           </div>
 
-          {/* Diagnosis */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('clinical.common.diagnosis')}
-            </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
-                value={diagnosisInput}
-                onChange={(e) => setDiagnosisInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addDiagnosis())}
-                placeholder={t('clinical.consultations.addDiagnosis')}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
-              <button
-                type="button"
-                onClick={addDiagnosis}
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
-              >
-                {t('clinical.common.add')}
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {formData.diagnosis.map((d, i) => (
-                <span key={i} className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded-full text-sm">
-                  {d}
-                  <button type="button" onClick={() => removeDiagnosis(d)} className="hover:text-green-900 dark:hover:text-green-100">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </span>
-              ))}
-            </div>
-          </div>
+          {/* Diagnosis (ICD-10) */}
+          <DiagnosisPicker value={formData.diagnoses} onChange={(diagnoses) => setFormData({ ...formData, diagnoses })} />
 
           {/* Treatment Plan */}
           <div>

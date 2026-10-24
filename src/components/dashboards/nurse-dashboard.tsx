@@ -6,6 +6,7 @@ import { useAuth } from '@/context/auth-context';
 import { api, Appointment } from '@/lib/api';
 import { LoadingState, ErrorState } from '@/components/ui';
 import { useLanguage } from '@/context/language-context';
+import { isCriticalFlag } from '@/lib/clinical-safety';
 import { useToast } from '@/components/toast';
 import { TriageQueueCard } from '@/components/queue';
 import { MarRoundCard } from '@/components/inpatient';
@@ -154,7 +155,7 @@ export function NurseDashboard() {
 
     try {
       setSavingVitals(true);
-      await api.createVitals({
+      const created = await api.createVitals({
         patientId: selectedPatient,
         bloodPressureSys: vitalsForm.bloodPressureSys ? parseInt(vitalsForm.bloodPressureSys) : undefined,
         bloodPressureDia: vitalsForm.bloodPressureDia ? parseInt(vitalsForm.bloodPressureDia) : undefined,
@@ -169,6 +170,8 @@ export function NurseDashboard() {
       });
       setShowVitalsModal(false);
       toast.success(t('clinical.vitals.recorded'));
+      const critical = (created.flags ?? []).filter(isCriticalFlag);
+      if (critical.length) toast.warning(t('cs.vitals.critical'), critical.map((f) => f.message).join(' · '));
       fetchNurseData();
     } catch (err) {
       console.error('Failed to save vitals:', err);
