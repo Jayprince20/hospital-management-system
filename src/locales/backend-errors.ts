@@ -1083,6 +1083,24 @@ export const backendErrorsFr: Record<string, string> = {
   "Failed to request the refund": "Impossible de demander le remboursement",
   "Failed to decide the refund": "Impossible d'enregistrer la décision sur le remboursement",
   "Failed to pay the refund": "Impossible de verser le remboursement",
+  // Official monthly statistics
+  "Invalid year": "Année non valide",
+  "This month has not started": "Ce mois n'a pas encore commencé",
+  "The month is not over yet": "Le mois n'est pas encore terminé",
+  "This report is already validated": "Ce rapport est déjà validé",
+  "This report is not validated": "Ce rapport n'est pas validé",
+  "This report is already submitted": "Ce rapport a déjà été transmis",
+  "Validate the report first": "Validez d'abord le rapport",
+  "A submitted report can no longer be changed": "Un rapport transmis ne peut plus être modifié",
+  "Set the DHIS2 organisation unit first": "Renseignez d'abord l'unité d'organisation DHIS2 de la formation sanitaire",
+  "Invalid DHIS2 organisation unit": "Identifiant d'unité d'organisation DHIS2 non valide",
+  "Facility name is required": "Le nom de la formation sanitaire est obligatoire",
+  "Failed to fetch monthly reports": "Impossible de charger les rapports mensuels",
+  "Failed to compute the monthly report": "Impossible de calculer le rapport mensuel",
+  "Failed to update the monthly report": "Impossible de mettre à jour le rapport mensuel",
+  "Failed to export the monthly report": "Impossible d'exporter le rapport mensuel",
+  "Failed to fetch facility settings": "Impossible de charger les paramètres de la formation sanitaire",
+  "Failed to update facility settings": "Impossible d'enregistrer les paramètres de la formation sanitaire",
 };
 
 // Backend messages that embed values. Each pattern must match the whole English message.
@@ -1191,4 +1209,7 @@ export const backendErrorPatternsFr: Array<[RegExp, (m: RegExpMatchArray, tEnum:
   [/^Not enough leave days left \((-?\d+) remaining\)$/, (m) => `Solde de congés insuffisant (${m[1]} jour(s) restant(s))`],
   [/^This swap would create a conflict: (.+) already works at that time$/, (m) => `Échange impossible : ${m[1]} travaille déjà à ce moment-là`],
   [/^This swap would create a conflict: (.+) is on leave that day$/, (m) => `Échange impossible : ${m[1]} est en congé ce jour-là`],
+  // Official monthly statistics
+  [/^Unknown indicator: (.+)$/, (m) => `Indicateur non répertorié : ${m[1]}`],
+  [/^Invalid DHIS2 identifier for (.+)$/, (m) => `Identifiant DHIS2 erroné pour ${m[1]}`],
 ];

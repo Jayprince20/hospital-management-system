@@ -30,6 +30,13 @@ import type {
   InvoiceRefund,
   RefundStatus,
 } from '@/lib/cash-desk';
+import type {
+  FacilitySettings,
+  FacilitySettingsInput,
+  IndicatorDef,
+  MonthlyReportDetail,
+  MonthlyReportSummary,
+} from '@/lib/statistics';
 
 function getApiUrl(): string {
   if (typeof window !== 'undefined') {
@@ -4143,17 +4150,26 @@ class ApiClient {
   }
 
   /** Fetch a PDF with the session token and open it in a new tab (download if pop-ups are blocked) */
-  private async openProtectedPdf(path: string, fallbackName: string): Promise<void> {
+  /** Authenticated GET for files; renews an expired access token once, like request() */
+  private async fetchProtected(path: string, retried = false): Promise<Response> {
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}${path}`, { headers: this.authHeaders() });
     } catch {
       throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
     }
+    if (response.status === 401 && !retried && this.getRefreshToken() && (await this.refreshAccessToken())) {
+      return this.fetchProtected(path, true);
+    }
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       throw new ApiError(localizeServerMessage(data.error || data.message || 'Request failed'), response.status);
     }
+    return response;
+  }
+
+  private async openProtectedPdf(path: string, fallbackName: string): Promise<void> {
+    const response = await this.fetchProtected(path);
     const url = URL.createObjectURL(await response.blob());
     const opened = window.open(url, '_blank');
     if (!opened) {
@@ -4164,6 +4180,20 @@ class ApiClient {
       link.click();
     }
     setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  /** Fetch a file with the session token and save it under `fileName` */
+  private async downloadProtectedFile(path: string, fileName: string, transform?: (body: string) => string): Promise<Response> {
+    const response = await this.fetchProtected(path);
+    const type = response.headers.get('Content-Type') || 'application/octet-stream';
+    const text = await response.clone().text();
+    const url = URL.createObjectURL(new Blob([transform ? transform(text) : text], { type }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return response;
   }
 
   // ---- Insurer billing (tiers payant) ----
@@ -4583,16 +4613,7 @@ class ApiClient {
   /** Fetch a pharmacy PDF (receipt, Z report) with the session token and open it in a new tab */
   async openPharmacyPdf(kind: 'receipt' | 'session-report', id: string, lang: 'fr' | 'en' = 'fr'): Promise<void> {
     const path = kind === 'receipt' ? `/api/pharmacy/sales/${id}/receipt?format=pdf&lang=${lang}` : `/api/pharmacy/sessions/${id}/report?format=pdf&lang=${lang}`;
-    let response: Response;
-    try {
-      response = await fetch(`${this.baseUrl}${path}`, { headers: this.authHeaders() });
-    } catch {
-      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
-    }
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new ApiError(localizeServerMessage(data.error || data.message || 'Request failed'), response.status);
-    }
+    const response = await this.fetchProtected(path);
     const url = URL.createObjectURL(await response.blob());
     const opened = window.open(url, '_blank');
     if (!opened) {
@@ -4778,16 +4799,7 @@ class ApiClient {
 
   /** Fetch a protected file (image, PDF) with the session token as an object URL */
   async fetchImagingBlobUrl(path: string): Promise<string> {
-    let response: Response;
-    try {
-      response = await fetch(`${this.baseUrl}${path}`, { headers: this.authHeaders() });
-    } catch {
-      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
-    }
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new ApiError(localizeServerMessage(data.error || data.message || 'Request failed'), response.status);
-    }
+    const response = await this.fetchProtected(path);
     return URL.createObjectURL(await response.blob());
   }
 
@@ -5506,16 +5518,7 @@ class ApiClient {
 
   /** Fetch a protected file (CSV…) with the session token and save it */
   private async downloadProtected(path: string, fallbackName: string): Promise<void> {
-    let response: Response;
-    try {
-      response = await fetch(`${this.baseUrl}${path}`, { headers: this.authHeaders() });
-    } catch {
-      throw new ApiError(localizeServerMessage('Unable to reach the server'), 0);
-    }
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new ApiError(localizeServerMessage(data.error || data.message || 'Request failed'), response.status);
-    }
+    const response = await this.fetchProtected(path);
     const url = URL.createObjectURL(await response.blob());
     const link = document.createElement('a');
     link.href = url;
@@ -5851,6 +5854,64 @@ class ApiClient {
 
   async getCashDeskDaily(date: string): Promise<CashDeskDaily> {
     return this.data<CashDeskDaily>(`/api/cash-desk/daily?date=${encodeURIComponent(date)}`);
+  }
+
+  // ---- Official monthly statistics (rapport mensuel d'activités, DHIS2) ----
+
+  async getMonthlyReports(year: number): Promise<MonthlyReportSummary[]> {
+    return this.data<MonthlyReportSummary[]>(`/api/monthly-reports?year=${year}`);
+  }
+
+  async getMonthlyReport(period: string): Promise<MonthlyReportDetail> {
+    return this.data<MonthlyReportDetail>(`/api/monthly-reports/${period}`);
+  }
+
+  async validateMonthlyReport(period: string, notes?: string): Promise<MonthlyReportDetail> {
+    return this.data<MonthlyReportDetail>(`/api/monthly-reports/${period}/validate`, { method: 'POST', body: JSON.stringify(notes === undefined ? {} : { notes }) });
+  }
+
+  async reopenMonthlyReport(period: string, reason: string): Promise<MonthlyReportDetail> {
+    return this.data<MonthlyReportDetail>(`/api/monthly-reports/${period}/reopen`, { method: 'POST', body: JSON.stringify({ reason }) });
+  }
+
+  async submitMonthlyReport(period: string, submissionRef?: string): Promise<MonthlyReportDetail> {
+    return this.data<MonthlyReportDetail>(`/api/monthly-reports/${period}/submit`, { method: 'POST', body: JSON.stringify(submissionRef ? { submissionRef } : {}) });
+  }
+
+  async updateMonthlyReportNotes(period: string, notes: string): Promise<MonthlyReportDetail> {
+    return this.data<MonthlyReportDetail>(`/api/monthly-reports/${period}`, { method: 'PATCH', body: JSON.stringify({ notes }) });
+  }
+
+  async openMonthlyReportPdf(period: string): Promise<void> {
+    await this.openProtectedPdf(`/api/monthly-reports/${period}/report.pdf`, `rapport-mensuel-${period}.pdf`);
+  }
+
+  /**
+   * Save the DHIS2 export. The JSON file is the dataValueSet to import; the `unmapped` list it carries
+   * is returned (indicators without a DHIS2 data element) and left out of the saved file.
+   */
+  async downloadMonthlyReportDhis2(period: string, format: 'json' | 'csv', fileName: string): Promise<{ unmapped: string[] }> {
+    let unmapped: string[] = [];
+    await this.downloadProtectedFile(`/api/monthly-reports/${period}/dhis2.${format}`, fileName, format === 'json'
+      ? (body) => {
+          const { unmapped: missing, ...dataValueSet } = JSON.parse(body) as { unmapped?: string[] } & Record<string, unknown>;
+          unmapped = missing ?? [];
+          return JSON.stringify(dataValueSet, null, 2);
+        }
+      : undefined);
+    return { unmapped };
+  }
+
+  async getIndicatorCatalogue(): Promise<IndicatorDef[]> {
+    return this.data<IndicatorDef[]>('/api/monthly-reports/indicators');
+  }
+
+  async getFacilitySettings(): Promise<FacilitySettings> {
+    return this.data<FacilitySettings>('/api/facility-settings');
+  }
+
+  async updateFacilitySettings(input: FacilitySettingsInput): Promise<FacilitySettings> {
+    return this.data<FacilitySettings>('/api/facility-settings', { method: 'PUT', body: JSON.stringify(input) });
   }
 }
 

@@ -41,8 +41,17 @@ describe('localizeServerMessage', () => {
     expect(localizeServerMessage('Validation failed: Unknown note or coin')).toContain(backendErrorsFr['Unknown note or coin']);
   });
 
+  it('translates the monthly statistics messages', () => {
+    for (const message of ['The month is not over yet', 'This report is already validated', 'Validate the report first', 'Set the DHIS2 organisation unit first', 'This month has not started']) {
+      expect(localizeServerMessage(message)).toBe(backendErrorsFr[message]);
+    }
+    expect(localizeServerMessage('Validation failed: Facility name is required')).toContain(backendErrorsFr['Facility name is required']);
+  });
+
   // One realistic sample per pattern: every pattern must match one of these
   const samples = [
+    'Unknown indicator: cons.bogus',
+    'Invalid DHIS2 identifier for cons.total',
     'Cannot delete medication with existing prescriptions. This medication has been used in 3 prescription items. Consider deactivating it instead.',
     'Payment amount (50000) exceeds invoice balance (34345.5)',
     'Payment amount (5000) exceeds patient balance (3000)',

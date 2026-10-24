@@ -48,6 +48,7 @@ const navTranslationKeys: Record<string, string> = {
   'Billing': 'nav.billing',
   'Cash Desk': 'nav.cashDesk',
   'Cash Desk Supervision': 'nav.cashDeskSupervision',
+  'Official Statistics': 'nav.statistics',
   'Insurers': 'nav.insurers',
   'Claims': 'nav.claims',
   'Receivables': 'nav.receivables',

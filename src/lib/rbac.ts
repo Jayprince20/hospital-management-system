@@ -107,6 +107,10 @@ export type Permission =
   | 'cash-desk:operate'
   | 'cash-desk:supervise'
 
+  // Official monthly statistics (rapport mensuel d'activités, DHIS2): doctors read, admins validate and export
+  | 'statistics:view'
+  | 'statistics:manage'
+
   // Reports & Analytics
   | 'reports:view'
   | 'reports:view_own' // Doctor's own performance
@@ -195,6 +199,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'inventory:view', 'inventory:manage', 'inventory:manage_suppliers', 'inventory:manage_all',
     'purchasing:manage',
     'cash-desk:operate', 'cash-desk:supervise',
+    'statistics:view', 'statistics:manage',
     'reports:view', 'reports:view_financial', 'reports:view_all', 'reports:export',
     'users:view', 'users:view_all', 'users:create', 'users:edit', 'users:delete', 'users:manage_roles',
     'settings:view', 'settings:edit', 'settings:manage_system',
@@ -222,6 +227,8 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'billing:view',
     // Reports - own performance
     'reports:view', 'reports:view_own',
+    // Official monthly statistics - read only
+    'statistics:view',
     // Notifications
     'notifications:view',
   ],
@@ -612,6 +619,12 @@ export const navigationItems: NavItem[] = [
     permission: 'inventory:manage', // Only those who can manage inventory
   },
   {
+    label: 'Official Statistics',
+    href: '/dashboard/statistics',
+    icon: 'M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z',
+    permission: 'statistics:view', // Monthly activity report for the health district (DHIS2)
+  },
+  {
     label: 'Purchasing',
     href: '/dashboard/purchasing',
     icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
@@ -697,6 +710,8 @@ export const routePermissions: Record<string, Permission> = {
   '/dashboard/purchasing': 'purchasing:manage', // Admin, pharmacist only
   '/dashboard/cash-desk': 'cash-desk:operate', // Admin, receptionist (own till)
   '/dashboard/cash-desk/supervision': 'cash-desk:supervise', // Admin only
+  '/dashboard/statistics/settings': 'statistics:manage', // Admin only: facility identity, DHIS2 mapping
+  '/dashboard/statistics': 'statistics:view', // Admin, doctors (read)
   '/dashboard/reports': 'reports:view_all', // Admin only
   '/dashboard/users': 'users:view_all', // Admin only
   '/dashboard/audit': 'settings:manage_system', // Admin only
@@ -737,6 +752,9 @@ export const routeRoles: Record<string, UserRole[]> = {
   // Supervision first — the first matching prefix wins
   '/dashboard/cash-desk/supervision': ['ADMIN'],
   '/dashboard/cash-desk': ['ADMIN', 'RECEPTIONIST'],
+  // Settings first — the first matching prefix wins
+  '/dashboard/statistics/settings': ['ADMIN'],
+  '/dashboard/statistics': ['ADMIN', 'DOCTOR'],
   '/dashboard/claims': ['ADMIN', 'RECEPTIONIST'],
   '/dashboard/receivables': ['ADMIN', 'RECEPTIONIST'],
 };
