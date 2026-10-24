@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api, InventoryItem, Supplier } from '@/lib/api';
+import { SupplierTermsFields } from '@/components/purchasing/ui';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useToast } from '@/components/toast';
 import { PermissionGate } from '@/components/permission-gate';
@@ -28,6 +29,9 @@ interface SupplierFormData {
   email: string;
   phone: string;
   address: string;
+  niu: string;
+  paymentTermsDays: string;
+  leadTimeDays: string;
   isActive: boolean;
 }
 
@@ -51,8 +55,19 @@ const initialSupplierForm: SupplierFormData = {
   email: '',
   phone: '',
   address: '',
+  niu: '',
+  paymentTermsDays: '30',
+  leadTimeDays: '7',
   isActive: true,
 };
+
+/** Payment terms and delivery delay as numbers; blank or invalid values are left to the server default */
+function supplierTerms(form: SupplierFormData): { paymentTermsDays?: number; leadTimeDays?: number } {
+  const days = (v: string) => (v.trim() !== '' && Number.isInteger(Number(v)) && Number(v) >= 0 ? Number(v) : undefined);
+  const paymentTermsDays = days(form.paymentTermsDays);
+  const leadTimeDays = days(form.leadTimeDays);
+  return { ...(paymentTermsDays !== undefined ? { paymentTermsDays } : {}), ...(leadTimeDays !== undefined ? { leadTimeDays } : {}) };
+}
 
 const units = ['pcs', 'box', 'pack', 'bottle', 'roll', 'bag', 'kit', 'set', 'pair', 'vial', 'tube', 'carton'];
 
@@ -342,6 +357,9 @@ export default function InventoryPage() {
       email: supplier.email || '',
       phone: supplier.phone,
       address: supplier.address || '',
+      niu: supplier.niu || '',
+      paymentTermsDays: String(supplier.paymentTermsDays ?? 30),
+      leadTimeDays: String(supplier.leadTimeDays ?? 7),
       isActive: supplier.isActive,
     });
     setError('');
@@ -369,6 +387,8 @@ export default function InventoryPage() {
         email: supplierFormData.email.trim() || undefined,
         phone: supplierFormData.phone.trim(),
         address: supplierFormData.address.trim() || undefined,
+        niu: supplierFormData.niu.trim() || undefined,
+        ...supplierTerms(supplierFormData),
       });
       setShowSupplierCreateModal(false);
       setSupplierFormData(initialSupplierForm);
@@ -398,6 +418,8 @@ export default function InventoryPage() {
         email: supplierFormData.email.trim() || null,
         phone: supplierFormData.phone.trim(),
         address: supplierFormData.address.trim() || null,
+        niu: supplierFormData.niu.trim() || null,
+        ...supplierTerms(supplierFormData),
         isActive: supplierFormData.isActive,
       });
       setShowSupplierEditModal(false);
@@ -1262,6 +1284,11 @@ export default function InventoryPage() {
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                   />
                 </div>
+                <SupplierTermsFields
+                  value={supplierFormData}
+                  onChange={(terms) => setSupplierFormData({ ...supplierFormData, ...terms })}
+                  fieldClass="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
+                />
 
                 <div className="flex items-center justify-end gap-3 pt-4">
                   <button type="button" onClick={closeModals} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
@@ -1346,6 +1373,11 @@ export default function InventoryPage() {
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
                   />
                 </div>
+                <SupplierTermsFields
+                  value={supplierFormData}
+                  onChange={(terms) => setSupplierFormData({ ...supplierFormData, ...terms })}
+                  fieldClass="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
+                />
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"

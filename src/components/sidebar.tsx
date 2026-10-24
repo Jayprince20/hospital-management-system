@@ -51,6 +51,7 @@ const navTranslationKeys: Record<string, string> = {
   'Receivables': 'nav.receivables',
   'Payments': 'nav.payments',
   'Inventory': 'nav.inventory',
+  'Purchasing': 'nav.purchasing',
   'Reports': 'nav.reports',
   'Users': 'nav.users',
   'Audit Log': 'nav.audit',

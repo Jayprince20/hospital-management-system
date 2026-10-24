@@ -1,6 +1,24 @@
 import { backendErrorsFr, backendErrorPatternsFr } from '@/locales/backend-errors';
 import { extraTranslations } from '@/locales';
 import { actingHeaders, readActingProfile, writeActingProfile, ACTING_CHANGE_EVENT } from '@/lib/patient-extras';
+import type {
+  GoodsReceipt,
+  GoodsReceiptSummary,
+  InvoiceInput,
+  InvoiceMatch,
+  PayablesReport,
+  PaymentInput,
+  PurchaseOrderAction,
+  PurchaseOrderDetail,
+  PurchaseOrderInput,
+  PurchaseOrderStatus,
+  PurchaseOrdersResponse,
+  ReceiptInput,
+  ReorderSuggestion,
+  SupplierInvoice,
+  SupplierInvoiceStatus,
+  SupplierPerformance,
+} from '@/lib/purchasing';
 
 function getApiUrl(): string {
   if (typeof window !== 'undefined') {
@@ -1407,6 +1425,9 @@ interface Supplier {
   email?: string;
   phone: string;
   address?: string;
+  niu?: string | null;
+  paymentTermsDays?: number;
+  leadTimeDays?: number;
   isActive: boolean;
   itemCount: number;
   orderCount: number;
@@ -5251,7 +5272,7 @@ class ApiClient {
     throw new Error('Failed to fetch supplier');
   }
 
-  async createSupplier(data: { name: string; contactName?: string; email?: string; phone: string; address?: string }): Promise<Supplier> {
+  async createSupplier(data: { name: string; contactName?: string; email?: string; phone: string; address?: string; niu?: string; paymentTermsDays?: number; leadTimeDays?: number }): Promise<Supplier> {
     const response = await this.request<Supplier>('/api/suppliers', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -5262,7 +5283,7 @@ class ApiClient {
     throw new Error('Failed to create supplier');
   }
 
-  async updateSupplier(id: string, data: Partial<{ name: string; contactName: string | null; email: string | null; phone: string; address: string | null; isActive: boolean }>): Promise<Supplier> {
+  async updateSupplier(id: string, data: Partial<{ name: string; contactName: string | null; email: string | null; phone: string; address: string | null; niu: string | null; paymentTermsDays: number; leadTimeDays: number; isActive: boolean }>): Promise<Supplier> {
     const response = await this.request<Supplier>(`/api/suppliers/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -5645,6 +5666,107 @@ class ApiClient {
 
   async cancelShiftSwap(id: string): Promise<void> {
     await this.data(`/api/shift-swaps/${id}/cancel`, { method: 'POST', body: '{}' });
+  }
+  // ---- Pharmacy purchasing ----
+
+  async getReorderSuggestions(supplierId?: string): Promise<ReorderSuggestion[]> {
+    const query = supplierId ? `?supplierId=${encodeURIComponent(supplierId)}` : '';
+    const data = await this.data<{ items: ReorderSuggestion[] } | ReorderSuggestion[]>(`/api/purchasing/suggestions${query}`);
+    return Array.isArray(data) ? data : data.items ?? [];
+  }
+
+  async getPurchaseOrders(filters: { status?: PurchaseOrderStatus | ''; supplierId?: string; q?: string; page?: number; limit?: number } = {}): Promise<PurchaseOrdersResponse> {
+    const params = new URLSearchParams();
+    if (filters.status) params.append('status', filters.status);
+    if (filters.supplierId) params.append('supplierId', filters.supplierId);
+    if (filters.q) params.append('q', filters.q);
+    if (filters.page) params.append('page', String(filters.page));
+    if (filters.limit) params.append('limit', String(filters.limit));
+    const data = await this.data<Partial<PurchaseOrdersResponse>>(`/api/purchase-orders?${params.toString()}`);
+    return {
+      data: data.data ?? [],
+      pagination: data.pagination ?? { page: 1, limit: filters.limit ?? 20, total: data.data?.length ?? 0, totalPages: 1 },
+      counts: data.counts ?? {},
+    };
+  }
+
+  async getPurchaseOrder(id: string): Promise<PurchaseOrderDetail> {
+    return this.data<PurchaseOrderDetail>(`/api/purchase-orders/${id}`);
+  }
+
+  async createPurchaseOrder(input: PurchaseOrderInput): Promise<PurchaseOrderDetail> {
+    return this.data<PurchaseOrderDetail>('/api/purchase-orders', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updatePurchaseOrder(id: string, input: PurchaseOrderInput): Promise<PurchaseOrderDetail> {
+    return this.data<PurchaseOrderDetail>(`/api/purchase-orders/${id}`, { method: 'PUT', body: JSON.stringify(input) });
+  }
+
+  async deletePurchaseOrder(id: string): Promise<void> {
+    const response = await this.request(`/api/purchase-orders/${id}`, { method: 'DELETE' });
+    if (!response.success) throw new Error(response.error || response.message || 'Request failed');
+  }
+
+  async purchaseOrderAction(id: string, action: PurchaseOrderAction, extra: { reason?: string; email?: string } = {}): Promise<{ autoApproved?: boolean; emailed?: boolean; status?: PurchaseOrderStatus }> {
+    return (await this.data<{ autoApproved?: boolean; emailed?: boolean; status?: PurchaseOrderStatus } | null>(`/api/purchase-orders/${id}/actions`, {
+      method: 'POST',
+      body: JSON.stringify({ action, ...extra }),
+    })) ?? {};
+  }
+
+  /** Bon de commande PDF in a new tab */
+  async openPurchaseOrderPdf(id: string, orderNumber?: string): Promise<void> {
+    await this.openProtectedPdf(`/api/purchase-orders/${id}/pdf`, `${orderNumber || 'bon-de-commande'}.pdf`);
+  }
+
+  async receivePurchaseOrder(id: string, input: ReceiptInput): Promise<{ receipt?: GoodsReceipt; order?: PurchaseOrderDetail }> {
+    return (await this.data<{ receipt?: GoodsReceipt; order?: PurchaseOrderDetail } | null>(`/api/purchase-orders/${id}/receipts`, { method: 'POST', body: JSON.stringify(input) })) ?? {};
+  }
+
+  async getGoodsReceipts(filters: { supplierId?: string; from?: string; to?: string } = {}): Promise<GoodsReceiptSummary[]> {
+    const params = new URLSearchParams();
+    if (filters.supplierId) params.append('supplierId', filters.supplierId);
+    if (filters.from) params.append('from', filters.from);
+    if (filters.to) params.append('to', filters.to);
+    const data = await this.data<GoodsReceiptSummary[] | { data: GoodsReceiptSummary[] } | { receipts: GoodsReceiptSummary[] }>(`/api/goods-receipts?${params.toString()}`);
+    if (Array.isArray(data)) return data;
+    return ('data' in data ? data.data : data.receipts) ?? [];
+  }
+
+  async getSupplierInvoices(filters: { status?: SupplierInvoiceStatus | ''; supplierId?: string; overdue?: boolean } = {}): Promise<SupplierInvoice[]> {
+    const params = new URLSearchParams();
+    if (filters.status) params.append('status', filters.status);
+    if (filters.supplierId) params.append('supplierId', filters.supplierId);
+    if (filters.overdue) params.append('overdue', 'true');
+    const data = await this.data<SupplierInvoice[] | { data: SupplierInvoice[] } | { invoices: SupplierInvoice[] }>(`/api/supplier-invoices?${params.toString()}`);
+    if (Array.isArray(data)) return data;
+    return ('data' in data ? data.data : data.invoices) ?? [];
+  }
+
+  async getSupplierInvoice(id: string): Promise<SupplierInvoice> {
+    return this.data<SupplierInvoice>(`/api/supplier-invoices/${id}`);
+  }
+
+  async createSupplierInvoice(input: InvoiceInput): Promise<SupplierInvoice & { match?: InvoiceMatch }> {
+    return this.data<SupplierInvoice & { match?: InvoiceMatch }>('/api/supplier-invoices', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async supplierInvoiceAction(id: string, action: 'approve' | 'dispute' | 'resolve', reason?: string): Promise<void> {
+    await this.data(`/api/supplier-invoices/${id}/actions`, { method: 'POST', body: JSON.stringify({ action, ...(reason ? { reason } : {}) }) });
+  }
+
+  async recordSupplierPayment(invoiceId: string, input: PaymentInput): Promise<void> {
+    await this.data(`/api/supplier-invoices/${invoiceId}/payments`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async getPayables(): Promise<PayablesReport> {
+    return this.data<PayablesReport>('/api/purchasing/payables');
+  }
+
+  async getSupplierPerformance(months = 6): Promise<SupplierPerformance[]> {
+    const data = await this.data<SupplierPerformance[] | { suppliers: SupplierPerformance[] } | { data: SupplierPerformance[] }>(`/api/purchasing/supplier-performance?months=${months}`);
+    if (Array.isArray(data)) return data;
+    return ('suppliers' in data ? data.suppliers : data.data) ?? [];
   }
 }
 

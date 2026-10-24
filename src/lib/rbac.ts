@@ -100,6 +100,9 @@ export type Permission =
   | 'inventory:manage_suppliers'
   | 'inventory:manage_all'
 
+  // Purchasing (orders to suppliers, goods receipt, supplier invoices)
+  | 'purchasing:manage'
+
   // Reports & Analytics
   | 'reports:view'
   | 'reports:view_own' // Doctor's own performance
@@ -186,6 +189,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'laboratory:view', 'laboratory:view_patient_results', 'laboratory:create_orders', 'laboratory:enter_results', 'laboratory:manage_tests', 'laboratory:manage_all',
     'billing:view', 'billing:view_all', 'billing:create', 'billing:edit', 'billing:process_payments', 'billing:manage_all',
     'inventory:view', 'inventory:manage', 'inventory:manage_suppliers', 'inventory:manage_all',
+    'purchasing:manage',
     'reports:view', 'reports:view_financial', 'reports:view_all', 'reports:export',
     'users:view', 'users:view_all', 'users:create', 'users:edit', 'users:delete', 'users:manage_roles',
     'settings:view', 'settings:edit', 'settings:manage_system',
@@ -264,6 +268,8 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'prescriptions:view', 'prescriptions:dispense',
     // Inventory - manage pharmacy stock
     'inventory:view', 'inventory:manage',
+    // Purchasing - orders to suppliers and goods receipt (admins approve large orders and pay)
+    'purchasing:manage',
     // Billing - view for prescription billing
     'billing:view',
     // Reports - pharmacy reports
@@ -586,6 +592,13 @@ export const navigationItems: NavItem[] = [
     permission: 'inventory:manage', // Only those who can manage inventory
   },
   {
+    label: 'Purchasing',
+    href: '/dashboard/purchasing',
+    icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
+    permission: 'purchasing:manage',
+    roles: ['ADMIN', 'PHARMACIST'], // Orders, receipts, supplier invoices and payables
+  },
+  {
     label: 'Reports',
     href: '/dashboard/reports',
     icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
@@ -661,6 +674,7 @@ export const routePermissions: Record<string, Permission> = {
   '/dashboard/claims': 'billing:view_all', // Bordereaux
   '/dashboard/receivables': 'billing:view_all', // Insurer receivables ageing
   '/dashboard/inventory': 'inventory:manage', // Admin, pharmacist only
+  '/dashboard/purchasing': 'purchasing:manage', // Admin, pharmacist only
   '/dashboard/reports': 'reports:view_all', // Admin only
   '/dashboard/users': 'users:view_all', // Admin only
   '/dashboard/audit': 'settings:manage_system', // Admin only
@@ -697,6 +711,7 @@ export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/pharmacy/sales': ['ADMIN', 'PHARMACIST'],
   '/dashboard/pharmacy/stock': ['ADMIN', 'PHARMACIST'],
   '/dashboard/pharmacy/sessions': ['ADMIN', 'PHARMACIST'],
+  '/dashboard/purchasing': ['ADMIN', 'PHARMACIST'],
   '/dashboard/claims': ['ADMIN', 'RECEPTIONIST'],
   '/dashboard/receivables': ['ADMIN', 'RECEPTIONIST'],
 };

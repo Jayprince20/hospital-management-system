@@ -27,6 +27,13 @@ describe('localizeServerMessage', () => {
     expect(result).not.toContain('Validation failed');
   });
 
+  it('translates the pharmacy purchasing messages', () => {
+    for (const message of ['Only an administrator can approve this order', 'More than what is still expected', 'Batch number and expiry date are required for medications', 'This supplier invoice is already recorded', 'Payment exceeds the balance']) {
+      expect(localizeServerMessage(message)).toBe(backendErrorsFr[message]);
+    }
+    expect(localizeServerMessage('Validation failed: At least one line is required')).toContain(backendErrorsFr['At least one line is required']);
+  });
+
   // One realistic sample per pattern: every pattern must match one of these
   const samples = [
     'Cannot delete medication with existing prescriptions. This medication has been used in 3 prescription items. Consider deactivating it instead.',
