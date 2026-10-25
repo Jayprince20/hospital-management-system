@@ -116,7 +116,9 @@ const showDesktopNotification = (notification: Notification) => {
 };
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated: signedIn, mfaSetupRequired, mustChangePassword } = useAuth();
+  // Until 2FA enrolment or a forced password change is done the API refuses everything else
+  const isAuthenticated = signedIn && !mfaSetupRequired && !mustChangePassword;
   const { isConnected, on, emit, connect, disconnect, getSocket } = useSocket({ autoConnect: false });
 
   const [notifications, setNotifications] = useState<Notification[]>([]);

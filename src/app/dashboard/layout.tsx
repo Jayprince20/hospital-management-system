@@ -2,7 +2,8 @@
 
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
-import { Sidebar } from '@/components/sidebar';
+import { Sidebar, SidebarOffset } from '@/components/sidebar';
+import { SidebarProvider } from '@/context/sidebar-context';
 import { SessionTimeout } from '@/components/session-timeout';
 import { Header } from '@/components/header';
 import { AccessDenied } from '@/components/permission-gate';
@@ -56,17 +57,19 @@ export default function DashboardLayout({
 
   return (
     <ActingPatientProvider>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <SessionTimeout />
-        <TeleWaitingListener />
-        <Sidebar />
-        <div className="ml-64">
-          <Header />
-          <DashboardMain pathname={pathname} hasAccess={hasAccess}>
-            {children}
-          </DashboardMain>
+      <SidebarProvider>
+        <div className="min-h-screen bg-canvas dark:bg-gray-900">
+          <SessionTimeout />
+          <TeleWaitingListener />
+          <Sidebar />
+          <SidebarOffset>
+            <Header />
+            <DashboardMain pathname={pathname} hasAccess={hasAccess}>
+              {children}
+            </DashboardMain>
+          </SidebarOffset>
         </div>
-      </div>
+      </SidebarProvider>
     </ActingPatientProvider>
   );
 }
@@ -79,7 +82,7 @@ function DashboardMain({ pathname, hasAccess, children }: { pathname: string | n
   const { acting } = useActingPatient();
   const ownerOnly = Boolean(acting) && isOwnerOnlyPath(pathname);
   return (
-    <main className="p-6">
+    <main className="p-4 sm:p-6">
       <ActingBanner />
       <ErrorBoundary>
         <div key={acting?.patientId ?? 'self'}>{!hasAccess ? <AccessDenied /> : ownerOnly ? <OwnerOnlyNotice /> : children}</div>

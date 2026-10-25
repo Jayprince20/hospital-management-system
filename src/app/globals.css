@@ -48,8 +48,23 @@
   --color-primary-900: var(--primary-900);
   --color-muted-foreground: var(--secondary-500);
   --color-secondary: var(--secondary-500);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Plus Jakarta Sans when the Google font loads (root layout); system stack offline (Docker) */
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Interface tokens (login, sidebar, shell) */
+  --color-brand: #14532D;        /* primary actions, white text */
+  --color-brand-hover: #0F3F22;
+  --color-rail: #0F2A1D;         /* sidebar ground */
+  --color-rail-soft: #173A29;
+  --color-accent: #A3E635;       /* active item, logo mark: dark text on it */
+  --color-on-accent: #0F2E1C;
+  --color-canvas: #F4F6F2;       /* app background */
+  --color-ink: #0F1F17;
+  --color-ink-muted: #56645B;
+  --color-line: #DCE3DA;
+  --color-rail-text: #C9DACE;
+  --color-rail-muted: #9DB8A6;
 }
 
 /* Dark mode variables when .dark class is applied */
@@ -59,8 +74,15 @@
 }
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 /* Light mode body */

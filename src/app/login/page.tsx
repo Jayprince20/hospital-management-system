@@ -2,15 +2,21 @@
 
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
-import { ThemeToggle } from '@/context/theme-context';
-import { LanguageToggle, useLanguage } from '@/context/language-context';
+import { useLanguage } from '@/context/language-context';
 import { ApiError } from '@/lib/api';
-
-const inputClass =
-  'w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-lime-500 focus:border-transparent transition-colors';
+import {
+  AuthShell,
+  OtpInput,
+  PasswordInput,
+  authButtonClass,
+  authErrorClass,
+  authInputClass,
+  authLabelClass,
+  authLinkClass,
+  authTitleClass,
+} from '@/components/auth/auth-card';
 
 export default function LoginPage() {
   // useSearchParams needs a Suspense boundary
@@ -39,9 +45,9 @@ function LoginContent() {
   // Show loading while checking authentication
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-lime-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen flex items-center justify-center bg-canvas dark:bg-gray-950">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand dark:border-lime-400 mx-auto"></div>
           <p className="mt-4 text-gray-600 dark:text-gray-400">{t('admin.login.loading')}</p>
         </div>
       </div>
@@ -51,9 +57,9 @@ function LoginContent() {
   // Don't render login form if already authenticated (waiting for redirect)
   if (isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-lime-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen flex items-center justify-center bg-canvas dark:bg-gray-950">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand dark:border-lime-400 mx-auto"></div>
           <p className="mt-4 text-gray-600 dark:text-gray-400">{t('admin.login.redirectingToDashboard')}</p>
         </div>
       </div>
@@ -109,217 +115,186 @@ function LoginContent() {
   };
 
   const spinner = (
-    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+    <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" aria-hidden="true">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
     </svg>
   );
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-lime-100 dark:from-gray-900 dark:to-gray-800 px-4 relative">
-      {/* Theme and Language Controls */}
-      <div className="absolute top-4 right-4 flex items-center gap-2">
-        <LanguageToggle />
-        <ThemeToggle />
-      </div>
+  if (mfaToken) {
+    return (
+      <AuthShell
+        variant="mfa"
+        topLeft={
+          <button type="button" onClick={backToPassword} className="flex items-center gap-2 text-sm font-medium text-[#2A3830] dark:text-gray-300 hover:text-ink dark:hover:text-white rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 12H5M11 18l-6-6 6-6" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {t('security.login.back')}
+          </button>
+        }
+      >
+        <form onSubmit={handleVerify} className="flex flex-col gap-6">
+          <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border border-line dark:border-gray-700 rounded-2xl">
+            <span aria-hidden="true" className="w-10 h-10 rounded-full bg-blue-100 text-blue-900 font-bold text-sm flex items-center justify-center shrink-0">
+              {email.trim().charAt(0).toUpperCase() || '?'}
+            </span>
+            <span className="flex-1 min-w-0 text-sm text-ink-muted dark:text-gray-400 truncate">{email}</span>
+            <span className="text-xs text-ink-muted dark:text-gray-400 whitespace-nowrap">{t('shell.otp.step')}</span>
+          </div>
 
-      <div className="w-full max-w-md">
-        {/* Logo/Header */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <Image
-              src="/images/logo-bbdt.png"
-              alt="BB Diagnostics"
-              width={200}
-              height={70}
-              className="object-contain"
-              priority
+          <div className="flex flex-col gap-2">
+            <h2 className={authTitleClass}>{t('security.login.codeTitle')}</h2>
+            <p className="text-[15px] leading-relaxed text-ink-muted dark:text-gray-400">
+              {useRecovery ? t('security.login.recoveryHint') : t('security.login.codeSubtitle')}
+            </p>
+          </div>
+
+          {error && (
+            <div role="alert" className={authErrorClass}>
+              {error}
+            </div>
+          )}
+
+          {useRecovery ? (
+            <div>
+              <label htmlFor="mfa-code" className={authLabelClass}>
+                {t('security.login.recoveryLabel')}
+              </label>
+              <input
+                key="recovery"
+                id="mfa-code"
+                type="text"
+                autoComplete="off"
+                autoCapitalize="characters"
+                autoFocus
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="XXXXX-XXXXX"
+                maxLength={11}
+                className={`${authInputClass} font-mono tracking-widest text-center`}
+              />
+            </div>
+          ) : (
+            <OtpInput key="totp" value={code} onChange={setCode} autoFocus />
+          )}
+
+          <button
+            type="submit"
+            disabled={isLoading || (!useRecovery && code.length !== 6) || (useRecovery && code.trim().length < 11)}
+            className={authButtonClass}
+          >
+            {isLoading ? (
+              <>
+                {spinner}
+                {t('security.login.verifying')}
+              </>
+            ) : (
+              t('security.login.verify')
+            )}
+          </button>
+
+          <div className="flex gap-3 items-start p-4 rounded-[14px] bg-[#EEF2EC] dark:bg-gray-800">
+            <svg className="w-[18px] h-[18px] mt-0.5 shrink-0 text-[#2A3830] dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 11-7.8 7.8 5.5 5.5 0 017.8-7.8zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <div className="flex flex-col gap-1 text-[13px] leading-relaxed text-[#2A3830] dark:text-gray-300">
+              <span className="font-semibold">{t('shell.otp.lostTitle')}</span>
+              <span>{t('shell.otp.lostText')}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setUseRecovery(!useRecovery);
+                  setCode('');
+                  setError('');
+                }}
+                className={`self-start ${authLinkClass}`}
+              >
+                {useRecovery ? t('security.login.useCode') : t('security.login.useRecovery')}
+              </button>
+            </div>
+          </div>
+        </form>
+      </AuthShell>
+    );
+  }
+
+  return (
+    <AuthShell>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-[22px]">
+        <div className="flex flex-col gap-2">
+          <h2 className={authTitleClass}>{t('shell.login.title')}</h2>
+          <p className="text-[15px] leading-relaxed text-ink-muted dark:text-gray-400">{t('shell.login.subtitle')}</p>
+        </div>
+
+        {timedOut && !error && (
+          <div role="status" className="rounded-[14px] border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-300">
+            {t('security.login.timeoutNotice')}
+          </div>
+        )}
+
+        {error && (
+          <div role="alert" className={authErrorClass}>
+            {error}
+          </div>
+        )}
+
+        <div>
+          <label htmlFor="email" className={authLabelClass}>
+            {t('auth.email')}
+          </label>
+          <div className="relative">
+            <svg className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-ink-muted dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="2" y="4" width="20" height="16" rx="2" strokeWidth={2} />
+              <path d="m22 7-10 6L2 7" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="username"
+              className={`${authInputClass} pl-11`}
+              placeholder={t('admin.login.enterYourEmail')}
             />
           </div>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Centre Médical - {t('auth.loginSubtitle')}
-          </p>
         </div>
 
-        {/* Login Form */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
-          {timedOut && !error && !mfaToken && (
-            <div className="mb-6 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 px-4 py-3 rounded-lg text-sm">
-              {t('security.login.timeoutNotice')}
-            </div>
-          )}
-          {mfaToken ? (
-            <form onSubmit={handleVerify} className="space-y-6">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('security.login.codeTitle')}</h2>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                  {useRecovery ? t('security.login.recoveryHint') : t('security.login.codeSubtitle')}
-                </p>
-              </div>
+        <div>
+          <div className="flex items-baseline justify-between mb-2">
+            <label htmlFor="password" className="text-[13px] font-semibold text-[#2A3830] dark:text-gray-300">
+              {t('auth.password')}
+            </label>
+            <Link href="/forgot-password" className={`text-[13px] ${authLinkClass}`}>
+              {t('auth.forgotPassword')}
+            </Link>
+          </div>
+          <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="current-password" placeholder={t('admin.login.enterYourPassword')} required />
+        </div>
 
-              {error && (
-                <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
+        <label className="flex items-center gap-2.5 text-sm text-[#2A3830] dark:text-gray-300 cursor-pointer">
+          <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-[18px] h-[18px] m-0 accent-[#14532D]" />
+          {t('auth.rememberMe')}
+        </label>
 
-              <div>
-                <label htmlFor="mfa-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {useRecovery ? t('security.login.recoveryLabel') : t('security.login.codeLabel')}
-                </label>
-                {useRecovery ? (
-                  <input
-                    key="recovery"
-                    id="mfa-code"
-                    type="text"
-                    autoComplete="off"
-                    autoCapitalize="characters"
-                    autoFocus
-                    required
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.toUpperCase())}
-                    placeholder="XXXXX-XXXXX"
-                    maxLength={11}
-                    className={`${inputClass} font-mono tracking-widest text-center`}
-                  />
-                ) : (
-                  <input
-                    key="totp"
-                    id="mfa-code"
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    pattern="[0-9]{6}"
-                    autoFocus
-                    required
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="000000"
-                    maxLength={6}
-                    className={`${inputClass} font-mono text-2xl tracking-[0.5em] text-center`}
-                  />
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading || (!useRecovery && code.length !== 6) || (useRecovery && code.trim().length < 11)}
-                className="w-full py-3 px-4 bg-lime-600 hover:bg-lime-700 disabled:bg-lime-400 text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <span className="flex items-center justify-center">
-                    {spinner}
-                    {t('security.login.verifying')}
-                  </span>
-                ) : (
-                  t('security.login.verify')
-                )}
-              </button>
-
-              <div className="flex items-center justify-between text-sm">
-                <button type="button" onClick={backToPassword} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-                  {t('security.login.back')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUseRecovery(!useRecovery);
-                    setCode('');
-                    setError('');
-                  }}
-                  className="text-lime-600 dark:text-lime-400 hover:text-lime-500"
-                >
-                  {useRecovery ? t('security.login.useCode') : t('security.login.useRecovery')}
-                </button>
-              </div>
-            </form>
+        <button type="submit" disabled={isLoading} className={authButtonClass}>
+          {isLoading ? (
+            <>
+              {spinner}
+              {t('auth.signingIn')}
+            </>
           ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-              >
-                {t('auth.email')}
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-lime-500 focus:border-transparent transition-colors"
-                placeholder={t('admin.login.enterYourEmail')}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-              >
-                {t('auth.password')}
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-lime-500 focus:border-transparent transition-colors"
-                placeholder={t('admin.login.enterYourPassword')}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
-                />
-                <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
-                  {t('auth.rememberMe')}
-                </span>
-              </label>
-              <Link
-                href="/forgot-password"
-                className="text-sm text-lime-600 dark:text-lime-400 hover:text-lime-500"
-              >
-                {t('auth.forgotPassword')}
-              </Link>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 px-4 bg-lime-600 hover:bg-lime-700 disabled:bg-lime-400 text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <span className="flex items-center justify-center">
-                  {spinner}
-                  {t('auth.signingIn')}
-                </span>
-              ) : (
-                t('auth.login')
-              )}
-            </button>
-          </form>
+            <>
+              {t('auth.login')}
+              <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </>
           )}
-        </div>
-
-        {/* Footer */}
-        <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-6">
-          {t('auth.needHelp')}
-        </p>
-      </div>
-    </div>
+        </button>
+      </form>
+    </AuthShell>
   );
 }

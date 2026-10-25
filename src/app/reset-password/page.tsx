@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useLanguage } from '@/context/language-context';
-import { AuthCard, authButtonClass, authInputClass } from '@/components/auth/auth-card';
+import { AuthCard, authButtonClass, authErrorClass, authInputClass, authLabelClass, authLinkClass, authTitleClass } from '@/components/auth/auth-card';
 import { PASSWORD_RULES, passwordMeetsRules } from '@/lib/password-rules';
 
 export default function ResetPasswordPage() {
@@ -53,7 +53,7 @@ function ResetPasswordForm() {
       <AuthCard>
         <div className="space-y-4 text-center">
           <p className="text-sm text-gray-700 dark:text-gray-300">{t('auth.reset.missingToken')}</p>
-          <Link href="/forgot-password" className="inline-block text-sm font-medium text-lime-600 dark:text-lime-400 hover:text-lime-500">
+          <Link href="/forgot-password" className={`inline-block text-sm ${authLinkClass}`}>
             {t('auth.reset.requestNew')}
           </Link>
         </div>
@@ -65,7 +65,7 @@ function ResetPasswordForm() {
     return (
       <AuthCard>
         <div className="space-y-4 text-center">
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">{t('auth.reset.doneTitle')}</h1>
+          <h1 className={authTitleClass}>{t('auth.reset.doneTitle')}</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400">{t('auth.reset.doneText')}</p>
           <Link href="/login" className={`${authButtonClass} inline-block`}>
             {t('auth.reset.goLogin')}
@@ -78,9 +78,9 @@ function ResetPasswordForm() {
   return (
     <AuthCard>
       <form onSubmit={submit} className="space-y-5" noValidate>
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-white">{t('auth.reset.resetTitle')}</h1>
+        <h1 className={authTitleClass}>{t('auth.reset.resetTitle')}</h1>
         {error && (
-          <div role="alert" className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+          <div role="alert" className={authErrorClass}>
             {error}
             {/expir|invalid/i.test(error) && (
               <Link href="/forgot-password" className="ml-1 font-medium underline">
@@ -90,13 +90,13 @@ function ResetPasswordForm() {
           </div>
         )}
         <div>
-          <label htmlFor="password" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label htmlFor="password" className={authLabelClass}>
             {t('auth.reset.newPassword')}
           </label>
           <input id="password" type="password" autoComplete="new-password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} className={authInputClass} />
         </div>
         <div>
-          <label htmlFor="confirm" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label htmlFor="confirm" className={authLabelClass}>
             {t('auth.reset.confirmPassword')}
           </label>
           <input id="confirm" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className={authInputClass} />
