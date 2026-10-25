@@ -281,6 +281,7 @@ interface User {
 
 // Patient types
 interface Patient {
+  anonymizedAt?: string | null; // Set once the patient's identity has been erased
   id: string;
   patientId: string;
   /** The patient's portal account (when the server includes it) */
@@ -410,7 +411,6 @@ interface VitalsResponse {
 }
 
 interface PatientDetail extends Patient {
-  anonymizedAt?: string | null; // Set once the patient's identity has been erased
   dataProcessingConsent?: boolean | null; // Latest decision; null when never recorded
   appointments: PatientAppointment[];
   prescriptions: PatientPrescription[];

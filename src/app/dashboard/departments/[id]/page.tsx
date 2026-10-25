@@ -106,7 +106,7 @@ export default function DepartmentDetailPage() {
                   ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400'
                   : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
               }`}>
-                {department.isActive ? 'Active' : 'Inactive'}
+                {department.isActive ? t('clinical.departments.badgeActive') : t('clinical.departments.badgeInactive')}
               </span>
             </div>
             {department.description && (
@@ -135,20 +135,20 @@ export default function DepartmentDetailPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-3xl font-bold text-lime-600">{department.stats.totalDoctors}</p>
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.departments.totalDoctors')}</p>
-          <p className="text-xs text-green-600">{department.stats.activeDoctors} available</p>
+          <p className="text-xs text-green-600">{t('clinical.departments.nAvailable', { count: department.stats.activeDoctors })}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-3xl font-bold text-blue-600">{department.stats.totalNurses}</p>
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.departments.totalNurses')}</p>
-          <p className="text-xs text-green-600">{department.stats.activeNurses} active</p>
+          <p className="text-xs text-green-600">{t('clinical.departments.nActive', { count: department.stats.activeNurses })}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-3xl font-bold text-purple-600">{department.stats.totalStaff}</p>
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.departments.otherStaff')}</p>
-          <p className="text-xs text-green-600">{department.stats.activeStaff} active</p>
+          <p className="text-xs text-green-600">{t('clinical.departments.nActive', { count: department.stats.activeStaff })}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{department.totalStaff}</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">{department.stats.totalDoctors + department.stats.totalNurses + department.stats.totalStaff}</p>
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.departments.totalMembers')}</p>
         </div>
       </div>
@@ -203,7 +203,7 @@ export default function DepartmentDetailPage() {
                         ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400'
                         : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
                     }`}>
-                      {doctor.isAvailable ? 'Available' : 'Unavailable'}
+                      {doctor.isAvailable ? t('clinical.departments.badgeAvailable') : t('clinical.departments.badgeUnavailable')}
                     </span>
                   </Link>
                 ))

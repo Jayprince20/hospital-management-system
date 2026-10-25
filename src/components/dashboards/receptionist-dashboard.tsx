@@ -33,6 +33,7 @@ interface Appointment {
 }
 
 interface Patient {
+  anonymizedAt?: string | null;
   id: string;
   patientId: string;
   firstName: string;
@@ -559,7 +560,7 @@ export function ReceptionistDashboard() {
                   required
                 >
                   <option value="">{t('admin.reception.selectPatient')}</option>
-                  {patients.map((p) => (
+                  {patients.filter((p) => !p.anonymizedAt).map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.firstName} {p.lastName} ({p.patientId})
                     </option>

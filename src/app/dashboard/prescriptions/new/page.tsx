@@ -131,7 +131,7 @@ function NewPrescriptionForm() {
     setSearchingPatients(true);
     api.getPatients({ search: debouncedPatientSearch, limit: 8 })
       .then((res) => {
-        if (!cancelled) setPatientResults(res.data.map(toPatient));
+        if (!cancelled) setPatientResults(res.data.filter((p) => !p.anonymizedAt).map(toPatient));
       })
       .catch(() => {
         if (!cancelled) setPatientResults([]);

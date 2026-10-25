@@ -182,7 +182,7 @@ export default function NewAppointmentPage() {
     try {
       setLoadingPatients(true);
       const response = await api.getPatients({ search: patientSearch, limit: 50 });
-      setPatients(response.data);
+      setPatients(response.data.filter((p) => !p.anonymizedAt));
     } catch (error) {
       console.error('Failed to fetch patients:', error);
     } finally {

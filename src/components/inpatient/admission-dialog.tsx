@@ -108,7 +108,7 @@ function PatientSearch({ onPick }: { onPick: (p: Patient) => void }) {
     const timer = setTimeout(() => {
       api
         .getPatients({ search: query, limit: 8 })
-        .then((res) => mine === seq.current && setResults(res.data))
+        .then((res) => mine === seq.current && setResults(res.data.filter((p) => !p.anonymizedAt)))
         .catch(() => mine === seq.current && setResults([]));
     }, 300);
     return () => clearTimeout(timer);

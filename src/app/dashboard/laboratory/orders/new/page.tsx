@@ -92,7 +92,7 @@ function NewLabOrderForm() {
     let cancelled = false;
     setSearchingPatients(true);
     api.getPatients({ search: debouncedPatientSearch.trim(), limit: 8 })
-      .then((response) => !cancelled && setPatientResults(response.data))
+      .then((response) => !cancelled && setPatientResults(response.data.filter((p) => !p.anonymizedAt)))
       .catch(() => !cancelled && setPatientResults([]))
       .finally(() => !cancelled && setSearchingPatients(false));
     return () => {

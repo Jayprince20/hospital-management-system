@@ -273,7 +273,7 @@ export function NewTicketDialog({
       setSearching(true);
       api
         .getPatients({ search: query, limit: 8 })
-        .then((res) => seq === searchSeq.current && setResults(res.data))
+        .then((res) => seq === searchSeq.current && setResults(res.data.filter((p) => !p.anonymizedAt)))
         .catch(() => seq === searchSeq.current && setResults([]))
         .finally(() => seq === searchSeq.current && setSearching(false));
     }, 300);
