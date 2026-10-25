@@ -142,7 +142,7 @@ export default function ConsultationDetailPage() {
           <p className="text-red-600 dark:text-red-400 mb-4">{error || t('clinical.record.notFound')}</p>
           <Link
             href="/dashboard/consultations"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -202,7 +202,7 @@ export default function ConsultationDetailPage() {
           <PermissionGate permission="prescriptions:create">
             <Link
               href={`/dashboard/prescriptions/new?consultationId=${consultation.id}&patientId=${consultation.patient.id}`}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

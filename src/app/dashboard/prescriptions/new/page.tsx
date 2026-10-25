@@ -317,7 +317,7 @@ function NewPrescriptionForm() {
           <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <Link
             href="/dashboard/prescriptions"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover"
           >
             {t('ph.new.backToList')}
           </Link>
@@ -455,7 +455,7 @@ function NewPrescriptionForm() {
             <button
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 bg-lime-600 text-white text-sm rounded-lg hover:bg-lime-700 transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-brand text-white text-sm rounded-lg hover:bg-brand-hover transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -568,7 +568,7 @@ function NewPrescriptionForm() {
           <button
             type="submit"
             disabled={submitting || items.length === 0 || !patient || !rxAllowed}
-            className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? t('ph.common.creating') : t('ph.new.createPrescription')}
           </button>
@@ -767,7 +767,7 @@ function NewPrescriptionForm() {
                 <button
                   type="button"
                   onClick={handleAddItem}
-                  className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700"
+                  className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover"
                 >
                   {t('ph.new.addToRx')}
                 </button>

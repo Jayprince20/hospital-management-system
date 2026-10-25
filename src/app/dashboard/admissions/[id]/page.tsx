@@ -109,7 +109,7 @@ export default function AdmissionPage() {
               <button type="button" onClick={() => setDialog('transfer')} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">{t('inp.detail.transfer')}</button>
             )}
             {admitted && isDoctor && (
-              <button type="button" onClick={() => setDialog('discharge')} className="px-4 py-2 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm">{t('inp.detail.discharge')}</button>
+              <button type="button" onClick={() => setDialog('discharge')} className="px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm">{t('inp.detail.discharge')}</button>
             )}
             {admitted && isDoctor && (
               <button type="button" onClick={() => setDialog('cancel')} className="px-4 py-2 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-sm">{t('inp.detail.cancel')}</button>
@@ -132,7 +132,7 @@ export default function AdmissionPage() {
               <button type="button" onClick={() => setDialog('imaging')} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">{t('img.order.fromStay')}</button>
             )}
             {admission.status === 'DISCHARGED' && (
-              <button type="button" onClick={downloadSummary} disabled={downloading} className="px-4 py-2 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm disabled:opacity-50">{t('inp.detail.summaryPdf')}</button>
+              <button type="button" onClick={downloadSummary} disabled={downloading} className="px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm disabled:opacity-50">{t('inp.detail.summaryPdf')}</button>
             )}
             {admission.invoice && (role === 'ADMIN' || role === 'RECEPTIONIST') && (
               <Link href={`/dashboard/billing/${admission.invoice.id}`} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">

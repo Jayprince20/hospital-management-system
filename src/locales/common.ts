@@ -15,7 +15,9 @@ const common: LocaleDictionary = {
     'nav.payments': 'Payments',
 
     // Header search
-    'search.placeholder': 'Search patients, doctors, appointments...',
+    'search.placeholder': 'Search a patient or a doctor...',
+    'search.placeholderPatients': 'Search a patient...',
+    'search.placeholderDoctors': 'Search a doctor...',
     'search.patients': 'Patients',
     'search.doctors': 'Doctors',
     'search.noResults': 'No results for "{query}"',
@@ -125,7 +127,9 @@ const common: LocaleDictionary = {
     'nav.labResults': 'Résultats de laboratoire',
     'nav.payments': 'Paiements',
 
-    'search.placeholder': 'Rechercher patients, médecins, rendez-vous...',
+    'search.placeholder': 'Rechercher un patient ou un médecin...',
+    'search.placeholderPatients': 'Rechercher un patient...',
+    'search.placeholderDoctors': 'Rechercher un médecin...',
     'search.patients': 'Patients',
     'search.doctors': 'Médecins',
     'search.noResults': 'Aucun résultat pour « {query} »',

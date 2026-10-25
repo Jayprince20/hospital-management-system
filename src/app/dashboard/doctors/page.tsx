@@ -119,7 +119,7 @@ export default function DoctorsPage() {
         <PermissionGate permission="doctors:create">
           <Link
             href="/dashboard/doctors/new"
-            className="bg-lime-600 hover:bg-lime-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            className="bg-brand hover:bg-brand-hover text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -386,7 +386,7 @@ export default function DoctorsPage() {
               <PermissionGate permission="doctors:create">
                 <Link
                   href="/dashboard/doctors/new"
-                  className="inline-flex items-center gap-2 bg-lime-600 text-white px-4 py-2 rounded-lg hover:bg-lime-700"
+                  className="inline-flex items-center gap-2 bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-hover"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -417,7 +417,7 @@ export default function DoctorsPage() {
                     onClick={() => setCurrentPage(i + 1)}
                     className={`px-3 py-1 border rounded-lg text-sm ${
                       currentPage === i + 1
-                        ? 'bg-lime-600 text-white border-lime-600'
+                        ? 'bg-brand text-white border-lime-600'
                         : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >

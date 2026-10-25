@@ -146,7 +146,7 @@ export default function PaymentsPage() {
           </fieldset>
           <Link
             href="/dashboard/billing"
-            className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors text-sm"
+            className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors text-sm"
           >
             {t('admin.payments.viewInvoices')}
           </Link>

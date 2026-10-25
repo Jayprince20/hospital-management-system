@@ -228,7 +228,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleProfileSave}
                     disabled={saving}
-                    className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
                   >
                     {saving ? t('form.saving') : t('form.saveChanges')}
                   </button>
@@ -281,7 +281,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handlePasswordChange}
                     disabled={saving || !passwords.currentPassword || !passwords.newPassword}
-                    className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
                   >
                     {saving ? t('settings.changingPassword') : t('settings.changePassword')}
                   </button>
@@ -323,7 +323,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleNotificationsSave}
                     disabled={saving}
-                    className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
                   >
                     {saving ? t('form.saving') : t('settings.savePreferences')}
                   </button>
@@ -410,7 +410,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleSystemSettingsSave}
                     disabled={saving}
-                    className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
                   >
                     {saving ? t('form.saving') : t('settings.saveSettings')}
                   </button>

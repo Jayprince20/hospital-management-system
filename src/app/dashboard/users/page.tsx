@@ -326,7 +326,7 @@ export default function UsersPage() {
         <PermissionGate permission="users:create">
           <button
             onClick={openCreateModal}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -646,7 +646,7 @@ export default function UsersPage() {
           <button type="button" onClick={closeModals} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
             {t('common.cancel')}
           </button>
-          <button type="submit" form="create-user-form" disabled={saving} className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors flex items-center gap-2">
+          <button type="submit" form="create-user-form" disabled={saving} className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 transition-colors flex items-center gap-2">
             {saving && <ButtonSpinner />}
             {saving ? t('form.creating') : t('users.createUser')}
           </button>
@@ -741,7 +741,7 @@ export default function UsersPage() {
           <button type="button" onClick={closeModals} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
             {t('common.cancel')}
           </button>
-          <button type="submit" form="edit-user-form" disabled={saving} className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors flex items-center gap-2">
+          <button type="submit" form="edit-user-form" disabled={saving} className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 transition-colors flex items-center gap-2">
             {saving && <ButtonSpinner />}
             {saving ? t('form.saving') : t('form.saveChanges')}
           </button>
@@ -867,7 +867,7 @@ export default function UsersPage() {
               </button>
             </>
           ) : (
-            <button onClick={closeModals} className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors">
+            <button onClick={closeModals} className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors">
               {t('admin.users.done')}
             </button>
           )}

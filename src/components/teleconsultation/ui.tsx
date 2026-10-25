@@ -103,7 +103,7 @@ export function ControlButton({ label, icon, onClick, off = false, danger = fals
     : off
       ? 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-200'
       : active
-        ? 'bg-lime-600 text-white hover:bg-lime-700'
+        ? 'bg-brand text-white hover:bg-brand-hover'
         : 'bg-gray-700 text-white hover:bg-gray-600';
   return (
     <button type="button" onClick={onClick} disabled={disabled} title={label} aria-label={label} aria-pressed={off || active} className={`relative w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-40 ${tone}`}>

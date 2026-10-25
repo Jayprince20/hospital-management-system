@@ -293,7 +293,7 @@ export function ReceptionistDashboard() {
         <div className="flex flex-wrap gap-3">
           <Link
             href="/dashboard/patients/new"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -398,7 +398,7 @@ export function ReceptionistDashboard() {
                         <button
                           onClick={() => handleCheckIn(apt)}
                           disabled={checkingIn === apt.id}
-                          className="px-3 py-1.5 bg-lime-600 text-white text-xs rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors"
+                          className="px-3 py-1.5 bg-brand text-white text-xs rounded-lg hover:bg-brand-hover disabled:opacity-50 transition-colors"
                         >
                           {checkingIn === apt.id ? t('admin.reception.checkingIn') : t('admin.reception.checkIn')}
                         </button>
@@ -473,7 +473,7 @@ export function ReceptionistDashboard() {
                               setAppointmentForm(prev => ({ ...prev, patientId: patient.id }));
                               setShowAppointmentModal(true);
                             }}
-                            className="px-3 py-1.5 bg-lime-600 text-white text-xs rounded-lg hover:bg-lime-700 transition-colors"
+                            className="px-3 py-1.5 bg-brand text-white text-xs rounded-lg hover:bg-brand-hover transition-colors"
                           >
                             {t('admin.reception.bookAppointment')}
                           </button>
@@ -654,7 +654,7 @@ export function ReceptionistDashboard() {
                 <button
                   type="submit"
                   disabled={submittingAppointment}
-                  className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 transition-colors"
                 >
                   {submittingAppointment ? t('admin.reception.scheduling') : t('admin.reception.scheduleAppointment')}
                 </button>

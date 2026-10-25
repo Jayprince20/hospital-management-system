@@ -46,7 +46,7 @@ export function MarRoundCard() {
       </div>
       <div className="flex items-center gap-3">
         {counts.overdue > 0 && <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{t('inp.round.overdueBadge', { count: counts.overdue })}</span>}
-        <Link href="/dashboard/mar-round" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">{t('inp.round.open')}</Link>
+        <Link href="/dashboard/mar-round" className="px-3 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm">{t('inp.round.open')}</Link>
       </div>
     </div>
   );

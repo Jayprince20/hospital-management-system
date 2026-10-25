@@ -562,7 +562,7 @@ export function NurseDashboard() {
               <button
                 onClick={handleSaveVitals}
                 disabled={savingVitals}
-                className="px-4 py-2 text-sm font-medium text-white bg-lime-600 hover:bg-lime-700 rounded-lg transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-brand hover:bg-brand-hover rounded-lg transition-colors disabled:opacity-50"
               >
                 {savingVitals ? t('clinical.common.saving') : t('clinical.nurseDashboard.saveVitals')}
               </button>

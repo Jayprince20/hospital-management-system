@@ -118,7 +118,7 @@ export default function MarRoundPage() {
                 <td className="px-4 py-3"><DoseBadge status={item.status} /></td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => setTarget({ item, status: 'GIVEN' })} className="px-2.5 py-1 text-xs font-medium rounded-md bg-lime-600 hover:bg-lime-700 text-white">{t('inp.admin.GIVEN')}</button>
+                    <button type="button" onClick={() => setTarget({ item, status: 'GIVEN' })} className="px-2.5 py-1 text-xs font-medium rounded-md bg-brand hover:bg-brand-hover text-white">{t('inp.admin.GIVEN')}</button>
                     <button type="button" onClick={() => setTarget({ item, status: 'REFUSED' })} className="px-2.5 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">{t('inp.round.other')}</button>
                   </div>
                 </td>

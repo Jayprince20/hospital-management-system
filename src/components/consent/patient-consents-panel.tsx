@@ -171,7 +171,7 @@ export function PatientConsentsPanel({ patientId, canRecord }: PatientConsentsPa
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-lime-600 hover:bg-lime-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+              className="px-4 py-2 bg-brand hover:bg-brand-hover disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
             >
               {saving ? t('privacy.record.saving') : t('privacy.record.submit')}
             </button>

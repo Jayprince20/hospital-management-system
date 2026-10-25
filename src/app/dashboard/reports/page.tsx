@@ -467,7 +467,7 @@ export default function ReportsPage() {
             onClick={() => setActiveReport(tab.id)}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
               activeReport === tab.id
-                ? 'bg-lime-600 text-white'
+                ? 'bg-brand text-white'
                 : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
             }`}
           >

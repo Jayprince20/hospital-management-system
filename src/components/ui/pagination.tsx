@@ -109,7 +109,7 @@ export function Pagination({
                 disabled={disabled}
                 className={`min-w-[2.25rem] px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                   page === currentPage
-                    ? 'bg-lime-600 text-white'
+                    ? 'bg-brand text-white'
                     : 'text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
                 aria-label={`Go to page ${page}`}

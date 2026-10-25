@@ -80,7 +80,7 @@ export function LabWorklist() {
                 aria-selected={bucket === b}
                 onClick={() => setBucket(b)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${
-                  bucket === b ? 'bg-lime-600 border-lime-600 text-white' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  bucket === b ? 'bg-brand border-lime-600 text-white' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
               >
                 {t(`labw.bucket.${b}`)} <span className="ml-1 opacity-80">({counts[b] ?? 0})</span>

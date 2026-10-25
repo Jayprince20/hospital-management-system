@@ -433,7 +433,7 @@ function NewLabOrderForm() {
           <button
             type="submit"
             disabled={submitting}
-            className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+            className="px-6 py-2.5 bg-brand hover:bg-brand-hover disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
           >
             {submitting ? t('lab.new.submitting') : t('lab.new.submit')}
           </button>

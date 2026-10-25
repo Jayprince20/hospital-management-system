@@ -170,7 +170,7 @@ export function AttachmentsPanel({
             <div key={u.name} className="mt-3 text-left">
               <p className="text-xs text-gray-600 dark:text-gray-300">{u.name}</p>
               <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded" role="progressbar" aria-valuenow={Math.round(u.progress * 100)} aria-valuemin={0} aria-valuemax={100}>
-                <div className="h-1.5 bg-lime-600 rounded" style={{ width: `${Math.round(u.progress * 100)}%` }} />
+                <div className="h-1.5 bg-brand rounded" style={{ width: `${Math.round(u.progress * 100)}%` }} />
               </div>
             </div>
           ))}

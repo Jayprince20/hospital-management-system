@@ -29,7 +29,7 @@ export const inputClass =
   'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500 focus:border-transparent';
 export const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
 export const cancelBtn = 'px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700';
-export const primaryBtn = 'px-4 py-2 bg-lime-600 hover:bg-lime-700 text-white rounded-lg disabled:opacity-50';
+export const primaryBtn = 'px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg disabled:opacity-50';
 export const dangerBtn = 'px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50';
 export const smallBtn = 'px-2.5 py-1 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50';
 export const cardClass = 'bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700';

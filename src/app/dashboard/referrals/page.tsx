@@ -13,7 +13,7 @@ import { ErrorBox, cardClass, primaryBtn, smallBtn } from '@/components/document
 
 type Tab = 'sent' | 'received' | 'completed';
 
-const smallPrimary = 'px-2.5 py-1 text-xs font-medium rounded-md bg-lime-600 hover:bg-lime-700 text-white disabled:opacity-50';
+const smallPrimary = 'px-2.5 py-1 text-xs font-medium rounded-md bg-brand hover:bg-brand-hover text-white disabled:opacity-50';
 
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;

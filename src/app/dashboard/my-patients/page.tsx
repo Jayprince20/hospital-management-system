@@ -294,7 +294,7 @@ export default function MyPatientsPage() {
                       onClick={() => setCurrentPage(page)}
                       className={`w-10 h-10 text-sm font-medium rounded-lg transition-colors ${
                         currentPage === page
-                          ? 'bg-lime-600 text-white'
+                          ? 'bg-brand text-white'
                           : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                       }`}
                     >

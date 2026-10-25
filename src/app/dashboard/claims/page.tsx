@@ -111,7 +111,7 @@ export default function ClaimsPage() {
           <Link href="/dashboard/receivables" className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
             {t('ins.receivables.title')}
           </Link>
-          <button onClick={openNew} className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700">
+          <button onClick={openNew} className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             {t('ins.claims.new')}
           </button>
@@ -129,7 +129,7 @@ export default function ClaimsPage() {
               <button
                 key={s || 'all'}
                 onClick={() => setStatus(s)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium ${status === s ? 'bg-lime-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium ${status === s ? 'bg-brand text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}
               >
                 {s ? t(`ins.claimStatus.${s}`) : t('ins.claims.allStatuses')}
               </button>
@@ -273,7 +273,7 @@ export default function ClaimsPage() {
             </div>
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
               <button onClick={() => setShowNew(false)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">{t('ins.cancel')}</button>
-              <button onClick={create} disabled={busy || !eligible || selected.size === 0} className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50">
+              <button onClick={create} disabled={busy || !eligible || selected.size === 0} className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50">
                 {t('ins.claims.create')}
               </button>
             </div>

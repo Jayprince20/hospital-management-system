@@ -120,7 +120,7 @@ function ImagingWorklist() {
             role="tab"
             aria-selected={status === s}
             onClick={() => chooseStatus(s)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${status === s ? 'bg-lime-600 border-lime-600 text-white' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${status === s ? 'bg-brand border-lime-600 text-white' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
           >
             {t(`img.tab.${s}`)}
             {s !== 'CANCELLED' && counts[s] !== undefined && <span className="ml-1.5 text-xs opacity-80">({counts[s]})</span>}

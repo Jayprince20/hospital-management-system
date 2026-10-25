@@ -126,7 +126,7 @@ export function FollowUpDialog({
                 role="radio"
                 aria-checked={time === s}
                 onClick={() => setTime(s)}
-                className={`px-3 py-1.5 rounded-md border text-sm tabular-nums ${time === s ? 'border-lime-600 bg-lime-600 text-white' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                className={`px-3 py-1.5 rounded-md border text-sm tabular-nums ${time === s ? 'border-lime-600 bg-brand text-white' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
               >
                 {s}
               </button>

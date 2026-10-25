@@ -198,7 +198,7 @@ export function PatientCoveragePanel({ patientId, canManage }: Props) {
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('ins.coverage.subtitle')}</p>
           </div>
           {canManage && (
-            <button onClick={() => openCoverage('new')} disabled={payers.length === 0} title={payers.length === 0 ? t('ins.coverage.noPayers') : undefined} className="px-3 py-2 text-sm bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50">
+            <button onClick={() => openCoverage('new')} disabled={payers.length === 0} title={payers.length === 0 ? t('ins.coverage.noPayers') : undefined} className="px-3 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50">
               {t('ins.coverage.add')}
             </button>
           )}
@@ -364,7 +364,7 @@ export function PatientCoveragePanel({ patientId, canManage }: Props) {
             </div>
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
               <button onClick={() => setEditing(null)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">{t('ins.cancel')}</button>
-              <button onClick={saveCoverage} disabled={busy} className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50">{busy ? t('ins.saving') : t('ins.save')}</button>
+              <button onClick={saveCoverage} disabled={busy} className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50">{busy ? t('ins.saving') : t('ins.save')}</button>
             </div>
           </div>
         </div>
@@ -431,7 +431,7 @@ export function PatientCoveragePanel({ patientId, canManage }: Props) {
             </div>
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
               <button onClick={() => setDialog(null)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">{t('ins.cancel')}</button>
-              <button onClick={submitPreAuth} disabled={busy} className={`px-4 py-2 text-white rounded-lg disabled:opacity-50 ${dialog.kind === 'reject' ? 'bg-red-600 hover:bg-red-700' : 'bg-lime-600 hover:bg-lime-700'}`}>
+              <button onClick={submitPreAuth} disabled={busy} className={`px-4 py-2 text-white rounded-lg disabled:opacity-50 ${dialog.kind === 'reject' ? 'bg-red-600 hover:bg-red-700' : 'bg-brand hover:bg-brand-hover'}`}>
                 {busy ? t('ins.saving') : dialog.kind === 'request' ? t('ins.preAuth.send') : dialog.kind === 'approve' ? t('ins.preAuth.approve') : t('ins.preAuth.reject')}
               </button>
             </div>

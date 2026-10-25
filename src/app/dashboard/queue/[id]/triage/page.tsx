@@ -335,7 +335,7 @@ export default function TriagePage() {
               <textarea id="triage-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} />
             </div>
             {error && <div className="p-3 bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg text-sm">{error}</div>}
-            <button type="button" onClick={save} disabled={saving || !canTriage} className="w-full px-4 py-2.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg font-medium disabled:opacity-50">
+            <button type="button" onClick={save} disabled={saving || !canTriage} className="w-full px-4 py-2.5 bg-brand hover:bg-brand-hover text-white rounded-lg font-medium disabled:opacity-50">
               {t('q.triage.save')}
             </button>
           </div>

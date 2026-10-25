@@ -340,7 +340,7 @@ export default function EditDoctorPage() {
         <p className="text-red-600 mb-4">{fetchError || t('clinical.doctorDetail.notFound')}</p>
         <Link
           href="/dashboard/doctors"
-          className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700"
+          className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover"
         >
           {t('clinical.doctorDetail.back')}
         </Link>
@@ -381,7 +381,7 @@ export default function EditDoctorPage() {
                   onClick={() => setCurrentStep(step.id)}
                   className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors ${
                     currentStep === step.id
-                      ? 'bg-lime-600 border-lime-600 text-white'
+                      ? 'bg-brand border-lime-600 text-white'
                       : currentStep > step.id
                       ? 'bg-green-500 border-green-500 text-white cursor-pointer'
                       : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 cursor-pointer hover:border-lime-400'
@@ -589,7 +589,7 @@ export default function EditDoctorPage() {
                     <button
                       type="button"
                       onClick={() => addToList('specializations', newSpecialization)}
-                      className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 text-sm font-medium"
+                      className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover text-sm font-medium"
                     >
                       {t('clinical.doctorForm.add')}
                     </button>
@@ -639,7 +639,7 @@ export default function EditDoctorPage() {
                     <button
                       type="button"
                       onClick={() => addToList('qualifications', newQualification)}
-                      className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 text-sm font-medium"
+                      className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover text-sm font-medium"
                     >
                       {t('clinical.doctorForm.add')}
                     </button>
@@ -720,7 +720,7 @@ export default function EditDoctorPage() {
                     <button
                       type="button"
                       onClick={() => addToList('languages', newLanguage)}
-                      className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 text-sm font-medium"
+                      className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover text-sm font-medium"
                     >
                       {t('clinical.doctorForm.add')}
                     </button>
@@ -858,7 +858,7 @@ export default function EditDoctorPage() {
                 <button key="step-next"
                   type="button"
                   onClick={handleNext}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   {t('clinical.common.next')}
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -869,7 +869,7 @@ export default function EditDoctorPage() {
                 <button key="step-submit"
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <>

@@ -86,7 +86,7 @@ export function SwapInbox({ onChanged }: { onChanged?: () => void }) {
                 {describe(s)}
                 <div className="flex gap-2 shrink-0">
                   <button type="button" disabled={busy === s.id} onClick={() => act(s.id, () => api.decideShiftSwap(s.id, false), 'ros.swap.rejectedToast')} className={smallBtn}>{t('ros.swap.reject')}</button>
-                  <button type="button" disabled={busy === s.id} onClick={() => act(s.id, () => api.decideShiftSwap(s.id, true), 'ros.swap.approvedToast')} className="px-2.5 py-1 text-xs font-medium rounded-md bg-lime-600 hover:bg-lime-700 text-white disabled:opacity-50">{t('ros.swap.approve')}</button>
+                  <button type="button" disabled={busy === s.id} onClick={() => act(s.id, () => api.decideShiftSwap(s.id, true), 'ros.swap.approvedToast')} className="px-2.5 py-1 text-xs font-medium rounded-md bg-brand hover:bg-brand-hover text-white disabled:opacity-50">{t('ros.swap.approve')}</button>
                 </div>
               </li>
             ))}
@@ -105,7 +105,7 @@ export function SwapInbox({ onChanged }: { onChanged?: () => void }) {
                 {describe(s)}
                 <div className="flex gap-2 shrink-0">
                   <button type="button" disabled={busy === s.id} onClick={() => act(s.id, () => api.answerShiftSwap(s.id, false), 'ros.swap.declinedToast')} className={smallBtn}>{t('ros.swap.decline')}</button>
-                  <button type="button" disabled={busy === s.id} onClick={() => act(s.id, () => api.answerShiftSwap(s.id, true), 'ros.swap.acceptedToast')} className="px-2.5 py-1 text-xs font-medium rounded-md bg-lime-600 hover:bg-lime-700 text-white disabled:opacity-50">{t('ros.swap.accept')}</button>
+                  <button type="button" disabled={busy === s.id} onClick={() => act(s.id, () => api.answerShiftSwap(s.id, true), 'ros.swap.acceptedToast')} className="px-2.5 py-1 text-xs font-medium rounded-md bg-brand hover:bg-brand-hover text-white disabled:opacity-50">{t('ros.swap.accept')}</button>
                 </div>
               </li>
             ))}

@@ -149,7 +149,7 @@ export default function NewConsultationPage() {
           <p className="text-red-600 dark:text-red-400 mb-4">{error || t('clinical.consultationNew.notFound')}</p>
           <Link
             href="/dashboard/consultations"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -354,7 +354,7 @@ export default function NewConsultationPage() {
           <button
             type="submit"
             disabled={submitting || !formData.chiefComplaint.trim()}
-            className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? t('clinical.common.creating') : t('clinical.consultations.complete')}
           </button>

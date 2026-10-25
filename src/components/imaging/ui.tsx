@@ -50,7 +50,7 @@ export function StatusTimeline({ status }: { status: ImagingOrderStatus }) {
               i < current
                 ? 'bg-lime-100 text-lime-800 dark:bg-lime-900/40 dark:text-lime-300'
                 : i === current
-                  ? 'bg-lime-600 text-white'
+                  ? 'bg-brand text-white'
                   : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
             }`}
             aria-current={i === current ? 'step' : undefined}

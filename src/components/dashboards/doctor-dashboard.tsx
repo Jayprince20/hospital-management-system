@@ -326,7 +326,7 @@ export function DoctorDashboard() {
                       {apt.status === 'CHECKED_IN' && (
                         <Link
                           href={`/dashboard/consultations/new?appointmentId=${apt.id}`}
-                          className="px-3 py-1.5 bg-lime-600 text-white text-sm font-medium rounded-lg hover:bg-lime-700 transition-colors"
+                          className="px-3 py-1.5 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-hover transition-colors"
                         >
                           {t('clinical.consultations.start')}
                         </Link>

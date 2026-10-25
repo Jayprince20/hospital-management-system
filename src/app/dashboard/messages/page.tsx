@@ -387,7 +387,7 @@ export default function MessagesPage() {
           </label>
         </div>
         <div className="mt-3 flex justify-end">
-          <button type="submit" disabled={sendingTest} className="rounded-lg bg-lime-600 px-4 py-2 text-sm font-medium text-white hover:bg-lime-700 disabled:opacity-50">
+          <button type="submit" disabled={sendingTest} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50">
             {t('msg.test.send')}
           </button>
         </div>
@@ -479,7 +479,7 @@ export default function MessagesPage() {
               type="button"
               onClick={retry}
               disabled={retrying}
-              className="rounded-lg bg-lime-600 px-4 py-2 text-sm font-medium text-white hover:bg-lime-700 disabled:opacity-50"
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
             >
               {t('msg.detail.retry')}
             </button>

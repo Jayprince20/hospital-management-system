@@ -38,7 +38,7 @@ export default function DashboardNotFound() {
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link
             href="/dashboard"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-lime-600 text-white font-medium rounded-lg hover:bg-lime-700 transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand text-white font-medium rounded-lg hover:bg-brand-hover transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path

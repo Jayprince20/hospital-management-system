@@ -523,7 +523,7 @@ export default function NewAppointmentPage() {
                     disabled={!canNavigateTo && !isCurrent}
                     className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors ${
                       isCurrent
-                        ? 'bg-lime-600 border-lime-600 text-white'
+                        ? 'bg-brand border-lime-600 text-white'
                         : isCompleted
                         ? 'bg-green-500 border-green-500 text-white cursor-pointer'
                         : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
@@ -958,7 +958,7 @@ export default function NewAppointmentPage() {
                             }}
                             className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
                               isSelected
-                                ? 'bg-lime-600 text-white'
+                                ? 'bg-brand text-white'
                                 : isAvailable
                                 ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-lime-100 dark:hover:bg-lime-900'
                                 : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed line-through'
@@ -1101,7 +1101,7 @@ export default function NewAppointmentPage() {
                 <button key="step-next"
                   type="button"
                   onClick={handleNext}
-                  className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="px-6 py-2.5 bg-brand hover:bg-brand-hover text-white text-sm font-medium rounded-lg transition-colors"
                 >
                   {t('appointmentForm.nextStep')}
                 </button>
@@ -1109,7 +1109,7 @@ export default function NewAppointmentPage() {
                 <button key="step-submit"
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 disabled:bg-lime-400 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center gap-2"
+                  className="px-6 py-2.5 bg-brand hover:bg-brand-hover disabled:bg-lime-400 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center gap-2"
                 >
                   {isSubmitting ? (
                     <>

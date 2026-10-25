@@ -42,7 +42,7 @@ export function TriageQueueCard() {
           <h3 className="font-semibold text-gray-900 dark:text-white">{t('q.dash.triageWaiting')}</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">{t('q.dash.waitingCount', { count: tickets.length })}</p>
         </div>
-        <Link href="/dashboard/queue" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">{t('q.dash.openTriage')}</Link>
+        <Link href="/dashboard/queue" className="px-3 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm">{t('q.dash.openTriage')}</Link>
       </div>
       {tickets.length > 0 && (
         <ul className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -134,7 +134,7 @@ export function DoctorQueueCard() {
         </div>
         <div className="flex gap-2 shrink-0">
           <Link href="/dashboard/queue" className="px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700">{t('q.dash.openQueue')}</Link>
-          <button type="button" onClick={() => setCalling(true)} disabled={!next} className="px-3 py-2 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm disabled:opacity-50">{t('q.callNext')}</button>
+          <button type="button" onClick={() => setCalling(true)} disabled={!next} className="px-3 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm disabled:opacity-50">{t('q.callNext')}</button>
         </div>
       </div>
       {calling && <CallDialog title={t('q.call.nextTitle')} initialRoom={readStored(ROOM_STORAGE_KEY)} onClose={() => setCalling(false)} onConfirm={callNext} />}
@@ -160,7 +160,7 @@ export function MyTicketCard() {
   return (
     <div
       className={`rounded-xl p-5 mb-6 border ${
-        called ? 'bg-lime-600 border-lime-600 text-white' : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700'
+        called ? 'bg-brand border-lime-600 text-white' : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700'
       }`}
       aria-live="polite"
     >

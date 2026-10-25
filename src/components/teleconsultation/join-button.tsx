@@ -32,8 +32,8 @@ export function JoinTeleconsultButton({ appointment, isDoctor, compact = false }
     <Link
       href={`/teleconsultation/${appointment.id}`}
       className={compact
-        ? 'inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md bg-lime-600 hover:bg-lime-700 text-white'
-        : 'inline-flex items-center gap-2 px-4 py-2.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors'}
+        ? 'inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md bg-brand hover:bg-brand-hover text-white'
+        : 'inline-flex items-center gap-2 px-4 py-2.5 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-medium transition-colors'}
     >
       {t('tele.joinAppointment')}
     </Link>

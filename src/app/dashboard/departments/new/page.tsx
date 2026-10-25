@@ -138,7 +138,7 @@ export default function NewDepartmentPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            className="px-6 py-2.5 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
           >
             {isSubmitting ? t('clinical.common.creating') : t('clinical.departments.create')}
           </button>

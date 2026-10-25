@@ -116,7 +116,7 @@ export function MyConsents({ patientId }: { patientId: string }) {
                           type="button"
                           disabled={savingType === type}
                           onClick={() => toggle(type, true)}
-                          className="px-3 py-1.5 rounded-lg bg-lime-600 hover:bg-lime-700 text-white text-xs font-medium disabled:opacity-50"
+                          className="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-hover text-white text-xs font-medium disabled:opacity-50"
                         >
                           {t('privacy.portal.accept')}
                         </button>
@@ -131,7 +131,7 @@ export function MyConsents({ patientId }: { patientId: string }) {
                       disabled={savingType === type}
                       onClick={() => toggle(type, !on)}
                       className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-                        on ? 'bg-lime-600' : 'bg-gray-300 dark:bg-gray-600'
+                        on ? 'bg-brand' : 'bg-gray-300 dark:bg-gray-600'
                       }`}
                     >
                       <span className="sr-only">{on ? t('privacy.portal.on') : t('privacy.portal.off')}</span>
@@ -154,7 +154,7 @@ export function MyConsents({ patientId }: { patientId: string }) {
         <button
           onClick={download}
           disabled={downloading}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 hover:bg-lime-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-brand hover:bg-brand-hover disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

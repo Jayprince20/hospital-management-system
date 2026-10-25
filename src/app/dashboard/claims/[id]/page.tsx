@@ -206,7 +206,7 @@ export default function ClaimDetailPage() {
           {isDraft && (
             <>
               <button onClick={() => setConfirm({ kind: 'delete' })} disabled={busy} className="px-3 py-2 text-sm border border-red-300 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">{t('ins.claim.delete')}</button>
-              <button onClick={() => setConfirm({ kind: 'submit' })} disabled={busy || claim.lines.length === 0} className="px-4 py-2 text-sm bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50">{t('ins.claim.submit')}</button>
+              <button onClick={() => setConfirm({ kind: 'submit' })} disabled={busy || claim.lines.length === 0} className="px-4 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50">{t('ins.claim.submit')}</button>
             </>
           )}
           {canClose && (

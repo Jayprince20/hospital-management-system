@@ -191,7 +191,7 @@ export default function DepartmentsPage() {
         <PermissionGate permission="departments:create">
           <button
             onClick={openCreateModal}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -390,7 +390,7 @@ export default function DepartmentsPage() {
             type="submit"
             form="create-department-form"
             disabled={saving}
-            className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 transition-colors flex items-center gap-2"
           >
             {saving && <ButtonSpinner />}
             {saving ? t('form.creating') : t('departments.create')}
@@ -459,7 +459,7 @@ export default function DepartmentsPage() {
             type="submit"
             form="edit-department-form"
             disabled={saving}
-            className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 transition-colors flex items-center gap-2"
           >
             {saving && <ButtonSpinner />}
             {saving ? t('form.saving') : t('form.saveChanges')}

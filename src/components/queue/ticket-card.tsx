@@ -20,8 +20,8 @@ export function LevelBadge({ level, short = false }: { level: TriageLevel | null
 
 const ACTION_STYLE: Partial<Record<QueueActionName, string>> = {
   triage: 'bg-blue-600 hover:bg-blue-700 text-white',
-  call: 'bg-lime-600 hover:bg-lime-700 text-white',
-  start: 'bg-lime-600 hover:bg-lime-700 text-white',
+  call: 'bg-brand hover:bg-brand-hover text-white',
+  start: 'bg-brand hover:bg-brand-hover text-white',
   complete: 'bg-gray-800 hover:bg-gray-900 text-white dark:bg-gray-600 dark:hover:bg-gray-500',
 };
 

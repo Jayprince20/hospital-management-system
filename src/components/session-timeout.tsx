@@ -120,7 +120,7 @@ export function SessionTimeout() {
         <button type="button" onClick={signOutNow} className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
           {t('security.timeout.logoutNow')}
         </button>
-        <button type="button" onClick={staySignedIn} className="px-4 py-2 text-sm bg-lime-600 hover:bg-lime-700 text-white rounded-lg">
+        <button type="button" onClick={staySignedIn} className="px-4 py-2 text-sm bg-brand hover:bg-brand-hover text-white rounded-lg">
           {t('security.timeout.stay')}
         </button>
       </Modal.Footer>

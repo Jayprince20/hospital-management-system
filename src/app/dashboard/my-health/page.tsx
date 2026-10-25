@@ -821,7 +821,7 @@ function PayInvoices({ patientId, phone, onPaid }: { patientId: string; phone?: 
                 <button
                   type="button"
                   onClick={() => setPaying(inv)}
-                  className="rounded-lg bg-lime-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-lime-700"
+                  className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
                 >
                   {t('pay.portal.payNow')}
                 </button>

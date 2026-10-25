@@ -74,7 +74,7 @@ export function RosterGrid({
                 className={`w-9 min-w-[2.25rem] px-0.5 py-1 text-center border-b border-gray-200 dark:border-gray-700 font-medium ${dayClass(d)} ${d.isToday ? 'text-lime-700 dark:text-lime-400' : 'text-gray-600 dark:text-gray-300'}`}
               >
                 <div className="text-[10px] uppercase">{t(`ros.weekday.${d.weekday}`)}</div>
-                <div className={d.isToday ? 'mx-auto w-6 h-6 leading-6 rounded-full bg-lime-600 text-white' : ''}>{d.day}</div>
+                <div className={d.isToday ? 'mx-auto w-6 h-6 leading-6 rounded-full bg-brand text-white' : ''}>{d.day}</div>
               </th>
             ))}
           </tr>

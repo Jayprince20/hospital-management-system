@@ -55,7 +55,7 @@ function BedTile({
       ) : (
         <div className="mt-auto flex flex-wrap gap-1 pt-2">
           {canAdmit && bed.isActive && (bed.status === 'AVAILABLE' || bed.status === 'RESERVED') && ward.isActive && (
-            <button type="button" onClick={onAdmit} disabled={busy} className="px-2 py-0.5 text-xs font-medium rounded bg-lime-600 hover:bg-lime-700 text-white disabled:opacity-50">
+            <button type="button" onClick={onAdmit} disabled={busy} className="px-2 py-0.5 text-xs font-medium rounded bg-brand hover:bg-brand-hover text-white disabled:opacity-50">
               {t('inp.board.admitHere')}
             </button>
           )}
@@ -160,7 +160,7 @@ export default function WardsPage() {
             </button>
           )}
           {isAdmin && (
-            <button type="button" onClick={() => setDialog({ kind: 'ward', ward: null })} className="px-4 py-2 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm">
+            <button type="button" onClick={() => setDialog({ kind: 'ward', ward: null })} className="px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm">
               + {t('inp.ward.new')}
             </button>
           )}

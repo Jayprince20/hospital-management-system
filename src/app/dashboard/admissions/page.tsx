@@ -81,7 +81,7 @@ export default function AdmissionsPage() {
             {t('inp.list.bedBoard')}
           </Link>
           {canAdmit && (
-            <button type="button" onClick={() => setAdmitting(true)} className="px-4 py-2 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm">
+            <button type="button" onClick={() => setAdmitting(true)} className="px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm">
               + {t('inp.list.admit')}
             </button>
           )}
@@ -96,7 +96,7 @@ export default function AdmissionsPage() {
               type="button"
               aria-pressed={status === s}
               onClick={() => filterChange(() => setStatus(s))}
-              className={`px-3 py-2 text-sm ${status === s ? 'bg-lime-600 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              className={`px-3 py-2 text-sm ${status === s ? 'bg-brand text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               {t(`inp.list.filter.${s}`)}
             </button>

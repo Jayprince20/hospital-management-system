@@ -167,7 +167,7 @@ export function SurveyView({ token }: { token: string }) {
               {problem}
             </p>
           )}
-          <button type="submit" disabled={sending} className="h-14 w-full rounded-xl bg-lime-600 text-lg font-semibold text-white hover:bg-lime-700 disabled:opacity-50">
+          <button type="submit" disabled={sending} className="h-14 w-full rounded-xl bg-brand text-lg font-semibold text-white hover:bg-brand-hover disabled:opacity-50">
             {sending ? t('fb.survey.sending') : t('fb.survey.send')}
           </button>
           <p className="text-xs text-gray-500 dark:text-gray-400">{t('fb.survey.privacy')}</p>

@@ -78,7 +78,7 @@ export default function DepartmentDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center h-96">
         <p className="text-red-600 mb-4">{error || t('clinical.departments.notFound')}</p>
-        <Link href="/dashboard/departments" className="px-4 py-2 bg-lime-600 text-white rounded-lg">
+        <Link href="/dashboard/departments" className="px-4 py-2 bg-brand text-white rounded-lg">
           {t('clinical.departments.backToDepartments')}
         </Link>
       </div>
@@ -310,7 +310,7 @@ export default function DepartmentDetailPage() {
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50"
+                className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
               >
                 {isSaving ? t('clinical.common.saving') : t('clinical.common.save')}
               </button>

@@ -169,7 +169,7 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     onClick={handleImageClick}
-                    className="absolute bottom-0 right-0 w-8 h-8 bg-lime-600 text-white rounded-full flex items-center justify-center hover:bg-lime-700 transition-colors"
+                    className="absolute bottom-0 right-0 w-8 h-8 bg-brand text-white rounded-full flex items-center justify-center hover:bg-brand-hover transition-colors"
                     title={t('admin.profile.changePhoto')}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -333,7 +333,7 @@ export default function ProfilePage() {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 transition-colors"
                 >
                   {isSaving ? t('form.saving') : t('form.saveChanges')}
                 </button>
@@ -342,7 +342,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={() => setIsEditing(true)}
-                className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors"
+                className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
               >
                 {t('admin.profile.editProfile')}
               </button>

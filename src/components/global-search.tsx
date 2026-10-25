@@ -29,6 +29,7 @@ export function GlobalSearch() {
 
   const canSearchPatients = checkPermission('patients:view');
   const canSearchDoctors = checkPermission('doctors:view');
+  const placeholder = t(canSearchPatients && canSearchDoctors ? 'search.placeholder' : canSearchPatients ? 'search.placeholderPatients' : 'search.placeholderDoctors');
   const hasQuery = debouncedQuery.length >= 2;
   const shownPatients = hasQuery ? patients : [];
   const shownDoctors = hasQuery ? doctors : [];
@@ -156,8 +157,8 @@ export function GlobalSearch() {
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={handleKeyDown}
-        placeholder={t('search.placeholder')}
-        aria-label={t('search.placeholder')}
+        placeholder={placeholder}
+        aria-label={placeholder}
         className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-lime-500 focus:border-transparent text-sm"
       />
 

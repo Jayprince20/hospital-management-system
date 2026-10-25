@@ -333,7 +333,7 @@ export function PatientDashboard() {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.patient.upcomingAppointments')}</h2>
             <Link
               href="/dashboard/appointments/new"
-              className="px-3 py-1.5 bg-lime-600 text-white text-sm font-medium rounded-lg hover:bg-lime-700 transition-colors"
+              className="px-3 py-1.5 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-hover transition-colors"
             >
               {t('admin.patient.bookAppointment')}
             </Link>

@@ -357,7 +357,7 @@ export function MobileMoneyPayment({ invoice, isOpen, onClose, onFinished, canSi
               type="submit"
               form="mobile-money-form"
               disabled={busy}
-              className="rounded-lg bg-lime-600 px-4 py-2 font-medium text-white hover:bg-lime-700 disabled:opacity-50"
+              className="rounded-lg bg-brand px-4 py-2 font-medium text-white hover:bg-brand-hover disabled:opacity-50"
             >
               {busy ? t('pay.sending') : t('pay.submit')}
             </button>
@@ -380,7 +380,7 @@ export function MobileMoneyPayment({ invoice, isOpen, onClose, onFinished, canSi
                 {t('pay.failed.retry')}
               </button>
             )}
-            <button type="button" onClick={onClose} className="rounded-lg bg-lime-600 px-4 py-2 font-medium text-white hover:bg-lime-700">
+            <button type="button" onClick={onClose} className="rounded-lg bg-brand px-4 py-2 font-medium text-white hover:bg-brand-hover">
               {t('pay.close')}
             </button>
           </>

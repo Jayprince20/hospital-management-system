@@ -140,7 +140,7 @@ export default function EditAppointmentPage() {
     return (
       <div className="flex flex-col items-center justify-center h-96">
         <p className="text-red-600 mb-4">{error || t('appointmentDetail.notFound')}</p>
-        <Link href="/dashboard/appointments" className="px-4 py-2 bg-lime-600 text-white rounded-lg">
+        <Link href="/dashboard/appointments" className="px-4 py-2 bg-brand text-white rounded-lg">
           {t('appointmentDetail.back')}
         </Link>
       </div>
@@ -343,7 +343,7 @@ export default function EditAppointmentPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            className="px-6 py-2.5 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
           >
             {isSubmitting ? t('appointmentEdit.saving') : t('appointmentEdit.save')}
           </button>

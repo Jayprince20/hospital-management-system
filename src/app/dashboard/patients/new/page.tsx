@@ -317,7 +317,7 @@ export default function AddPatientPage() {
                   disabled={currentStep < step.id}
                   className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors ${
                     currentStep === step.id
-                      ? 'bg-lime-600 border-lime-600 text-white'
+                      ? 'bg-brand border-lime-600 text-white'
                       : currentStep > step.id
                       ? 'bg-green-500 border-green-500 text-white cursor-pointer'
                       : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
@@ -917,7 +917,7 @@ export default function AddPatientPage() {
                 <button key="step-next"
                   type="button"
                   onClick={handleNext}
-                  className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="px-6 py-2.5 bg-brand hover:bg-brand-hover text-white text-sm font-medium rounded-lg transition-colors"
                 >
                   {t('patientForm.nextStep')}
                 </button>
@@ -925,7 +925,7 @@ export default function AddPatientPage() {
                 <button key="step-submit"
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 disabled:bg-lime-400 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center gap-2"
+                  className="px-6 py-2.5 bg-brand hover:bg-brand-hover disabled:bg-lime-400 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center gap-2"
                 >
                   {isSubmitting ? (
                     <>
@@ -1109,7 +1109,7 @@ export default function AddPatientPage() {
             <div className="p-6 border-t border-gray-100 dark:border-gray-700">
               <button
                 onClick={handleCloseSuccessModal}
-                className="w-full py-2.5 px-4 bg-lime-600 hover:bg-lime-700 text-white rounded-lg font-medium transition-colors"
+                className="w-full py-2.5 px-4 bg-brand hover:bg-brand-hover text-white rounded-lg font-medium transition-colors"
               >
                 {t('patientForm.done')}
               </button>

@@ -41,7 +41,7 @@ export function OwnerOnlyNotice() {
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('fam.ownerOnly.title')}</h2>
       <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t('fam.ownerOnly.text')}</p>
       <div className="mt-4 flex justify-center gap-2">
-        <button type="button" onClick={() => setActing(null)} className="rounded-lg bg-lime-600 px-4 py-2 text-sm font-medium text-white hover:bg-lime-700">
+        <button type="button" onClick={() => setActing(null)} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover">
           {t('fam.banner.back')}
         </button>
         <Link href="/dashboard" className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
