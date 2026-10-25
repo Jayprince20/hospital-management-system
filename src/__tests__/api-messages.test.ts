@@ -62,6 +62,12 @@ describe('localizeServerMessage', () => {
     expect(localizeServerMessage('Unknown ICD-10 code: X99.9')).toBe('Code CIM-10 non répertorié : X99.9');
   });
 
+  it('translates the price list messages', () => {
+    for (const message of ['Choose the act from the price list', 'Only an administrator can change a price', 'Give a reason for the price change', 'The price is unchanged', 'Unknown price list item']) {
+      expect(localizeServerMessage(message)).toBe(backendErrorsFr[message]);
+    }
+  });
+
   // One realistic sample per pattern: every pattern must match one of these
   const samples = [
     'Unknown ICD-10 code: X99.9',

@@ -10,19 +10,14 @@ import { MobileMoneyPayment, MobileMoneyReconciliationPanel } from '@/components
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { NoTillBanner, ReceiptReadyBanner, useMyTill } from '@/components/cash-desk/ui';
+import { InvoiceLinesEditor } from '@/components/price-list/invoice-lines';
+import { emptyLine, lineProblem, lineToInput, type InvoiceLineDraft } from '@/lib/price-list';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-interface InvoiceItem {
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  category: 'consultation' | 'medication' | 'lab' | 'procedure' | 'other';
-}
-
 interface InvoiceFormData {
   patientId: string;
-  items: InvoiceItem[];
+  items: InvoiceLineDraft[];
   tax: number;
   discount: number;
   dueDate: string;
@@ -36,14 +31,14 @@ interface PaymentFormData {
   notes: string;
 }
 
-const initialInvoiceForm: InvoiceFormData = {
+const initialInvoiceForm = (): InvoiceFormData => ({
   patientId: '',
-  items: [{ description: '', quantity: 1, unitPrice: 0, category: 'consultation' }],
+  items: [emptyLine()],
   tax: 0,
   discount: 0,
   dueDate: '',
   notes: '',
-};
+});
 
 const initialPaymentForm: PaymentFormData = {
   amount: 0,
@@ -68,6 +63,12 @@ export default function BillingPage() {
   const [payers, setPayers] = useState<Payer[]>([]);
   const [coverageChoice, setCoverageChoice] = useState<CoverageChoice>(initialCoverageChoice);
   const [coveragePreview, setCoveragePreview] = useState<CoveragePreview | null>(null);
+  // Payer whose prices apply: kept when a preview fails (e.g. a price awaiting its reason) so lines don't jump back to list prices
+  const [pricingPayerId, setPricingPayerId] = useState<string | null>(null);
+  const handlePreview = (preview: CoveragePreview | null) => {
+    setCoveragePreview(preview);
+    if (preview) setPricingPayerId(preview.coverage?.payerId ?? null);
+  };
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -186,12 +187,13 @@ export default function BillingPage() {
 
   // Modal handlers
   const openCreateModal = () => {
-    setInvoiceForm(initialInvoiceForm);
+    setInvoiceForm(initialInvoiceForm());
     setSelectedPatient(null);
     setPatientSearch('');
     setPatients([]);
     setCoverageChoice(initialCoverageChoice);
     setCoveragePreview(null);
+    setPricingPayerId(null);
     setError('');
     setShowCreateModal(true);
   };
@@ -222,29 +224,6 @@ export default function BillingPage() {
     setError('');
   };
 
-  // Invoice item handlers
-  const addItem = () => {
-    setInvoiceForm({
-      ...invoiceForm,
-      items: [...invoiceForm.items, { description: '', quantity: 1, unitPrice: 0, category: 'consultation' }],
-    });
-  };
-
-  const removeItem = (index: number) => {
-    if (invoiceForm.items.length > 1) {
-      setInvoiceForm({
-        ...invoiceForm,
-        items: invoiceForm.items.filter((_, i) => i !== index),
-      });
-    }
-  };
-
-  const updateItem = (index: number, field: keyof InvoiceItem, value: string | number) => {
-    const newItems = [...invoiceForm.items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setInvoiceForm({ ...invoiceForm, items: newItems });
-  };
-
   // Calculation helpers
   const calculateSubtotal = () => {
     return invoiceForm.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
@@ -259,6 +238,7 @@ export default function BillingPage() {
     setSelectedPatient(patient);
     setCoverageChoice(initialCoverageChoice);
     setCoveragePreview(null);
+    setPricingPayerId(null);
     setInvoiceForm({ ...invoiceForm, patientId: patient.id });
     setPatients([]);
     setPatientSearch('');
@@ -270,8 +250,14 @@ export default function BillingPage() {
       setError(t('admin.billing.selectPatient'));
       return;
     }
-    if (invoiceForm.items.some(item => !item.description || item.unitPrice <= 0)) {
+    const lines = invoiceForm.items.filter((item) => item.tariff || item.description.trim() || item.unitPrice > 0);
+    if (lines.length === 0) {
       setError(t('admin.billing.fillItems'));
+      return;
+    }
+    const problemIndex = lines.findIndex((item) => lineProblem(item, user?.role));
+    if (problemIndex !== -1) {
+      setError(`${t('pl.lines.lineN', { n: problemIndex + 1 })} ${t(lineProblem(lines[problemIndex], user?.role)!)}`);
       return;
     }
     const coverageFields = coverageRequestFields(coverageChoice);
@@ -285,7 +271,7 @@ export default function BillingPage() {
       setError('');
       await api.createInvoice({
         patientId: invoiceForm.patientId,
-        items: invoiceForm.items,
+        items: lines.map(lineToInput),
         tax: invoiceForm.tax,
         discount: invoiceForm.discount,
         dueDate: invoiceForm.dueDate || undefined,
@@ -623,6 +609,8 @@ export default function BillingPage() {
                       onClick={() => {
                         setSelectedPatient(null);
                         setInvoiceForm({ ...invoiceForm, patientId: '' });
+                        setCoveragePreview(null);
+                        setPricingPayerId(null);
                       }}
                       className="text-gray-400 hover:text-gray-600"
                     >
@@ -665,94 +653,32 @@ export default function BillingPage() {
                 )}
               </div>
 
-              {/* Invoice Items */}
+              {/* Invoice Items: picked from the price list */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     {t('admin.billing.invoiceItems')}
                   </label>
-                  <button
-                    type="button"
-                    onClick={addItem}
-                    className="text-sm text-lime-600 hover:text-lime-800 font-medium"
-                  >
-                    {t('admin.billing.addItem')}
-                  </button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{t('pl.lines.hint')}</span>
                 </div>
-                <div className="space-y-3">
-                  {invoiceForm.items.map((item, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-2 items-start">
-                      <div className="col-span-4">
-                        <input
-                          type="text"
-                          value={item.description}
-                          onChange={(e) => updateItem(index, 'description', e.target.value)}
-                          placeholder={t('admin.billing.description')}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <select
-                          value={item.category}
-                          onChange={(e) => updateItem(index, 'category', e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                        >
-                          {(['consultation', 'medication', 'lab', 'procedure', 'other'] as const).map((cat) => (
-                            <option key={cat} value={cat}>{t(`admin.billing.cat.${cat}`)}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-span-2">
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                          min="1"
-                          placeholder={t('admin.billing.qty')}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <input
-                          type="number"
-                          value={item.unitPrice}
-                          onChange={(e) => updateItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                          min="0"
-                          step="1"
-                          placeholder={t('admin.billing.price')}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                        />
-                      </div>
-                      <div className="col-span-1 text-right text-sm text-gray-700 dark:text-gray-300 py-2">
-                        {formatCurrency(item.quantity * item.unitPrice)}
-                      </div>
-                      <div className="col-span-1 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => removeItem(index)}
-                          disabled={invoiceForm.items.length === 1}
-                          className="p-2 text-red-600 hover:text-red-800 disabled:opacity-30"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <InvoiceLinesEditor
+                  lines={invoiceForm.items}
+                  onChange={(items) => setInvoiceForm((prev) => ({ ...prev, items }))}
+                  payerId={coverageChoice.coverage === 'none' ? null : pricingPayerId}
+                  role={user?.role}
+                />
               </div>
 
               {/* Tiers payant: who pays what */}
               {selectedPatient && (
                 <InvoiceCoveragePanel
                   patientId={selectedPatient.id}
-                  items={invoiceForm.items}
+                  items={invoiceForm.items.filter((item) => item.tariff || item.description.trim()).map(lineToInput)}
                   tax={invoiceForm.tax}
                   discount={invoiceForm.discount}
                   value={coverageChoice}
                   onChange={setCoverageChoice}
-                  onPreview={setCoveragePreview}
+                  onPreview={handlePreview}
                 />
               )}
 

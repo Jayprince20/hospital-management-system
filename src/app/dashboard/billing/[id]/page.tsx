@@ -8,6 +8,8 @@ import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { MobileMoneyPayment, MobileMoneyHistory } from '@/components/payments';
 import { isInsured, patientDue } from '@/lib/insurance';
+import { KindBadge } from '@/components/price-list/ui';
+import { categoryLabel } from '@/lib/price-list';
 import type { InvoiceRefund } from '@/lib/cash-desk';
 import { NoTillBanner, ReceiptReadyBanner, RefundStatusBadge, smallBtn, useCashDeskPdf, useMyTill } from '@/components/cash-desk/ui';
 import { RefundRequestDialog } from '@/components/cash-desk/dialogs';
@@ -402,10 +404,23 @@ export default function BillingDetailPage() {
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {invoice.items.map((item) => (
                     <tr key={item.id}>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{item.description}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 ">{t(`admin.billing.cat.${item.category}`)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                        <span className="inline-flex items-center gap-2 flex-wrap">
+                          {item.tariffKind && <KindBadge kind={item.tariffKind} />}
+                          {item.description}
+                        </span>
+                        {item.listPrice != null && item.listPrice !== item.unitPrice && item.overrideReason && (
+                          <span className="block text-xs text-amber-700 dark:text-amber-400 mt-0.5">{t('pl.invoice.reason', { reason: item.overrideReason })}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 ">{categoryLabel(t, item.category)}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-right">{item.quantity}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-right">{formatCurrency(item.unitPrice)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-right">
+                        {item.listPrice != null && item.listPrice !== item.unitPrice && (
+                          <span className="block text-xs text-gray-400 line-through" title={t('pl.invoice.listPrice')}>{formatCurrency(item.listPrice)}</span>
+                        )}
+                        {formatCurrency(item.unitPrice)}
+                      </td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white text-right">{formatCurrency(item.total)}</td>
                       {insured && (
                         <>

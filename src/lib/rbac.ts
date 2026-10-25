@@ -114,6 +114,10 @@ export type Permission =
   | 'statistics:view'
   | 'statistics:manage'
 
+  // Price list (grille tarifaire): front desk and doctors look prices up, admins change them
+  | 'pricing:view'
+  | 'pricing:manage'
+
   // Reports & Analytics
   | 'reports:view'
   | 'reports:view_own' // Doctor's own performance
@@ -203,6 +207,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'purchasing:manage',
     'cash-desk:operate', 'cash-desk:supervise',
     'statistics:view', 'statistics:manage',
+    'pricing:view', 'pricing:manage',
     'teleconsultation:join',
     'reports:view', 'reports:view_financial', 'reports:view_all', 'reports:export',
     'users:view', 'users:view_all', 'users:create', 'users:edit', 'users:delete', 'users:manage_roles',
@@ -233,6 +238,8 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'reports:view', 'reports:view_own',
     // Official monthly statistics - read only
     'statistics:view',
+    // Price list - read only
+    'pricing:view',
     // Video consultations with own patients
     'teleconsultation:join',
     // Notifications
@@ -271,6 +278,8 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'billing:view', 'billing:view_all', 'billing:create', 'billing:process_payments',
     // Cash desk - own till; approvals and deposits stay with the admin
     'cash-desk:operate',
+    // Price list - read only (invoice lines are picked from it)
+    'pricing:view',
     // Notifications
     'notifications:view', 'notifications:create',
   ],
@@ -683,6 +692,12 @@ export const navigationItems: NavItem[] = [
     permission: 'notifications:view', // All users can view notifications
   },
   {
+    label: 'Price List',
+    href: '/dashboard/price-list',
+    icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z',
+    permission: 'pricing:view', // Grille tarifaire: admin edits, front desk and doctors read
+  },
+  {
     label: 'Clinical Reference',
     href: '/dashboard/settings/clinical',
     icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
@@ -741,6 +756,7 @@ export const routePermissions: Record<string, Permission> = {
   '/dashboard/messages': 'settings:manage_system', // Admin only
   '/dashboard/notifications': 'notifications:view',
   '/dashboard/profile': 'dashboard:view', // All authenticated users can access their profile
+  '/dashboard/price-list': 'pricing:view', // Admin edits; receptionist and doctors read
   '/dashboard/settings/clinical': 'settings:manage_system', // Admin only: clinical reference data
   '/dashboard/settings': 'settings:manage_system', // Admin only
 };
@@ -756,6 +772,7 @@ export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/on-call': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH'],
   '/dashboard/my-patients': ['DOCTOR'],
   '/dashboard/insurers': ['ADMIN', 'RECEPTIONIST'],
+  '/dashboard/price-list': ['ADMIN', 'RECEPTIONIST', 'DOCTOR'],
   '/dashboard/queue': ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR'],
   '/dashboard/wards': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
   '/dashboard/admissions': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST'],

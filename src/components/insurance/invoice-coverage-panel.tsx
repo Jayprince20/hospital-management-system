@@ -48,7 +48,8 @@ export function InvoiceCoveragePanel({ patientId, items, tax, discount, value, o
     return () => { cancelled = true; };
   }, [patientId]);
 
-  const validItems = items.filter((item) => item.description && item.unitPrice > 0);
+  // Price-list lines are priced by the server (acts at 0 FCFA included); free lines need a price
+  const validItems = items.filter((item) => item.tariff || (item.description && (item.unitPrice ?? 0) > 0));
   const itemsKey = JSON.stringify(validItems);
 
   useEffect(() => {

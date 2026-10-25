@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, BillingCategory, Payer, PayerInput, PayerType } from '@/lib/api';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
+import { PayerTariffsDialog } from '@/components/price-list/payer-tariffs';
 
 const PAYER_TYPES: PayerType[] = ['PRIVATE_INSURER', 'CSU', 'MUTUAL', 'EMPLOYER'];
 const CATEGORIES: BillingCategory[] = ['consultation', 'medication', 'lab', 'procedure', 'other'];
@@ -106,6 +107,8 @@ export default function InsurersPage() {
   const [draft, setDraft] = useState<PayerDraft>(emptyDraft());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // Negotiated prices of one payer (price list)
+  const [tariffsFor, setTariffsFor] = useState<Payer | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -203,7 +206,7 @@ export default function InsurersPage() {
                   <th className="px-6 py-3">{t('ins.payer.terms')}</th>
                   <th className="px-6 py-3">{t('ins.payer.insured')}</th>
                   <th className="px-6 py-3">{t('ins.payer.status')}</th>
-                  {canEdit && <th className="px-6 py-3">{t('ins.actions')}</th>}
+                  <th className="px-6 py-3">{t('ins.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -240,16 +243,17 @@ export default function InsurersPage() {
                         {payer.isActive ? t('ins.active') : t('ins.inactive')}
                       </span>
                     </td>
-                    {canEdit && (
-                      <td className="px-6 py-4 text-sm">
-                        <div className="flex gap-3">
-                          <button onClick={() => open(payer)} className="text-lime-600 hover:text-lime-800 font-medium">{t('ins.edit')}</button>
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex flex-wrap gap-3">
+                        {canEdit && <button onClick={() => open(payer)} className="text-lime-600 hover:text-lime-800 font-medium">{t('ins.edit')}</button>}
+                        <button onClick={() => setTariffsFor(payer)} className="text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium">{t('pl.payer.open')}</button>
+                        {canEdit && (
                           <button onClick={() => toggleActive(payer)} className="text-gray-600 hover:text-gray-800 dark:text-gray-400 font-medium">
                             {payer.isActive ? t('ins.deactivate') : t('ins.activate')}
                           </button>
-                        </div>
-                      </td>
-                    )}
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -257,6 +261,8 @@ export default function InsurersPage() {
           </div>
         )}
       </div>
+
+      {tariffsFor && <PayerTariffsDialog payer={tariffsFor} canEdit={canEdit} onClose={() => setTariffsFor(null)} />}
 
       {editing && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

@@ -38,6 +38,17 @@ import type {
   MonthlyReportSummary,
 } from '@/lib/statistics';
 import type { TeleconsultDetail, TeleconsultEventType, TeleconsultListItem, TeleconsultOutcome } from '@/lib/teleconsultation';
+import type {
+  PayerTariff,
+  PayerTariffInput,
+  PriceChangeResponse,
+  ServiceTariffInput,
+  TariffItem,
+  TariffKind,
+  TariffListResponse,
+  TariffRef,
+  TariffSearchItem,
+} from '@/lib/price-list';
 import type { DrugInteraction, FollowUpAppointment, FollowUpType, Icd10Code, MdoAlert, PrescriptionCheck, SafetyAlert, VitalFlag } from '@/lib/clinical-safety';
 
 function getApiUrl(): string {
@@ -1019,6 +1030,11 @@ interface InvoiceItem {
   category: string;
   coveredAmount?: number;
   patientAmount?: number;
+  /** Price list link: list (or payer) price at billing time and why the charged price differs */
+  tariffKind?: TariffKind | null;
+  tariffRef?: string | null;
+  listPrice?: number | null;
+  overrideReason?: string | null;
 }
 
 interface Payment {
@@ -1694,8 +1710,13 @@ type PreAuthAction =
 interface InvoiceItemInput {
   description: string;
   quantity: number;
-  unitPrice: number;
+  /** Omitted for price-list lines charged at their price: the server applies the list or payer price */
+  unitPrice?: number;
   category: string;
+  /** Act picked from the price list; the server fills label, category and price from it */
+  tariff?: TariffRef;
+  /** Required when unitPrice differs from the price-list price */
+  overrideReason?: string;
 }
 
 interface CoveragePreview {
@@ -5983,6 +6004,60 @@ class ApiClient {
 
   async logTeleconsultationEvent(appointmentId: string, type: TeleconsultEventType): Promise<void> {
     await this.request(`/api/teleconsultations/${appointmentId}/events`, { method: 'POST', body: JSON.stringify({ type }) });
+  }
+
+  // ---- Price list (grille tarifaire) ----
+
+  async searchTariffs(params: { q?: string; kind?: TariffKind | ''; payerId?: string | null; limit?: number } = {}): Promise<TariffSearchItem[]> {
+    const query = new URLSearchParams();
+    if (params.q) query.append('q', params.q);
+    if (params.kind) query.append('kind', params.kind);
+    if (params.payerId) query.append('payerId', params.payerId);
+    if (params.limit) query.append('limit', String(params.limit));
+    return this.data<TariffSearchItem[]>(`/api/tariffs/search?${query.toString()}`);
+  }
+
+  async getTariffs(params: { kind?: TariffKind | ''; q?: string; page?: number; limit?: number } = {}): Promise<TariffListResponse> {
+    const query = new URLSearchParams();
+    if (params.kind) query.append('kind', params.kind);
+    if (params.q) query.append('q', params.q);
+    if (params.page) query.append('page', String(params.page));
+    if (params.limit) query.append('limit', String(params.limit));
+    return this.data<TariffListResponse>(`/api/tariffs?${query.toString()}`);
+  }
+
+  async createServiceTariff(input: ServiceTariffInput): Promise<TariffItem> {
+    return this.data<TariffItem>('/api/tariffs', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updateServiceTariff(id: string, input: { label?: string; category?: string; active?: boolean; notes?: string }): Promise<TariffItem> {
+    return this.data<TariffItem>(`/api/tariffs/SERVICE/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  }
+
+  async setTariffPrice(kind: TariffKind, ref: string, input: { price: number; reason?: string }): Promise<TariffItem> {
+    return this.data<TariffItem>(`/api/tariffs/${kind}/${ref}/price`, { method: 'PUT', body: JSON.stringify(input) });
+  }
+
+  async getPriceChanges(params: { kind?: TariffKind | ''; ref?: string; from?: string; to?: string; page?: number } = {}): Promise<PriceChangeResponse> {
+    const query = new URLSearchParams();
+    if (params.kind) query.append('kind', params.kind);
+    if (params.ref) query.append('ref', params.ref);
+    if (params.from) query.append('from', params.from);
+    if (params.to) query.append('to', params.to);
+    if (params.page) query.append('page', String(params.page));
+    return this.data<PriceChangeResponse>(`/api/price-changes?${query.toString()}`);
+  }
+
+  async getPayerTariffs(payerId: string): Promise<PayerTariff[]> {
+    return this.data<PayerTariff[]>(`/api/payers/${payerId}/tariffs`);
+  }
+
+  async savePayerTariff(payerId: string, input: PayerTariffInput): Promise<PayerTariff[]> {
+    return this.data<PayerTariff[]>(`/api/payers/${payerId}/tariffs`, { method: 'PUT', body: JSON.stringify(input) });
+  }
+
+  async deletePayerTariff(payerId: string, tariffId: string): Promise<void> {
+    await this.data(`/api/payers/${payerId}/tariffs/${tariffId}`, { method: 'DELETE' });
   }
 }
 
