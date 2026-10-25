@@ -47,14 +47,25 @@ export function LanguageSwitch({ tone = 'light' }: { tone?: 'light' | 'dark' }) 
  * the right; on small screens a compact brand header above the form. `variant="mfa"` changes
  * the panel's message for the two-factor step.
  */
-export function AuthShell({ children, variant = 'default', topLeft }: { children: ReactNode; variant?: 'default' | 'mfa'; topLeft?: ReactNode }) {
+export function AuthShell({
+  children,
+  variant = 'default',
+  topLeft,
+  wide = false,
+}: {
+  children: ReactNode;
+  variant?: 'default' | 'mfa';
+  topLeft?: ReactNode;
+  /** Wider form area and a narrower brand panel (2FA setup: QR code beside the code entry) */
+  wide?: boolean;
+}) {
   const { t } = useLanguage();
   const headline = variant === 'mfa' ? t('shell.auth.mfaHeadline') : t('shell.auth.headline');
   const intro = variant === 'mfa' ? t('shell.auth.mfaIntro') : t('shell.auth.intro');
   return (
     <div className="min-h-screen bg-canvas dark:bg-gray-950 text-ink dark:text-gray-100 flex flex-col lg:flex-row lg:gap-4 lg:p-4">
       {/* Brand panel (desktop) */}
-      <section aria-label={t('shell.brandName')} className="hidden lg:flex relative flex-1 min-h-[calc(100vh-2rem)] overflow-hidden rounded-[28px] bg-brand p-12 flex-col justify-between text-[#F2F7EE]">
+      <section aria-label={t('shell.brandName')} className={`hidden lg:flex relative min-h-[calc(100vh-2rem)] overflow-hidden rounded-[28px] bg-brand flex-col justify-between text-[#F2F7EE] ${wide ? 'lg:w-[360px] xl:w-[420px] shrink-0 p-10' : 'flex-1 p-12'}`}>
         <span aria-hidden="true" className="absolute -right-[120px] -top-[120px] w-[440px] h-[440px] rounded-full border border-lime-300/20" />
         <span aria-hidden="true" className="absolute -right-10 -top-10 w-[280px] h-[280px] rounded-full border border-lime-300/30" />
         <span aria-hidden="true" className="absolute -left-40 -bottom-52 w-[520px] h-[520px] rounded-full bg-white/[0.04]" />
@@ -77,7 +88,7 @@ export function AuthShell({ children, variant = 'default', topLeft }: { children
           ) : (
             <span className="self-start px-3 py-1.5 rounded-full bg-accent/15 text-lime-200 text-xs font-semibold">{t('shell.auth.tag')}</span>
           )}
-          <h1 className="text-[44px] leading-[1.08] font-extrabold tracking-[-0.03em]">{headline}</h1>
+          <h1 className={`${wide ? 'text-[34px]' : 'text-[44px]'} leading-[1.08] font-extrabold tracking-[-0.03em]`}>{headline}</h1>
           <p className="text-base leading-relaxed text-[#C9DACE]">{intro}</p>
           {variant === 'default' && (
             <ul className="flex flex-col gap-3.5">
@@ -124,8 +135,8 @@ export function AuthShell({ children, variant = 'default', topLeft }: { children
             <ThemeToggle />
           </div>
         </div>
-        <div className="flex-1 flex items-center justify-center py-8">
-          <div className="w-full max-w-[420px]">{children}</div>
+        <div className={`flex-1 flex items-center justify-center ${wide ? 'py-4' : 'py-8'}`}>
+          <div className={`w-full ${wide ? 'max-w-[760px]' : 'max-w-[420px]'}`}>{children}</div>
         </div>
         <p className="text-center text-[13px] text-ink-muted dark:text-gray-400">
           {t('shell.login.help')} <span className="font-semibold text-brand dark:text-lime-400">{t('shell.login.helpDesk')}</span>

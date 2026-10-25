@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
-import { AuthShell, OtpInput, authButtonClass, authErrorClass, authTitleClass } from '@/components/auth/auth-card';
+import { AuthShell, OtpInput, authButtonClass, authErrorClass } from '@/components/auth/auth-card';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
 
@@ -89,37 +89,70 @@ export default function SetupTwoFactorPage() {
 
   const required = MFA_REQUIRED_ROLES.includes(user?.role ?? '');
   const groupedSecret = enrollment?.secret.match(/.{1,4}/g)?.join(' ') ?? '';
-  const card = 'bg-white dark:bg-gray-800 border border-line dark:border-gray-700 rounded-2xl p-5';
-  const stepTitle = 'flex items-center gap-2.5 text-base font-bold text-ink dark:text-white';
-  const stepNumber = 'w-7 h-7 rounded-full bg-brand text-white text-[13px] font-bold flex items-center justify-center shrink-0';
+  const step = recoveryCodes ? 3 : code.length === 6 ? 2 : 1;
+  const card = 'bg-white dark:bg-gray-800 border border-line dark:border-gray-700 rounded-[20px] p-5 sm:p-6';
   const secondary =
-    'h-10 px-3.5 text-sm font-semibold rounded-xl border-[1.5px] border-line dark:border-gray-600 text-ink dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-canvas dark:hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand';
+    'h-10 px-3.5 text-sm font-semibold rounded-xl border-[1.5px] border-line dark:border-gray-600 text-ink dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-canvas dark:hover:bg-gray-700 inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand';
+  const steps = [t('shell.mfa.stepScan'), t('shell.mfa.stepVerify'), t('shell.mfa.stepCodes')];
 
   return (
-    <AuthShell variant="mfa">
+    <AuthShell
+      variant="mfa"
+      wide
+      topLeft={
+        <button type="button" onClick={logout} className="text-sm text-ink-muted dark:text-gray-400 hover:text-ink dark:hover:text-white rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+          {t('security.setup.logout')}
+        </button>
+      }
+    >
       <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-2">
-          <h2 className={authTitleClass}>{t('security.setup.title')}</h2>
-          <p className="text-[15px] leading-relaxed text-ink-muted dark:text-gray-400">
-            {required ? t('security.setup.introRequired') : t('security.setup.introOptional')} {t('security.setup.introApps')}
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-[26px] leading-tight font-extrabold tracking-[-0.02em] text-ink dark:text-white">{t('security.setup.title')}</h2>
+          <p className="text-sm leading-relaxed text-ink-muted dark:text-gray-400">
+            {/* The brand panel already explains why on desktop */}
+            <span className="lg:hidden">{required ? t('security.setup.introRequired') : t('security.setup.introOptional')} </span>
+            {t('security.setup.introApps')}
           </p>
         </div>
 
+        {/* Progress: scan → verify → recovery codes */}
+        <ol className="grid grid-cols-3 gap-2" aria-label={t('shell.mfa.progress')}>
+          {steps.map((label, index) => {
+            const n = index + 1;
+            const done = n < step;
+            const current = n === step;
+            return (
+              <li key={label} aria-current={current ? 'step' : undefined} className="flex flex-col gap-2">
+                <span aria-hidden="true" className={`h-1.5 rounded-full ${done || current ? 'bg-brand dark:bg-lime-400' : 'bg-line dark:bg-gray-700'}`} />
+                <span className={`flex items-center gap-1.5 text-xs font-semibold ${current ? 'text-ink dark:text-white' : 'text-ink-muted dark:text-gray-400'}`}>
+                  <span className={`w-5 h-5 rounded-full text-[11px] flex items-center justify-center ${done ? 'bg-brand text-white' : current ? 'bg-accent text-on-accent' : 'bg-line dark:bg-gray-700 text-ink-muted'}`}>
+                    {done ? (
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    ) : (
+                      n
+                    )}
+                  </span>
+                  {label}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+
         {recoveryCodes ? (
-          <div className={card}>
-            <h3 className={stepTitle}>
-              <span aria-hidden="true" className={stepNumber}>3</span>
-              {t('security.setup.step3Title')}
-            </h3>
-            <p className="mt-1.5 text-sm text-ink-muted dark:text-gray-400">{t('security.setup.step3Hint')}</p>
-            <ul className="mt-4 grid grid-cols-2 gap-2 font-mono text-sm">
+          <div className={`${card} flex flex-col gap-4`}>
+            <div>
+              <h3 className="text-base font-bold text-ink dark:text-white">{t('security.setup.step3Title')}</h3>
+              <p className="mt-1 text-sm text-ink-muted dark:text-gray-400">{t('security.setup.step3Hint')}</p>
+            </div>
+            <ul className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono text-[13px]">
               {recoveryCodes.map((recovery) => (
-                <li key={recovery} className="px-3 py-2 rounded-xl bg-canvas dark:bg-gray-700 text-ink dark:text-white text-center">
+                <li key={recovery} className="px-2 py-2 rounded-xl bg-canvas dark:bg-gray-700 text-ink dark:text-white text-center tracking-wide">
                   {recovery}
                 </li>
               ))}
             </ul>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => copy(recoveryCodes.join('\n'), 'codes')} className={secondary}>
                 {copied === 'codes' ? t('security.setup.copied') : t('security.setup.copyCodes')}
               </button>
@@ -127,24 +160,26 @@ export default function SetupTwoFactorPage() {
                 {t('security.setup.downloadCodes')}
               </button>
             </div>
-            <label className="mt-5 flex items-center gap-2.5 text-sm text-[#2A3830] dark:text-gray-300 cursor-pointer">
-              <input type="checkbox" checked={savedCodes} onChange={(e) => setSavedCodes(e.target.checked)} className="w-[18px] h-[18px] m-0 accent-[#14532D]" />
-              {t('security.setup.savedConfirm')}
-            </label>
-            <button type="button" onClick={finish} disabled={!savedCodes} className={`${authButtonClass} mt-4`}>
-              {t('security.setup.continue')}
-            </button>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1 border-t border-line dark:border-gray-700">
+              <label className="flex-1 flex items-center gap-2.5 pt-3 text-sm text-[#2A3830] dark:text-gray-300 cursor-pointer">
+                <input type="checkbox" checked={savedCodes} onChange={(e) => setSavedCodes(e.target.checked)} className="w-[18px] h-[18px] m-0 accent-[#14532D]" />
+                {t('security.setup.savedConfirm')}
+              </label>
+              <button type="button" onClick={finish} disabled={!savedCodes} className={`${authButtonClass} sm:w-auto sm:px-8 sm:mt-3`}>
+                {t('security.setup.continue')}
+              </button>
+            </div>
           </div>
         ) : (
-          <>
-            <div className={card}>
-              <h3 className={stepTitle}>
-                <span aria-hidden="true" className={stepNumber}>1</span>
-                {t('security.setup.step1Title')}
-              </h3>
-              <p className="mt-1.5 text-sm text-ink-muted dark:text-gray-400">{t('security.setup.step1Hint')}</p>
+          <div className={`${card} grid gap-6 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)]`}>
+            {/* 1. Scan */}
+            <div className="flex flex-col items-center md:items-start gap-3">
+              <div className="text-center md:text-left">
+                <p className="text-sm font-bold text-ink dark:text-white">{t('security.setup.step1Title')}</p>
+                <p className="mt-1 text-xs text-ink-muted dark:text-gray-400">{t('security.setup.step1Hint')}</p>
+              </div>
               {loadError ? (
-                <div className="mt-4 text-sm text-red-700 dark:text-red-400">
+                <div className="text-sm text-red-700 dark:text-red-400">
                   <p>{loadError}</p>
                   <button
                     type="button"
@@ -158,46 +193,42 @@ export default function SetupTwoFactorPage() {
                   </button>
                 </div>
               ) : enrollment ? (
-                <div className="mt-4 flex flex-col items-center gap-4">
+                <>
                   {/* A data URL from the API, so next/image optimisation does not apply */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={enrollment.qrDataUrl} alt={t('security.setup.qrAlt')} width={200} height={200} className="rounded-xl bg-white p-2 border border-line" />
-                  <div className="w-full">
-                    <p className="text-xs text-ink-muted dark:text-gray-400">{t('security.setup.manualLabel')}</p>
-                    <div className="mt-1 flex items-center gap-2">
-                      <code className="flex-1 px-3 py-2 rounded-xl bg-canvas dark:bg-gray-700 text-ink dark:text-white text-sm font-mono break-normal">{groupedSecret}</code>
-                      <button type="button" onClick={() => copy(enrollment.secret, 'secret')} className={secondary}>
+                  <img src={enrollment.qrDataUrl} alt={t('security.setup.qrAlt')} width={184} height={184} className="rounded-2xl bg-white p-2 border border-line" />
+                  <details className="w-full group">
+                    <summary className="cursor-pointer list-none text-xs font-semibold text-brand dark:text-lime-400 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+                      {t('shell.mfa.cantScan')}
+                    </summary>
+                    <div className="mt-2 flex flex-col gap-2">
+                      <code className="px-3 py-2 rounded-xl bg-canvas dark:bg-gray-700 text-ink dark:text-white text-[13px] font-mono leading-relaxed break-normal">{groupedSecret}</code>
+                      <button type="button" onClick={() => copy(enrollment.secret, 'secret')} className={`${secondary} self-start`}>
                         {copied === 'secret' ? t('security.setup.copied') : t('security.setup.copy')}
                       </button>
                     </div>
-                  </div>
-                </div>
+                  </details>
+                </>
               ) : (
-                <p className="mt-4 text-sm text-ink-muted dark:text-gray-400">{t('security.setup.preparing')}</p>
+                <span aria-hidden="true" className="w-[184px] h-[184px] rounded-2xl bg-canvas dark:bg-gray-700 animate-pulse" />
               )}
             </div>
 
-            <form onSubmit={activate} className={`${card} flex flex-col gap-4`}>
-              <h3 className={stepTitle}>
-                <span aria-hidden="true" className={stepNumber}>2</span>
-                {t('security.setup.step2Title')}
-              </h3>
+            {/* 2. Verify */}
+            <form onSubmit={activate} className="flex flex-col gap-4 md:border-l md:border-line md:dark:border-gray-700 md:pl-6">
+              <p className="text-sm font-bold text-ink dark:text-white">{t('security.setup.step2Title')}</p>
               {error && (
                 <div role="alert" className={authErrorClass}>
                   {error}
                 </div>
               )}
-              <OtpInput value={code} onChange={setCode} />
+              <OtpInput value={code} onChange={setCode} autoFocus />
               <button type="submit" disabled={!enrollment || code.length !== 6 || isActivating} className={authButtonClass}>
                 {isActivating ? t('security.setup.activating') : t('security.setup.activate')}
               </button>
             </form>
-          </>
+          </div>
         )}
-
-        <button type="button" onClick={logout} className="self-center text-sm text-ink-muted dark:text-gray-400 hover:text-ink dark:hover:text-white rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-          {t('security.setup.logout')}
-        </button>
       </div>
     </AuthShell>
   );
