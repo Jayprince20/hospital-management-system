@@ -2978,7 +2978,7 @@ interface FeedbackSummary {
   averages: FeedbackAverages;
   nps: { score: number | null; promoters: number; passives: number; detractors: number };
   byDepartment: Array<{ department: string; departmentId?: string; responses: number; overall: number | null; nps: number | null }>;
-  byDoctor?: Array<{ doctor: string; doctorId?: string; responses: number; overall: number | null; nps: number | null }>;
+  byDoctor?: Array<{ doctorName: string; doctorId?: string; responses: number; overall: number | null; nps: number | null }>;
   complaints: { open: number; resolved: number; byCategory: Record<string, number> };
   trend: Array<{ week: string; responses: number; overall: number | null }>;
 }

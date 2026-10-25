@@ -207,9 +207,9 @@ function SummaryView({ summary, showDoctors }: { summary: FeedbackSummary; showD
         </div>
       </div>
 
-      <BreakdownTable title={t('fb.staff.byDepartment')} label={t('fb.staff.department')} rows={summary.byDepartment.map((r) => ({ name: r.department, responses: r.responses, overall: r.overall, nps: r.nps }))} />
+      <BreakdownTable title={t('fb.staff.byDepartment')} label={t('fb.staff.department')} rows={summary.byDepartment.map((r, i) => ({ id: r.departmentId ?? `dept-${i}`, name: r.department, responses: r.responses, overall: r.overall, nps: r.nps }))} />
       {showDoctors && summary.byDoctor && summary.byDoctor.length > 0 && (
-        <BreakdownTable title={t('fb.staff.byDoctor')} label={t('fb.staff.doctor')} rows={summary.byDoctor.map((r) => ({ name: r.doctor, responses: r.responses, overall: r.overall, nps: r.nps }))} />
+        <BreakdownTable title={t('fb.staff.byDoctor')} label={t('fb.staff.doctor')} rows={summary.byDoctor.map((r, i) => ({ id: r.doctorId ?? `doc-${i}`, name: r.doctorName, responses: r.responses, overall: r.overall, nps: r.nps }))} />
       )}
     </div>
   );
@@ -225,7 +225,7 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-function BreakdownTable({ title, label, rows }: { title: string; label: string; rows: Array<{ name: string; responses: number; overall: number | null; nps: number | null }> }) {
+function BreakdownTable({ title, label, rows }: { title: string; label: string; rows: Array<{ id: string; name: string; responses: number; overall: number | null; nps: number | null }> }) {
   const { t } = useLanguage();
   if (rows.length === 0) return null;
   return (
@@ -242,7 +242,7 @@ function BreakdownTable({ title, label, rows }: { title: string; label: string; 
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
           {rows.map((r) => (
-            <tr key={r.name}>
+            <tr key={r.id}>
               <td className="px-4 py-2 text-gray-900 dark:text-white">{r.name}</td>
               <td className="px-4 py-2 text-right text-gray-700 dark:text-gray-300">{r.responses}</td>
               <td className="px-4 py-2 text-right text-gray-700 dark:text-gray-300">{r.overall === null ? '—' : r.overall.toFixed(1).replace('.', ',')}</td>
