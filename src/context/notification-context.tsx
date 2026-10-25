@@ -23,6 +23,23 @@ export type NotificationType =
   | 'system'
   | 'promotion';
 
+const KNOWN_TYPES: readonly NotificationType[] = ['appointment', 'lab_result', 'payment', 'prescription', 'system', 'promotion'];
+
+// Backend services emit more specific types (lab_critical, cash-desk, roster…);
+// map them onto the display families so styling lookups never miss.
+const TYPE_ALIASES: Record<string, NotificationType> = {
+  lab_critical: 'lab_result',
+  imaging_critical: 'lab_result',
+  imaging_result: 'lab_result',
+  'cash-desk': 'payment',
+};
+
+export function notificationKind(type: string | null | undefined): NotificationType {
+  if (!type) return 'system';
+  if ((KNOWN_TYPES as readonly string[]).includes(type)) return type as NotificationType;
+  return TYPE_ALIASES[type] ?? 'system';
+}
+
 export interface Notification {
   id: string;
   userId: string;
@@ -125,6 +142,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
+  const notificationsRef = useRef<Notification[]>([]);
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
 
   const hasInitialized = useRef(false);
@@ -214,7 +235,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   // Handle new notification from socket
   const handleNewNotification = useCallback(
     (notification: Notification) => {
-      setNotifications((prev) => [notification, ...prev]);
+      // A reconnect sync replays stored notifications: ignore the ones already listed
+      if (notificationsRef.current.some((n) => n.id === notification.id)) return;
+      notificationsRef.current = [notification, ...notificationsRef.current];
+      setNotifications((prev) => (prev.some((n) => n.id === notification.id) ? prev : [notification, ...prev]));
       setUnreadCount((prev) => prev + 1);
 
       // Show toast if enabled
@@ -279,8 +303,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       on<{ count: number }>(ServerEvents.NOTIFICATION_UNREAD_COUNT, handleUnreadCount),
     ];
 
-    // Sync notifications on connect
-    emit(ClientEvents.NOTIFICATIONS_SYNC, { lastSyncTimestamp: notifications[0]?.createdAt });
+    // Catch up on what arrived while disconnected. Before the first fetch there is
+    // nothing to catch up from (the REST fetch loads the list), so don't replay it all.
+    const latest = notificationsRef.current[0]?.createdAt;
+    if (latest) emit(ClientEvents.NOTIFICATIONS_SYNC, { lastSyncTimestamp: latest });
 
     return () => {
       cleanups.forEach((cleanup) => cleanup());
@@ -294,7 +320,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     handleNotificationDeleted,
     handleAllRead,
     handleUnreadCount,
-    notifications,
   ]);
 
   // Mark as read

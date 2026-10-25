@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useNotifications, Notification, NotificationType } from '@/context/notification-context';
+import { useNotifications, Notification, NotificationType, notificationKind } from '@/context/notification-context';
 import Link from 'next/link';
 import { useLanguage } from '@/context/language-context';
 
@@ -81,8 +81,8 @@ function NotificationItem({
       }`}
     >
       <div className="flex gap-3">
-        <div className={`flex-shrink-0 p-2 rounded-full ${typeColors[notification.type]}`}>
-          {typeIcons[notification.type]}
+        <div className={`flex-shrink-0 p-2 rounded-full ${typeColors[notificationKind(notification.type)]}`}>
+          {typeIcons[notificationKind(notification.type)]}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
