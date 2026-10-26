@@ -72,6 +72,7 @@ const navTranslationKeys: Record<string, string> = {
   'Official Statistics': 'nav.statistics',
   'Price List': 'nav.priceList',
   'Clinical Reference': 'nav.clinicalReference',
+  'FHIR Interoperability': 'nav.fhir',
   'Insurers': 'nav.insurers',
   'Claims': 'nav.claims',
   'Receivables': 'nav.receivables',

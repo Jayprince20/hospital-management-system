@@ -85,6 +85,7 @@ import type {
 } from '@/lib/price-list';
 import type { BayState, EdArrivalInput, EdBayInput, EdBoard, EdDailyStats, EdDispositionInput, EdEncounterDetail, EdEncounterPatch } from '@/lib/emergency';
 import { toQcSeries } from '@/lib/lab-qc';
+import type { CapabilityStatementLike, FhirClient, FhirClientCreated, FhirUsageEntry } from '@/lib/fhir';
 import type {
   InstrumentMessage,
   InstrumentMessageStatus,
@@ -6417,6 +6418,40 @@ class ApiClient {
 
   async getQcStatus(date?: string): Promise<QcStatusEntry[]> {
     return this.list<QcStatusEntry>(`/api/lab/qc/status${date ? `?date=${encodeURIComponent(date)}` : ''}`);
+  }
+
+  // ---------- FHIR administration ----------
+
+  /** Origin of the API (the FHIR base is `<origin>/fhir`) */
+  getApiOrigin(): string {
+    return this.baseUrl;
+  }
+
+  /** The public CapabilityStatement (no auth, FHIR JSON — not the app envelope) */
+  async getFhirCapability(): Promise<CapabilityStatementLike> {
+    const res = await fetch(`${this.baseUrl}/fhir/metadata`, { headers: { Accept: 'application/fhir+json' } });
+    if (!res.ok) throw new Error(`FHIR metadata: HTTP ${res.status}`);
+    return (await res.json()) as CapabilityStatementLike;
+  }
+
+  async getFhirClients(): Promise<FhirClient[]> {
+    return this.list<FhirClient>('/api/fhir-clients');
+  }
+
+  async createFhirClient(input: { name: string; scopes: string[] }): Promise<FhirClientCreated> {
+    return this.data<FhirClientCreated>('/api/fhir-clients', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updateFhirClient(id: string, patch: { name?: string; scopes?: string[]; active?: boolean }): Promise<FhirClient> {
+    return this.data<FhirClient>(`/api/fhir-clients/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
+  async rotateFhirClientSecret(id: string): Promise<{ clientSecret: string }> {
+    return this.data<{ clientSecret: string }>(`/api/fhir-clients/${id}/rotate-secret`, { method: 'POST' });
+  }
+
+  async getFhirUsage(limit = 20): Promise<FhirUsageEntry[]> {
+    return this.list<FhirUsageEntry>(`/api/fhir-clients/usage?limit=${limit}`);
   }
 }
 

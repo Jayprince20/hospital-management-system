@@ -812,6 +812,13 @@ export const navigationItems: NavItem[] = [
     permission: 'settings:manage_system', // Admin only: ICD-10 codes and drug interactions (read-only)
   },
   {
+    label: 'FHIR Interoperability',
+    href: '/dashboard/settings/fhir',
+    group: 'admin',
+    icon: 'M8 9l-3 3 3 3m8-6l3 3-3 3M13 5l-2 14',
+    permission: 'settings:manage_system', // Admin only: FHIR endpoint and partner clients
+  },
+  {
     label: 'Settings',
     href: '/dashboard/settings',
     group: 'admin',
@@ -873,6 +880,7 @@ export const routePermissions: Record<string, Permission> = {
   '/dashboard/profile': 'dashboard:view', // All authenticated users can access their profile
   '/dashboard/price-list': 'pricing:view', // Admin edits; receptionist and doctors read
   '/dashboard/settings/clinical': 'settings:manage_system', // Admin only: clinical reference data
+  '/dashboard/settings/fhir': 'settings:manage_system', // Admin only: FHIR clients (secrets)
   '/dashboard/settings': 'settings:manage_system', // Admin only
 };
 
@@ -887,6 +895,7 @@ export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/on-call': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH'],
   '/dashboard/my-patients': ['DOCTOR'],
   '/dashboard/laboratory/qc': ['ADMIN', 'LAB_TECH', 'DOCTOR'],
+  '/dashboard/settings/fhir': ['ADMIN'],
   '/dashboard/laboratory/instruments': ['ADMIN', 'LAB_TECH'],
   '/dashboard/insurers': ['ADMIN', 'RECEPTIONIST'],
   '/dashboard/price-list': ['ADMIN', 'RECEPTIONIST', 'DOCTOR'],
