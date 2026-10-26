@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api, type ImagingOrder } from '@/lib/api';
 import { useLanguage } from '@/context/language-context';
+import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/components/toast';
 import { DICOM_UPLOAD_ACCEPT, dicomFileProblem, formatPersonName, type DicomStudySummary, type DicomUploadResult } from '@/lib/dicom';
 import { cardClass, messageOf, primaryBtn, smallBtn } from '@/components/imaging/ui';
@@ -24,6 +25,9 @@ export function DicomPanel({
   onChanged?: () => void;
 }) {
   const { t, formatDate } = useLanguage();
+  const { user } = useAuth();
+  // Removing a study (soft delete, with a reason) is for the administration only
+  const canRemove = user?.role === 'ADMIN';
   const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [studies, setStudies] = useState<DicomStudySummary[] | null>(null);
@@ -126,7 +130,7 @@ export function DicomPanel({
                   })}
                 </p>
               </div>
-              {canUpload && (
+              {canRemove && (
                 <button type="button" onClick={() => void remove(s)} disabled={busy === s.id} className={`${smallBtn} text-red-600 dark:text-red-400`}>{t('dicom.delete')}</button>
               )}
             </div>
