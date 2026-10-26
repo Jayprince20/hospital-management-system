@@ -219,3 +219,27 @@ describe('translations', () => {
     for (const s of Object.keys(VACCINE_STATUS_STYLE)) expect(extraTranslations.fr[`mc.vax.status.${s}`]).toBeTruthy();
   });
 });
+
+describe('maternal & child pages access', () => {
+  it('lets nurses (no patients:view) into the EPI session and the ANC caseload', async () => {
+    const { canAccessRoute } = await import('@/lib/rbac');
+    expect(canAccessRoute('NURSE', '/dashboard/vaccination')).toBe(true);
+    expect(canAccessRoute('NURSE', '/dashboard/antenatal')).toBe(true);
+    expect(canAccessRoute('RECEPTIONIST', '/dashboard/vaccination')).toBe(true);
+    expect(canAccessRoute('RECEPTIONIST', '/dashboard/antenatal')).toBe(false);
+    expect(canAccessRoute('PHARMACIST', '/dashboard/vaccination')).toBe(false);
+    expect(canAccessRoute('PATIENT', '/dashboard/antenatal')).toBe(false);
+  });
+});
+
+describe('next antenatal appointment', () => {
+  it('suggests the WHO contact after the one being recorded', async () => {
+    const { nextAncVisitDate } = await import('@/lib/maternal-child');
+    // EDD 30 Jan 2027: 26 w = 24 Oct, 30 w = 21 Nov 2026
+    expect(nextAncVisitDate('2027-01-30', '2026-10-26')).toBe('2026-11-21');
+    expect(nextAncVisitDate('2027-01-30', '2026-10-20')).toBe('2026-11-21');
+    expect(nextAncVisitDate('2027-01-30', '2026-10-10')).toBe('2026-10-24');
+    // At 40 weeks: one week later
+    expect(nextAncVisitDate('2027-01-30', '2027-01-30')).toBe('2027-02-06');
+  });
+});

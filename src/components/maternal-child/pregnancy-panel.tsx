@@ -23,9 +23,11 @@ export function PregnancyPanel({ patient, readOnly = false }: { patient: MchPati
   const load = useCallback(async () => {
     try {
       const pregnancies = await api.getPregnancies(patient.id);
-      setList(pregnancies);
       const ongoing = pregnancies.find((p) => p.status === 'ONGOING');
-      setCurrent(ongoing ? await api.getPregnancy(ongoing.id) : null);
+      // Set both together: the list alone would flash "no ongoing pregnancy" while the detail loads
+      const detail = ongoing ? await api.getPregnancy(ongoing.id) : null;
+      setList(pregnancies);
+      setCurrent(detail);
       setError('');
     } catch (err) {
       setError(messageOf(err, t('mc.preg.loadFailed')));

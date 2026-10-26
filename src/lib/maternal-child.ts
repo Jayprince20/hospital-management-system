@@ -107,6 +107,25 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((parseDay(to) - parseDay(from)) / DAY_MS);
 }
 
+/** WHO 2016 antenatal contacts (weeks of gestation) */
+export const ANC_CONTACT_WEEKS = [12, 20, 26, 30, 34, 36, 38, 40];
+
+/**
+ * Suggested next appointment after a visit on `visitDate`: the next WHO contact at least a week
+ * later (dated from the EDD), else one week later near term.
+ */
+export function nextAncVisitDate(edd: string, visitDate: string): string {
+  const eddDay = parseDay(edd);
+  const visitDay = parseDay(visitDate);
+  if (Number.isNaN(eddDay) || Number.isNaN(visitDay)) return '';
+  const toDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  for (const week of ANC_CONTACT_WEEKS) {
+    const target = eddDay - (280 - week * 7) * DAY_MS;
+    if (target - visitDay >= 7 * DAY_MS) return toDay(target);
+  }
+  return toDay(visitDay + 7 * DAY_MS);
+}
+
 /** Age bucket of a schedule visit: "birth", weeks under 4 months, months under 2 years, else years */
 export type AgeGroupKey = { unit: 'birth' | 'weeks' | 'months' | 'years'; n: number };
 

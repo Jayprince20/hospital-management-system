@@ -13,6 +13,7 @@ import {
   SCREENING_STATUSES,
   numOrUndef,
   todayString,
+  nextAncVisitDate,
   type AntenatalVisit,
   type AntenatalVisitInput,
   type DeliveryMode,
@@ -161,7 +162,7 @@ export function OpenPregnancyDialog({ patientId, onClose, onSaved }: { patientId
 
 /** One antenatal contact: examination, tests and preventive care given */
 export function VisitDialog({ pregnancy, onClose, onSaved }: { pregnancy: PregnancyDetail; onClose: () => void; onSaved: (v: AntenatalVisit) => void }) {
-  const { t } = useLanguage();
+  const { t, formatDate } = useLanguage();
   const [f, setF] = useState({
     visitDate: todayString(),
     weightKg: '',
@@ -177,7 +178,8 @@ export function VisitDialog({ pregnancy, onClose, onSaved }: { pregnancy: Pregna
     tdDose: '',
     complaints: '',
     plan: '',
-    nextVisitDate: pregnancy.nextContact?.targetDate?.slice(0, 10) ?? '',
+    // This visit is usually the pending contact itself: suggest the one after it
+    nextVisitDate: nextAncVisitDate(pregnancy.edd, todayString()),
   });
   const [movements, setMovements] = useState<boolean | null>(null);
   const [oedema, setOedema] = useState<boolean | null>(null);
@@ -227,7 +229,7 @@ export function VisitDialog({ pregnancy, onClose, onSaved }: { pregnancy: Pregna
   return (
     <DialogShell
       title={t('mc.preg.visitTitle')}
-      subtitle={pregnancy.nextContact ? t('mc.preg.nextContactValue', { n: pregnancy.nextContact.number, week: pregnancy.nextContact.targetWeek, date: pregnancy.nextContact.targetDate.slice(0, 10) }) : undefined}
+      subtitle={pregnancy.nextContact ? t('mc.preg.nextContactValue', { n: pregnancy.nextContact.number, week: pregnancy.nextContact.targetWeek, date: formatDate(`${pregnancy.nextContact.targetDate.slice(0, 10)}T12:00:00`) }) : undefined}
       onClose={onClose}
       wide
       footer={<Footer busy={busy} onClose={onClose} onSave={save} disabled={!f.visitDate} />}
@@ -318,6 +320,18 @@ export function ClosePregnancyDialog({ pregnancy, onClose, onSaved }: { pregnanc
     setBusy(true);
     setError('');
     try {
+      // The newborn is entered by record number (PAT-…) or name; the API wants the patient's id
+      let babyId: string | undefined;
+      const wanted = babyPatientId.trim();
+      if (delivered && wanted) {
+        const found = (await api.getPatients({ search: wanted, limit: 5 })).data;
+        const baby = found.find((p) => p.patientId?.toLowerCase() === wanted.toLowerCase()) ?? (found.length === 1 ? found[0] : undefined);
+        if (!baby) {
+          setError(t('mc.preg.babyNotFound'));
+          return;
+        }
+        babyId = baby.id;
+      }
       onSaved(
         await api.updatePregnancy(pregnancy.id, {
           status,
@@ -325,7 +339,7 @@ export function ClosePregnancyDialog({ pregnancy, onClose, onSaved }: { pregnanc
           closedOn,
           deliveryDate: delivered ? closedOn : undefined,
           deliveryMode: delivered ? deliveryMode : undefined,
-          babyPatientId: delivered && babyPatientId.trim() ? babyPatientId.trim() : undefined,
+          babyPatientId: babyId,
         })
       );
     } catch (err) {
