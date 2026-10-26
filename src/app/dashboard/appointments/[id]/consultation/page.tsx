@@ -15,6 +15,7 @@ import { FollowUpDialog, FollowUpSummary } from '@/components/clinical-safety/fo
 import { PatientAttachmentsPanel, ProblemListPanel, SaveAsTemplateDialog, TemplatePickerDialog, TemplateSuggestionsPanel, type SuggestedRxItem } from '@/components/clinical-docs';
 import { mergeTemplate, type ConsultationTemplate, type TemplateSuggestions } from '@/lib/clinical-docs';
 import { todayString } from '@/lib/maternal-child';
+import { useOnlineOnly } from '@/components/offline/connectivity-indicator';
 import {
   canSubmitPrescription,
   diagnosesFromArrays,
@@ -54,6 +55,7 @@ interface LabOrderItem {
 }
 
 export default function ConsultationPage() {
+  const onlineOnly = useOnlineOnly();
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
@@ -442,7 +444,8 @@ export default function ConsultationPage() {
           </button>
           <button
             onClick={handleSaveConsultation}
-            disabled={saving || !consultationForm.chiefComplaint}
+            disabled={saving || !consultationForm.chiefComplaint || onlineOnly.offline}
+            title={onlineOnly.hint}
             className="bg-brand text-white px-6 py-2 rounded-lg hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {saving && (

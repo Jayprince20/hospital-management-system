@@ -10,6 +10,8 @@ import { TableSkeleton } from '@/components/ui';
 import { useLanguage } from '@/context/language-context';
 import { VitalFlagBadges, bpValueClass, vitalValueClass } from '@/components/clinical-safety/vitals';
 import { isCriticalFlag } from '@/lib/clinical-safety';
+import { usePendingWrites } from '@/context/offline-context';
+import { PendingSyncBadge } from '@/components/offline/connectivity-indicator';
 
 interface VitalsFormData {
   patientId: string;
@@ -44,6 +46,7 @@ export default function VitalsPage() {
 
   // Data state
   const [vitals, setVitals] = useState<VitalSign[]>([]);
+  const pendingVitals = usePendingWrites('vitals');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [stats, setStats] = useState({ patients: 0, today: 0, thisWeek: 0 });
   const [loading, setLoading] = useState(true);
@@ -418,7 +421,27 @@ export default function VitalsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {vitals.length === 0 ? (
+                {/* Entered offline, not on the server yet */}
+                {pendingVitals.map((item) => {
+                  const b = (item.body ?? {}) as Record<string, number | string | undefined>;
+                  const p = patients.find((x) => x.id === b.patientId);
+                  return (
+                    <tr key={item.key} className="bg-amber-50/60 dark:bg-amber-900/10">
+                      <td className="px-4 py-3">
+                        <span className="font-medium text-gray-900 dark:text-white">{p ? `${p.firstName} ${p.lastName}` : t('clinical.common.unknown')}</span>
+                        <div className="mt-1"><PendingSyncBadge /></div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{formatDate(new Date(item.createdAt).toISOString())}</td>
+                      <td className="px-4 py-3">{b.bloodPressureSys && b.bloodPressureDia ? `${b.bloodPressureSys}/${b.bloodPressureDia} mmHg` : '-'}</td>
+                      <td className="px-4 py-3">{b.heartRate ? `${b.heartRate} ${t('clinical.vitals.bpm')}` : '-'}</td>
+                      <td className="px-4 py-3">{b.temperature ? `${b.temperature}°C` : '-'}</td>
+                      <td className="px-4 py-3">{b.oxygenSaturation ? `${b.oxygenSaturation}%` : '-'}</td>
+                      <td className="px-4 py-3 text-gray-400">-</td>
+                      <td className="px-4 py-3" />
+                    </tr>
+                  );
+                })}
+                {vitals.length === 0 && pendingVitals.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                       <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

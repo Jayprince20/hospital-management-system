@@ -8,6 +8,7 @@ import { NotificationBell } from '@/components/notifications';
 import { GlobalSearch } from '@/components/global-search';
 import { ProfileSwitcher } from '@/components/family';
 import { OnCallButton } from '@/components/rosters/on-call';
+import { ConnectivityIndicator } from '@/components/offline/connectivity-indicator';
 import { useActingPatient } from '@/context/acting-patient-context';
 
 export function Header() {
@@ -39,6 +40,9 @@ export function Header() {
             <LanguageToggle />
             <ThemeToggle />
           </span>
+
+          {/* Online / offline / entries waiting to sync */}
+          <ConnectivityIndicator />
 
           {/* Who is on call now (staff only) */}
           <OnCallButton />

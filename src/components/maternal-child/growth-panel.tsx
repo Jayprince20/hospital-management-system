@@ -6,6 +6,8 @@ import { useLanguage } from '@/context/language-context';
 import { useToast } from '@/components/toast';
 import { ConfirmModal } from '@/components/confirm-modal';
 import { usePolling } from '@/components/inpatient/ui';
+import { usePendingWrites } from '@/context/offline-context';
+import { PendingSyncBadge } from '@/components/offline/connectivity-indicator';
 import {
   GROWTH_INDICATORS,
   chartMeasurements,
@@ -35,6 +37,8 @@ export function GrowthPanel({ patient, readOnly = false }: { patient: MchPatient
   const [data, setData] = useState<GrowthOverview | null>(null);
   const [error, setError] = useState('');
   const [indicator, setIndicator] = useState<GrowthIndicator | null>(null);
+  // Measurements entered offline (z-scores are computed by the server on sync)
+  const pendingPoints = usePendingWrites('growth', patient.id);
   const [references, setReferences] = useState<Record<string, GrowthReference | null>>({});
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<GrowthPoint | null>(null);
@@ -161,7 +165,7 @@ export function GrowthPanel({ patient, readOnly = false }: { patient: MchPatient
       {data && (
         <section className={`${cardClass} p-5`} aria-labelledby="mc-growth-history">
           <h3 id="mc-growth-history" className="text-base font-semibold text-gray-900 dark:text-white mb-3">{t('mc.growth.history')}</h3>
-          {measurements.length === 0 ? (
+          {measurements.length === 0 && pendingPoints.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('mc.growth.none')}</p>
           ) : (
             <div className="overflow-x-auto -mx-5 px-5">
@@ -180,6 +184,22 @@ export function GrowthPanel({ patient, readOnly = false }: { patient: MchPatient
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {pendingPoints.map((p) => {
+                    const b = (p.body ?? {}) as Record<string, string | number | undefined>;
+                    return (
+                      <tr key={p.key} className="bg-amber-50/60 dark:bg-amber-900/10 text-gray-900 dark:text-gray-100">
+                        <td className="py-2 pr-3 whitespace-nowrap">{b.measuredOn ? day(String(b.measuredOn)) : '—'}</td>
+                        <td className="py-2 pr-3">—</td>
+                        <td className="py-2 pr-3 text-right tabular-nums">{b.weightKg != null ? decimals(Number(b.weightKg)) : '—'}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums">{b.lengthHeightCm != null ? decimals(Number(b.lengthHeightCm)) : '—'}</td>
+                        {Z_KEYS.map((k) => (
+                          <td key={k} className="py-2 pr-3 text-right text-gray-400">—</td>
+                        ))}
+                        <td className="py-2 pr-3"><PendingSyncBadge /></td>
+                        {!readOnly && <td className="py-2" />}
+                      </tr>
+                    );
+                  })}
                   {measurements.map((m) => (
                     <tr key={m.id} className="text-gray-900 dark:text-gray-100">
                       <td className="py-2 pr-3 whitespace-nowrap">{day(m.measuredOn)}</td>

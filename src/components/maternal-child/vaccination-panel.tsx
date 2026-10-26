@@ -9,6 +9,8 @@ import { usePolling } from '@/components/inpatient/ui';
 import { ageGroupLabel, groupSchedule, isRecordable, type ImmunizationOverview, type ImmunizationRecord, type ScheduleItem } from '@/lib/maternal-child';
 import { RecordDoseDialog } from './record-dose-dialog';
 import { ErrorBox, VaccineStatusChip, cardClass, messageOf, smallBtn, useDay } from './ui';
+import { usePendingWrites } from '@/context/offline-context';
+import { PendingSyncBadge } from '@/components/offline/connectivity-indicator';
 
 export interface MchPatient {
   id: string;
@@ -28,6 +30,9 @@ export function VaccinationPanel({ patient, readOnly = false }: { patient: MchPa
   const [inError, setInError] = useState<ImmunizationRecord | null>(null);
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState(false);
+  // Doses recorded offline for this child, not on the server yet
+  const pendingDoses = usePendingWrites('immunization', patient.id);
+  const pendingFor = (item: ScheduleItem) => pendingDoses.find((p) => p.body?.vaccineCode === item.vaccineCode && p.body?.doseNumber === item.doseNumber);
 
   const load = useCallback(async () => {
     try {
@@ -110,8 +115,8 @@ export function VaccinationPanel({ patient, readOnly = false }: { patient: MchPa
                             </p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <VaccineStatusChip status={item.status} />
-                            {!readOnly && isRecordable(item) && (
+                            {pendingFor(item) ? <PendingSyncBadge /> : <VaccineStatusChip status={item.status} />}
+                            {!readOnly && isRecordable(item) && !pendingFor(item) && (
                               <button type="button" onClick={() => setRecording(item)} className={smallBtn} aria-label={`${t('mc.vax.record')} ${item.label}`}>
                                 {t('mc.vax.record')}
                               </button>

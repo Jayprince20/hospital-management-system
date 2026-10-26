@@ -6,12 +6,15 @@ import { LanguageProvider } from "@/context/language-context";
 import { NotificationProvider } from "@/context/notification-context";
 import { ToastProvider } from "@/components/toast";
 import { NotificationToastContainer } from "@/components/notifications";
+import { OfflineProvider } from "@/context/offline-context";
+import { ServiceWorkerRegister } from "@/components/offline/service-worker-register";
 
 // Plus Jakarta Sans from Google Fonts; the system stack in globals.css takes over offline (Docker)
 
 export const metadata: Metadata = {
   title: "HMS Dashboard - Hospital Management System",
   description: "Admin dashboard for Hospital Management System",
+  manifest: '/manifest.webmanifest',
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
@@ -58,8 +61,11 @@ export default function RootLayout({
             <AuthProvider>
               <NotificationProvider>
                 <ToastProvider>
-                  {children}
-                  <NotificationToastContainer />
+                  <OfflineProvider>
+                    {children}
+                    <NotificationToastContainer />
+                    <ServiceWorkerRegister />
+                  </OfflineProvider>
                 </ToastProvider>
               </NotificationProvider>
             </AuthProvider>

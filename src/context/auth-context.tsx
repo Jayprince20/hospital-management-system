@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { api, ApiError, User, LoginRequest } from '@/lib/api';
+import { lastAuthenticatedAt, markAuthenticated, readProfile, saveProfile, shouldWipe, wipeOfflineData } from '@/lib/offline/session';
+import { isOfflineNow } from '@/lib/offline/state';
 import {
   Permission,
   UserRole,
@@ -55,19 +57,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
 
+    // 12 h without a staff session: the data kept for offline use is wiped
+    if (shouldWipe(lastAuthenticatedAt(localStorage), Date.now())) {
+      await wipeOfflineData(localStorage, typeof caches !== 'undefined' ? caches : null).catch(() => undefined);
+    }
+
     try {
       // Check if we have a token
       if (api.isAuthenticated()) {
         let currentUser;
-        // Retry while the server is unreachable (e.g. restarting) instead of logging out
+        // Retry while the server is unreachable (e.g. restarting) instead of logging out;
+        // without network, reopen with the profile saved on this device (same user, < 12 h)
+        const savedProfile = readProfile<SessionUser>(localStorage, api.sessionClaims()?.userId ?? null);
         for (let attempt = 0; ; attempt++) {
           try {
             currentUser = await api.getCurrentUser();
             break;
           } catch (err) {
-            if (!(err instanceof ApiError && err.status === 0) || attempt >= 9) throw err;
+            const unreachable = err instanceof ApiError && err.status === 0;
+            if (unreachable && savedProfile && (isOfflineNow() || attempt >= 1)) {
+              currentUser = savedProfile;
+              break;
+            }
+            if (!unreachable || attempt >= 9) throw err;
             await new Promise((resolve) => setTimeout(resolve, 1500));
           }
+        }
+        if (currentUser !== savedProfile) {
+          saveProfile(localStorage, currentUser as SessionUser);
+          markAuthenticated(localStorage);
         }
         setUser(currentUser as SessionUser);
         // Check if user needs to change password
@@ -136,6 +154,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const startSession = useCallback(
     (sessionUser: SessionUser) => {
       setUser(sessionUser);
+      saveProfile(localStorage, sessionUser);
+      markAuthenticated(localStorage);
       if (sessionUser.mustChangePassword) {
         setMustChangePassword(true);
         router.push('/change-password');
@@ -176,6 +196,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.logout();
     } finally {
+      // Cached screens and the saved profile go; queued bedside entries stay for this user's next login
+      await wipeOfflineData(localStorage, typeof caches !== 'undefined' ? caches : null).catch(() => undefined);
       setUser(null);
       setMustChangePassword(false);
       router.push('/login');

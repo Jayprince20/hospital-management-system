@@ -8,12 +8,18 @@ import { useToast } from '@/components/toast';
 import { DoseBadge, RecordDoseDialog, cardClass, usePolling } from '@/components/inpatient';
 import { MAR_WARD_STORAGE_KEY } from '@/components/inpatient/dashboard-cards';
 import { readStored, writeStored } from '@/lib/queue';
+import { usePendingWrites } from '@/context/offline-context';
+import { PendingSyncBadge } from '@/components/offline/connectivity-indicator';
 
 const REFRESH_MS = 30_000;
 
 export default function MarRoundPage() {
   const { t, formatDateTime } = useLanguage();
   const toast = useToast();
+  // Doses recorded offline: shown as waiting for sync, and not offered again
+  const pendingDoses = usePendingWrites('marAdministration');
+  const pendingFor = (item: WardMarItem) =>
+    pendingDoses.find((p) => p.scopeId === item.admissionId && p.body?.orderId === item.orderId && (p.body?.scheduledAt ?? null) === (item.scheduledAt ?? null));
   const [wards, setWards] = useState<Ward[] | null>(null);
   const [wardId, setWardId] = useState<string>('');
   const [mar, setMar] = useState<WardMar | null>(null);
@@ -115,9 +121,18 @@ export default function MarRoundPage() {
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                   {item.drugName} · {item.dose} · {t(`inp.route.${item.route}`)}
                 </td>
-                <td className="px-4 py-3"><DoseBadge status={item.status} /></td>
                 <td className="px-4 py-3">
-                  <div className="flex justify-end gap-2">
+                  {pendingFor(item) ? (
+                    <span className="inline-flex flex-col gap-1">
+                      <span className="text-xs text-gray-700 dark:text-gray-300">{t(`inp.admin.${String(pendingFor(item)!.body?.status ?? 'GIVEN')}`)}</span>
+                      <PendingSyncBadge />
+                    </span>
+                  ) : (
+                    <DoseBadge status={item.status} />
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <div className={`flex justify-end gap-2 ${pendingFor(item) ? 'invisible' : ''}`}>
                     <button type="button" onClick={() => setTarget({ item, status: 'GIVEN' })} className="px-2.5 py-1 text-xs font-medium rounded-md bg-brand hover:bg-brand-hover text-white">{t('inp.admin.GIVEN')}</button>
                     <button type="button" onClick={() => setTarget({ item, status: 'REFUSED' })} className="px-2.5 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">{t('inp.round.other')}</button>
                   </div>

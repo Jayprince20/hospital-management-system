@@ -9,6 +9,8 @@ import { formatGA, gaFromDays, splitPregnancyAlerts, type PregnancyDetail, type 
 import { ClosePregnancyDialog, OpenPregnancyDialog, VisitDialog } from './pregnancy-dialogs';
 import { AncAlertChip, ErrorBox, Stat, cardClass, messageOf, primaryBtn, smallBtn, useDay } from './ui';
 import type { MchPatient } from './vaccination-panel';
+import { usePendingWrites } from '@/context/offline-context';
+import { PendingSyncBadge } from '@/components/offline/connectivity-indicator';
 
 /** "Grossesse" tab: the ongoing pregnancy (dating, contacts, prevention, alerts) and past ones */
 export function PregnancyPanel({ patient, readOnly = false }: { patient: MchPatient; readOnly?: boolean }) {
@@ -39,6 +41,8 @@ export function PregnancyPanel({ patient, readOnly = false }: { patient: MchPati
   const past = (list ?? []).filter((p) => p.status !== 'ONGOING');
   const { alerts, risks } = current ? splitPregnancyAlerts(current.alerts, current.riskFactors) : { alerts: [], risks: [] };
   const visits = [...(current?.visits ?? [])].sort((a, b) => b.visitDate.localeCompare(a.visitDate));
+  // Visits recorded offline for this pregnancy (alerts come from the server on sync)
+  const pendingVisits = usePendingWrites('ancVisit', current?.id ?? null);
   const bp = (s: number | null, d: number | null) => (s != null && d != null ? `${s}/${d}` : '—');
   const num = (n: number | null | undefined) => (n == null ? '—' : String(n).replace('.', ','));
 
@@ -112,7 +116,7 @@ export function PregnancyPanel({ patient, readOnly = false }: { patient: MchPati
 
             <div>
               <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-2">{t('mc.preg.visits')}</h4>
-              {visits.length === 0 ? (
+              {visits.length === 0 && pendingVisits.length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t('mc.preg.noVisits')}</p>
               ) : (
                 <div className="overflow-x-auto -mx-5 px-5">
@@ -131,6 +135,23 @@ export function PregnancyPanel({ patient, readOnly = false }: { patient: MchPati
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-gray-900 dark:text-gray-100">
+                      {pendingVisits.map((p) => {
+                        const b = (p.body ?? {}) as Record<string, number | string | null | undefined>;
+                        const n = (k: string) => (b[k] == null || b[k] === '' ? null : Number(b[k]));
+                        return (
+                          <tr key={p.key} className="align-top bg-amber-50/60 dark:bg-amber-900/10">
+                            <td className="py-2 pr-3">—</td>
+                            <td className="py-2 pr-3 whitespace-nowrap">{b.visitDate ? day(String(b.visitDate)) : '—'}</td>
+                            <td className="py-2 pr-3">—</td>
+                            <td className="py-2 pr-3 whitespace-nowrap tabular-nums">{bp(n('bpSystolic'), n('bpDiastolic'))}</td>
+                            <td className="py-2 pr-3 text-right tabular-nums">{num(n('weightKg'))}</td>
+                            <td className="py-2 pr-3 text-right tabular-nums">{num(n('fundalHeightCm'))}</td>
+                            <td className="py-2 pr-3 text-right tabular-nums">{num(n('fetalHeartRate'))}</td>
+                            <td className="py-2 pr-3 text-right tabular-nums">{num(n('hemoglobin'))}</td>
+                            <td className="py-2"><PendingSyncBadge /></td>
+                          </tr>
+                        );
+                      })}
                       {visits.map((v) => (
                         <tr key={v.id} className="align-top">
                           <td className="py-2 pr-3 font-semibold">{v.contactNumber}</td>

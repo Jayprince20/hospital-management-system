@@ -1,6 +1,11 @@
 import { backendErrorsFr, backendErrorPatternsFr } from '@/locales/backend-errors';
 import { extraTranslations } from '@/locales';
 import { actingHeaders, readActingProfile, writeActingProfile, ACTING_CHANGE_EVENT } from '@/lib/patient-extras';
+import { bedsideValue, isOnlineOnlyWrite, offlineWriteFor, type OfflineWrite } from '@/lib/offline/classifier';
+import { enqueue as enqueueOutbox, newIdempotencyKey, type OutboxItem, type SendOutcome } from '@/lib/offline/outbox';
+import { pendingResult } from '@/lib/offline/pending';
+import { tokenClaims } from '@/lib/offline/session';
+import { isOfflineNow, OFFLINE_QUEUED_EVENT } from '@/lib/offline/state';
 import type {
   GoodsReceipt,
   GoodsReceiptSummary,
@@ -3277,6 +3282,17 @@ class ApiClient {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${accessToken}`;
     }
 
+    const isFrench = typeof window !== 'undefined' && localStorage.getItem('language') !== 'en';
+    // Bedside writes carry an Idempotency-Key (one per user action) and are queued when offline
+    const offlineWrite = typeof window !== 'undefined' ? offlineWriteFor(options.method, endpoint) : null;
+    if (offlineWrite) {
+      const h = headers as Record<string, string>;
+      h['Idempotency-Key'] = h['Idempotency-Key'] ?? newIdempotencyKey();
+      if (isOfflineNow()) return this.queueOffline<T>(endpoint, options, offlineWrite, h['Idempotency-Key']);
+    } else if (typeof window !== 'undefined' && isOnlineOnlyWrite(options.method, endpoint) && isOfflineNow() && !endpoint.startsWith('/api/auth/')) {
+      throw new ApiError(isFrench ? 'Indisponible hors ligne : réessayez quand la connexion sera rétablie.' : 'Not available offline: try again once the connection is back.', 0);
+    }
+
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -3284,7 +3300,7 @@ class ApiClient {
         headers,
       });
     } catch {
-      const isFrench = typeof window !== 'undefined' && localStorage.getItem('language') !== 'en';
+      if (offlineWrite) return this.queueOffline<T>(endpoint, options, offlineWrite, (headers as Record<string, string>)['Idempotency-Key']);
       throw new ApiError(
         isFrench ? 'Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.' : 'Unable to reach the server. Check your connection and try again.',
         0
@@ -3304,6 +3320,70 @@ class ApiClient {
     }
 
     return data;
+  }
+
+  /** Keep a bedside write for later: answered at once with the data marked offlinePending */
+  private async queueOffline<T>(endpoint: string, options: RequestInit, write: OfflineWrite, key: string): Promise<ApiResponse<T>> {
+    const claims = tokenClaims(this.getAccessToken());
+    if (!claims) throw new ApiError('Session expirée : reconnectez-vous', 401);
+    const now = new Date();
+    let body: Record<string, unknown> | null = null;
+    try {
+      body = typeof options.body === 'string' ? (JSON.parse(options.body) as Record<string, unknown>) : null;
+    } catch {
+      body = null;
+    }
+    // The real bedside time, unless the form already set it
+    if (body && write.bedsideField && (body[write.bedsideField] === undefined || body[write.bedsideField] === null || body[write.bedsideField] === '')) {
+      body = { ...body, [write.bedsideField]: bedsideValue(write.bedsideFormat, now) };
+    }
+    await enqueueOutbox({ key, userId: claims.userId, path: endpoint, body, kind: write.kind, scopeId: write.scopeId, now: now.getTime() });
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(OFFLINE_QUEUED_EVENT, { detail: { kind: write.kind } }));
+    return { success: true, data: pendingResult(write.kind, body, key, write.scopeId, now) as T, message: 'queued-offline' } as ApiResponse<T>;
+  }
+
+  /** Send one outbox item again (same Idempotency-Key); refreshes the session once on 401 */
+  async replayOutboxItem(item: OutboxItem, retried = false): Promise<SendOutcome> {
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${item.path}`, {
+        method: item.method,
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': item.key, ...this.authHeaders() },
+        body: item.body ? JSON.stringify(item.body) : undefined,
+      });
+    } catch {
+      return { kind: 'network' };
+    }
+    if (response.ok) return { kind: 'ok' };
+    const data = (await response.json().catch(() => ({}))) as { message?: string; error?: string };
+    const message = localizeServerMessage(data.message || data.error || `Erreur ${response.status}`);
+    if (response.status === 401) {
+      if (!retried && this.getRefreshToken() && (await this.refreshAccessToken())) return this.replayOutboxItem(item, true);
+      return { kind: 'auth' };
+    }
+    // Same key still being processed by the server: try again later
+    if (response.status === 409 && /cours de traitement|in progress/i.test(message)) return { kind: 'server-error', status: 409, message };
+    if (response.status >= 500 || response.status === 408 || response.status === 429) return { kind: 'server-error', status: response.status, message };
+    return { kind: 'client-error', status: response.status, message };
+  }
+
+  /** Heartbeat: true when the API answers (any status means it is reachable) */
+  async ping(timeoutMs = 5000): Promise<boolean> {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    try {
+      const response = await fetch(`${this.baseUrl}/api/ping`, { cache: 'no-store', signal: controller?.signal });
+      return response.status < 500;
+    } catch {
+      return false;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /** The signed-in user's id and role as written in the token (for offline data) */
+  sessionClaims(): { userId: string; role: string } | null {
+    return tokenClaims(this.getAccessToken());
   }
 
   private async refreshAccessToken(): Promise<boolean> {
