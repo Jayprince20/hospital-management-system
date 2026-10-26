@@ -165,7 +165,7 @@ describe('QC on validation', () => {
     expect(qcWarningLines(null)).toEqual([]);
     expect(qcWarningLines('Glucose hors contrôle')).toEqual(['Glucose hors contrôle']);
     expect(qcWarningLines(['A', 'B'])).toEqual(['A', 'B']);
-    expect(qcWarningLines({ message: 'CQ non conforme', tests: ['Urée', { name: 'Glucose', status: 'NOT_RUN' }] })).toEqual(['CQ non conforme', 'Urée', 'Glucose — NOT_RUN']);
+    expect(qcWarningLines({ message: 'CQ non conforme', tests: ['Urée', { name: 'Glucose', status: 'NOT_RUN' }] })).toEqual(['CQ non conforme', 'Urée', 'Glucose — contrôle non passé aujourd’hui']);
   });
 
   it('recognises the blocking 409 only', () => {
@@ -197,5 +197,15 @@ describe('QC and analyser pages access', () => {
     expect(canAccessRoute('DOCTOR', '/dashboard/laboratory/instruments')).toBe(false);
     expect(canAccessRoute('NURSE', '/dashboard/laboratory/qc')).toBe(false);
     expect(canAccessRoute('PHARMACIST', '/dashboard/laboratory/qc')).toBe(false);
+  });
+});
+
+describe('QC warning from the validation response', () => {
+  it('reads the API issues (status in French)', async () => {
+    const { qcWarningLines } = await import('@/lib/lab-qc');
+    expect(
+      qcWarningLines({ enforcement: 'warn', issues: [{ code: 'FBS', name: 'Glycémie à jeun', status: 'OUT_OF_CONTROL' }, { code: 'HGB', name: 'Hémoglobine', status: 'NOT_RUN' }], overrideReason: null })
+    ).toEqual(['Glycémie à jeun — hors contrôle', 'Hémoglobine — contrôle non passé aujourd’hui']);
+    expect(qcWarningLines({ enforcement: 'warn', issues: [] })).toEqual([]);
   });
 });

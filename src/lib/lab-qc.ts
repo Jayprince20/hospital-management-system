@@ -190,7 +190,11 @@ export interface QcStatusEntry {
 }
 
 /** `qcWarning` on a validation response: a message, a list, or an object */
-export type QcWarning = string | string[] | { message?: string; tests?: Array<string | { code?: string; name?: string; status?: string }> } | null | undefined;
+type QcWarningTest = string | { code?: string; name?: string; status?: string };
+/** The validation response's `qcWarning`: the API sends { enforcement, issues: [{ code, name, status }], overrideReason } */
+export type QcWarning = string | string[] | { message?: string; enforcement?: string; overrideReason?: string | null; tests?: QcWarningTest[]; issues?: QcWarningTest[] } | null | undefined;
+
+const QC_GATE_STATUS_FR: Record<string, string> = { OUT_OF_CONTROL: 'hors contrôle', NOT_RUN: 'contrôle non passé aujourd’hui', IN_CONTROL: 'sous contrôle' };
 
 // ---------- numbers ----------
 
@@ -436,9 +440,9 @@ export function qcWarningLines(warning: QcWarning): string[] {
   if (Array.isArray(warning)) return warning.map(String).filter(Boolean);
   const lines: string[] = [];
   if (warning.message) lines.push(warning.message);
-  for (const t of warning.tests ?? []) {
+  for (const t of [...(warning.issues ?? []), ...(warning.tests ?? [])]) {
     if (typeof t === 'string') lines.push(t);
-    else if (t) lines.push([t.name ?? t.code, t.status].filter(Boolean).join(' — '));
+    else if (t) lines.push([t.name ?? t.code, t.status ? QC_GATE_STATUS_FR[t.status] ?? t.status : null].filter(Boolean).join(' — '));
   }
   return lines;
 }
