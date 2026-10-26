@@ -373,7 +373,7 @@ export default function FhirSettingsPage() {
                   {usage.map((u, i) => (
                     <tr key={`${u.at}-${i}`}>
                       <td className={td}>{formatDateTime(u.at)}</td>
-                      <td className={td}>{u.clientName ?? (u.userName ? t('fhir.usage.staff', { name: u.userName }) : '—')}</td>
+                      <td className={td}>{u.clientName ?? (u.userName ? t(u.userRole === 'PATIENT' ? 'fhir.usage.patient' : 'fhir.usage.staff', { name: u.userName }) : '—')}</td>
                       <td className={td}>{u.resourceType}</td>
                       <td className={`${td} text-right tabular-nums`}>{u.count}</td>
                       <td className={`${td} ${mono}`}>{u.path}</td>

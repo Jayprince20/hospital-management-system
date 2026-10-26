@@ -42,6 +42,7 @@ export interface FhirUsageEntry {
   at: string;
   clientName: string | null;
   userName: string | null;
+  userRole?: string | null;
   resourceType: string;
   count: number;
   path: string;

@@ -84,6 +84,7 @@ const fhir: LocaleDictionary = {
     'fhir.usage.count': 'Records',
     'fhir.usage.path': 'Request',
     'fhir.usage.staff': '{name} (staff)',
+    'fhir.usage.patient': '{name} (patient, own record)',
   },
   fr: {
     'nav.fhir': 'Interopérabilité FHIR',
@@ -167,6 +168,7 @@ const fhir: LocaleDictionary = {
     'fhir.usage.count': 'Enregistrements',
     'fhir.usage.path': 'Requête',
     'fhir.usage.staff': '{name} (personnel)',
+    'fhir.usage.patient': '{name} (patient, son dossier)',
   },
 };
 
