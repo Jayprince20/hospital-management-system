@@ -83,6 +83,7 @@ import type {
   TariffRef,
   TariffSearchItem,
 } from '@/lib/price-list';
+import type { BayState, EdArrivalInput, EdBayInput, EdBoard, EdDailyStats, EdDispositionInput, EdEncounterDetail, EdEncounterPatch } from '@/lib/emergency';
 import type { DrugInteraction, FollowUpAppointment, FollowUpType, Icd10Code, MdoAlert, PrescriptionCheck, SafetyAlert, VitalFlag } from '@/lib/clinical-safety';
 
 function getApiUrl(): string {
@@ -6260,6 +6261,49 @@ class ApiClient {
 
   async updateProblem(id: string, patch: ProblemPatch): Promise<Problem> {
     return this.data<Problem>(`/api/problems/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
+  // ---- Emergency department board ----
+
+  async getEdBoard(): Promise<EdBoard> {
+    return this.data<EdBoard>('/api/ed/board');
+  }
+
+  async createEdEncounter(input: EdArrivalInput): Promise<EdEncounterDetail> {
+    return this.data<EdEncounterDetail>('/api/ed/encounters', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async getEdEncounter(id: string): Promise<EdEncounterDetail> {
+    return this.data<EdEncounterDetail>(`/api/ed/encounters/${id}`);
+  }
+
+  async updateEdEncounter(id: string, patch: EdEncounterPatch): Promise<EdEncounterDetail> {
+    return this.data<EdEncounterDetail>(`/api/ed/encounters/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
+  async markEdSeen(id: string): Promise<EdEncounterDetail> {
+    return this.data<EdEncounterDetail>(`/api/ed/encounters/${id}/seen`, { method: 'POST', body: '{}' });
+  }
+
+  async setEdDisposition(id: string, input: EdDispositionInput): Promise<EdEncounterDetail> {
+    return this.data<EdEncounterDetail>(`/api/ed/encounters/${id}/disposition`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async getEdBays(): Promise<BayState[]> {
+    return this.list<BayState>('/api/ed/bays');
+  }
+
+  async createEdBay(input: EdBayInput): Promise<BayState> {
+    return this.data<BayState>('/api/ed/bays', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updateEdBay(id: string, patch: Partial<EdBayInput>): Promise<BayState> {
+    return this.data<BayState>(`/api/ed/bays/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
+  async getEdStats(from: string, to: string): Promise<EdDailyStats[]> {
+    const query = new URLSearchParams({ from, to });
+    return this.list<EdDailyStats>(`/api/ed/stats?${query.toString()}`);
   }
 }
 

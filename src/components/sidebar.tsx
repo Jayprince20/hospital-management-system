@@ -43,6 +43,7 @@ const navTranslationKeys: Record<string, string> = {
   'Appointments': 'nav.appointments',
   'Teleconsultations': 'nav.teleconsultations',
   'Queue': 'nav.queue',
+  'Emergency': 'nav.emergency',
   'Beds': 'nav.beds',
   'Admissions': 'nav.admissions',
   'Medication Round': 'nav.marRound',

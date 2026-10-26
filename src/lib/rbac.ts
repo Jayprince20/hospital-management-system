@@ -512,6 +512,14 @@ export const navigationItems: NavItem[] = [
     roles: ['ADMIN', 'RECEPTIONIST', 'DOCTOR'], // Satisfaction surveys, NPS, complaints
   },
   {
+    label: 'Emergency',
+    href: '/dashboard/emergency',
+    group: 'care',
+    icon: 'M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z',
+    permission: 'dashboard:view',
+    roles: ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'], // ED board: priorities, time targets, bays, dispositions
+  },
+  {
     label: 'Vaccination',
     href: '/dashboard/vaccination',
     group: 'care',
@@ -802,6 +810,7 @@ export const routePermissions: Record<string, Permission> = {
   '/dashboard/schedule': 'doctors:manage_schedule',
   '/dashboard/my-patients': 'patients:view_own', // Doctor's own patients
   '/dashboard/patients': 'patients:view',
+  '/dashboard/emergency': 'dashboard:view', // nurses have no patients:view; routeRoles limits who gets in
   '/dashboard/vaccination': 'dashboard:view', // nurses have no patients:view; routeRoles limits who gets in
   '/dashboard/antenatal': 'dashboard:view', // nurses have no patients:view; routeRoles limits who gets in
   '/dashboard/templates': 'dashboard:view', // routeRoles: doctors and admins
@@ -862,6 +871,7 @@ export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/wards': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
   '/dashboard/admissions': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST'],
   '/dashboard/mar-round': ['NURSE', 'ADMIN', 'DOCTOR'],
+  '/dashboard/emergency': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
   '/dashboard/vaccination': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
   '/dashboard/antenatal': ['ADMIN', 'DOCTOR', 'NURSE'],
   '/dashboard/templates': ['ADMIN', 'DOCTOR'],
