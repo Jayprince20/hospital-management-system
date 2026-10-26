@@ -90,6 +90,8 @@ import type {
 } from '@/lib/price-list';
 import type { BayState, EdArrivalInput, EdBayInput, EdBoard, EdDailyStats, EdDispositionInput, EdEncounterDetail, EdEncounterPatch } from '@/lib/emergency';
 import { toQcSeries } from '@/lib/lab-qc';
+import { listOf, toInstanceSummary, toSeriesSummary, toStudySummary, toUploadResult } from '@/lib/dicom';
+import type { DicomInstanceSummary, DicomSeriesSummary, DicomStudySummary, DicomUploadResult } from '@/lib/dicom';
 import type { CapabilityStatementLike, FhirClient, FhirClientCreated, FhirUsageEntry } from '@/lib/fhir';
 import type {
   InstrumentMessage,
@@ -4999,6 +5001,121 @@ class ApiClient {
     return `/api/imaging/orders/${orderId}/attachments/${attachmentId}`;
   }
 
+  // ---------- DICOM studies (viewer, uploads, reconciliation) ----------
+
+  /** API origin, for image ids the viewer loads itself */
+  apiBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  /**
+   * Headers for the DICOM image loader's own requests. A viewing session can outlast the access
+   * token, so it is refreshed first when it expires within two minutes.
+   */
+  async dicomRequestHeaders(): Promise<Record<string, string>> {
+    const token = this.getAccessToken();
+    const exp = tokenExpiry(token);
+    if (exp !== null && exp - Date.now() < 2 * 60 * 1000 && this.getRefreshToken()) await this.refreshAccessToken();
+    return this.authHeaders();
+  }
+
+  /** The exam's studies with their series (a patient gets them once the report is signed) */
+  async getDicomStudies(imagingOrderId: string): Promise<DicomStudySummary[]> {
+    const raw = await this.data<unknown>(`/api/imaging/orders/${imagingOrderId}/dicom`);
+    return listOf(raw, 'studies').map(toStudySummary).filter((s): s is DicomStudySummary => Boolean(s));
+  }
+
+  async getDicomSeries(studyUid: string): Promise<DicomSeriesSummary[]> {
+    const raw = await this.dicomJson(`/api/dicomweb/studies/${encodeURIComponent(studyUid)}/series`);
+    return listOf(raw, 'series').map(toSeriesSummary).filter((s): s is DicomSeriesSummary => Boolean(s));
+  }
+
+  async getDicomInstances(studyUid: string, seriesUid: string): Promise<DicomInstanceSummary[]> {
+    const raw = await this.dicomJson(`/api/dicomweb/studies/${encodeURIComponent(studyUid)}/series/${encodeURIComponent(seriesUid)}/instances`);
+    return listOf(raw, 'instances').map(toInstanceSummary).filter((s): s is DicomInstanceSummary => Boolean(s));
+  }
+
+  /** DICOM JSON (application/dicom+json) is a bare array; also accept our usual envelope */
+  private async dicomJson(path: string): Promise<unknown> {
+    const response = await this.fetchProtected(path);
+    const body = (await response.json().catch(() => null)) as unknown;
+    if (body && typeof body === 'object' && !Array.isArray(body) && 'success' in body) {
+      const env = body as { success?: boolean; data?: unknown; error?: string; message?: string };
+      if (!env.success) throw new ApiError(localizeServerMessage(env.error || env.message || 'Request failed'), response.status);
+      return env.data;
+    }
+    return body;
+  }
+
+  /** Several .dcm files and/or .zip archives in one request, with upload progress */
+  uploadDicomFiles(imagingOrderId: string, files: File[], onProgress?: (fraction: number) => void): Promise<DicomUploadResult> {
+    return new Promise((resolve, reject) => {
+      const form = new FormData();
+      for (const file of files) form.append('files', file, file.name);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${this.baseUrl}/api/imaging/orders/${imagingOrderId}/dicom`);
+      for (const [name, value] of Object.entries(this.authHeaders())) xhr.setRequestHeader(name, value);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+      };
+      xhr.onload = () => {
+        let body: { success?: boolean; data?: unknown; error?: string; message?: string } = {};
+        try {
+          body = JSON.parse(xhr.responseText || '{}');
+        } catch {
+          body = {};
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && body.data !== undefined) resolve(toUploadResult(body.data));
+        else reject(new ApiError(localizeServerMessage(body.error || body.message || 'Request failed'), xhr.status));
+      };
+      xhr.onerror = () => reject(new ApiError(localizeServerMessage('Unable to reach the server'), 0));
+      xhr.send(form);
+    });
+  }
+
+  async confirmDicomIdentity(imagingOrderId: string, studyId: string, note?: string): Promise<DicomStudySummary | null> {
+    const raw = await this.data<unknown>(`/api/imaging/orders/${imagingOrderId}/dicom/${studyId}/confirm-identity`, {
+      method: 'POST',
+      body: JSON.stringify(note ? { note } : {}),
+    });
+    return toStudySummary((raw as { study?: unknown })?.study ?? raw);
+  }
+
+  async deleteDicomStudy(imagingOrderId: string, studyId: string, reason: string): Promise<void> {
+    await this.request<unknown>(`/api/imaging/orders/${imagingOrderId}/dicom/${studyId}`, { method: 'DELETE', body: JSON.stringify({ reason }) });
+  }
+
+  async getUnmatchedDicomStudies(): Promise<DicomStudySummary[]> {
+    const raw = await this.data<unknown>('/api/imaging/dicom/unmatched');
+    return listOf(raw, 'studies').map(toStudySummary).filter((s): s is DicomStudySummary => Boolean(s));
+  }
+
+  async attachUnmatchedDicomStudy(studyId: string, imagingOrderId: string): Promise<DicomStudySummary | null> {
+    const raw = await this.data<unknown>(`/api/imaging/dicom/unmatched/${studyId}/attach`, { method: 'POST', body: JSON.stringify({ imagingOrderId }) });
+    return toStudySummary((raw as { study?: unknown })?.study ?? raw);
+  }
+
+  async getImagingModalities(): Promise<ImagingModalityDevice[]> {
+    const raw = await this.data<unknown>('/api/imaging/modalities');
+    return listOf(raw, 'modalities') as ImagingModalityDevice[];
+  }
+
+  async createImagingModality(input: { name: string; aeTitle: string }): Promise<ImagingModalityDevice> {
+    const raw = await this.data<unknown>('/api/imaging/modalities', { method: 'POST', body: JSON.stringify(input) });
+    return ((raw as { modality?: unknown })?.modality ?? raw) as ImagingModalityDevice;
+  }
+
+  async updateImagingModality(id: string, patch: { name?: string; aeTitle?: string | null; active?: boolean }): Promise<ImagingModalityDevice> {
+    const raw = await this.data<unknown>(`/api/imaging/modalities/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+    return ((raw as { modality?: unknown })?.modality ?? raw) as ImagingModalityDevice;
+  }
+
+  /** New API key, returned once in plain text */
+  async generateImagingModalityKey(id: string): Promise<string> {
+    const raw = (await this.data<unknown>(`/api/imaging/modalities/${id}/api-key`, { method: 'POST' })) as { apiKey?: string; key?: string };
+    return raw?.apiKey ?? raw?.key ?? '';
+  }
+
   /** Open the signed report PDF in a new tab (download when pop-ups are blocked) */
   async openImagingReportPdf(id: string, lang: 'fr' | 'en' = 'fr'): Promise<void> {
     const url = await this.fetchImagingBlobUrl(`/api/imaging/orders/${id}/pdf?lang=${lang}`);
@@ -6533,6 +6650,30 @@ class ApiClient {
   async getFhirUsage(limit = 20): Promise<FhirUsageEntry[]> {
     return this.list<FhirUsageEntry>(`/api/fhir-clients/usage?limit=${limit}`);
   }
+}
+
+/** Expiry (epoch ms) written in a JWT, or null */
+function tokenExpiry(token: string | null): number | null {
+  const part = token?.split('.')[1];
+  if (!part) return null;
+  try {
+    const claims = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
+    return typeof claims.exp === 'number' ? claims.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A modality (or PACS router) allowed to push studies with STOW-RS */
+export interface ImagingModalityDevice {
+  id: string;
+  name: string;
+  aeTitle: string | null;
+  active: boolean;
+  hasApiKey?: boolean;
+  /** Last study pushed by this device */
+  lastReceivedAt?: string | null;
+  createdAt?: string;
 }
 
 export const api = new ApiClient(API_URL);

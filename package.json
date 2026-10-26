@@ -8,10 +8,18 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "postinstall": "node scripts/copy-dicom-codecs.mjs",
+    "prebuild": "node scripts/copy-dicom-codecs.mjs",
+    "predev": "node scripts/copy-dicom-codecs.mjs"
   },
   "dependencies": {
+    "@cornerstonejs/core": "^5.13.2",
+    "@cornerstonejs/dicom-image-loader": "^5.13.2",
+    "@cornerstonejs/metadata": "^5.13.2",
+    "@cornerstonejs/tools": "^5.13.2",
     "date-fns": "^4.1.0",
+    "dicom-parser": "^1.8.21",
     "idb": "^8.0.4",
     "livekit-client": "^2.23.0",
     "lucide-react": "^0.562.0",

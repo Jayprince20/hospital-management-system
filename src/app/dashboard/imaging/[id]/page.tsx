@@ -23,6 +23,7 @@ import {
   useIsRadiologist,
 } from '@/components/imaging';
 import { cardClass, messageOf, primaryBtn, smallBtn } from '@/components/imaging/ui';
+import { DicomPanel } from '@/components/dicom';
 
 export default function ImagingOrderPage() {
   const { id } = useParams<{ id: string }>();
@@ -159,6 +160,10 @@ export default function ImagingOrderPage() {
             <p className={`${cardClass} p-5 text-sm text-gray-600 dark:text-gray-300`}>{t('img.report.waiting')}</p>
           )}
           {order.status === 'REPORTED' && <SignedReport order={order} canAddendum={isRadiologist} onChanged={setOrder} />}
+
+          {['ARRIVED', 'PERFORMED', 'REPORTED'].includes(order.status) && (
+            <DicomPanel order={order} canUpload={canUpload && (role !== 'DOCTOR' || isRadiologist)} isRadiologist={isRadiologist} onChanged={load} />
+          )}
 
           {['ARRIVED', 'PERFORMED', 'REPORTED'].includes(order.status) && (
             <AttachmentsPanel orderId={order.id} files={order.attachments} canUpload={canUpload} canDelete={canDeleteFiles} onChanged={load} />

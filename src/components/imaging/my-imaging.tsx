@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { api, type ImagingAttachment, type ImagingOrder } from '@/lib/api';
 import { useLanguage } from '@/context/language-context';
 import { useToast } from '@/components/toast';
@@ -81,6 +82,7 @@ export function MyImaging() {
                   )}
                   <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={() => open(o.id)} disabled={busy === o.id} className={smallBtn}>{t('img.report.pdf')}</button>
+                    <Link href={`/dashboard/imaging/${o.id}/viewer`} className={smallBtn}>{t('dicom.open')}</Link>
                     {o.attachments.map((f) => (
                       <button key={f.id} type="button" onClick={() => openFile(o.id, f)} className={smallBtn}>
                         {isImageType(f.mimeType) ? t('img.mine.image') : 'PDF'} · {f.caption || f.fileName}

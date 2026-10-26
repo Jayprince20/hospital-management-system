@@ -490,6 +490,22 @@ export const navigationItems: NavItem[] = [
     roles: ['ADMIN'], // Exams and prices
   },
   {
+    label: 'Unmatched Studies',
+    href: '/dashboard/imaging/unmatched',
+    group: 'care',
+    icon: 'M4 4h16v12H4zM8 20h8M12 16v4M9 9l6 0',
+    permission: 'dashboard:view',
+    roles: ['ADMIN', 'DOCTOR', 'LAB_TECH'], // DICOM studies pushed without a matching exam
+  },
+  {
+    label: 'Imaging Modalities',
+    href: '/dashboard/imaging/modalities',
+    group: 'care',
+    icon: 'M3 7h18v10H3zM7 7V5h10v2M8 12h8',
+    permission: 'dashboard:view',
+    roles: ['ADMIN'], // Devices allowed to push studies (STOW-RS)
+  },
+  {
     label: 'Medical Documents',
     href: '/dashboard/documents',
     group: 'care',
@@ -908,6 +924,8 @@ export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/antenatal': ['ADMIN', 'DOCTOR', 'NURSE'],
   '/dashboard/templates': ['ADMIN', 'DOCTOR'],
   '/dashboard/imaging/exams': ['ADMIN'],
+  '/dashboard/imaging/modalities': ['ADMIN'],
+  '/dashboard/imaging/unmatched': ['ADMIN', 'DOCTOR', 'LAB_TECH'],
   '/dashboard/imaging': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'LAB_TECH'],
   '/dashboard/documents': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
   '/dashboard/referrals': ['ADMIN', 'DOCTOR', 'RECEPTIONIST'],
@@ -968,6 +986,10 @@ export function canAccessRoute(userRole: UserRole | string | undefined, pathname
       requiredPermission = routePermissions[matchingRoute];
     }
   }
+
+  // A patient opens the image viewer of their own exam from their space once the report is signed;
+  // the API decides which studies they may load
+  if (userRole === 'PATIENT' && /^\/dashboard\/imaging\/[^/]+\/viewer$/.test(pathname)) return true;
 
   const restrictedTo = Object.entries(routeRoles).find(([route]) => pathname.startsWith(route))?.[1];
   if (restrictedTo && !restrictedTo.includes(userRole as UserRole)) return false;

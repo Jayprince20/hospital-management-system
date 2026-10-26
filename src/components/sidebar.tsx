@@ -53,6 +53,8 @@ const navTranslationKeys: Record<string, string> = {
   'Consultation Templates': 'nav.templates',
   'Imaging': 'nav.imaging',
   'Imaging Catalogue': 'nav.imagingCatalogue',
+  'Unmatched Studies': 'nav.dicomUnmatched',
+  'Imaging Modalities': 'nav.imagingModalities',
   'Medical Documents': 'nav.medicalDocuments',
   'Referrals': 'nav.referrals',
   'Departments': 'nav.departments',
