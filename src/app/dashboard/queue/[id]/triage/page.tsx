@@ -181,8 +181,8 @@ export default function TriagePage() {
                 {' · '}{t(`q.source.${ticket.source}`)}
               </span>
             </p>
-            <p className={`text-sm mt-1 ${ticket.patient.allergies.length ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
-              {ticket.patient.allergies.length ? t('q.ticket.allergies', { list: ticket.patient.allergies.join(', ') }) : t('q.triage.noAllergies')}
+            <p className={`text-sm mt-1 ${ticket.patient.allergies.length || ticket.patient.unidentified ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
+              {ticket.patient.allergies.length ? t('q.ticket.allergies', { list: ticket.patient.allergies.join(', ') }) : ticket.patient.unidentified ? t('q.triage.allergiesUnknown') : t('q.triage.noAllergies')}
             </p>
           </div>
 

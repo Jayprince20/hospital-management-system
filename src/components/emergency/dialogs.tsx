@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Doctor, type Patient } from '@/lib/api';
 import { useLanguage } from '@/context/language-context';
+import { PAEDIATRIC_MAX_AGE, wardTakes } from '@/lib/inpatient';
 import {
   ACTIVE_STATUSES,
   ARRIVAL_MODES,
@@ -334,7 +335,8 @@ interface WardOption {
 export function DispositionDialog({ row, onClose, onDone }: { row: BoardRow; onClose: () => void; onDone: () => void }) {
   const { t } = useLanguage();
   const choices = dispositionsFor(row);
-  const [disposition, setDisposition] = useState<EdDisposition>('DISCHARGED');
+  // No default: sending a patient home must be a deliberate choice
+  const [disposition, setDisposition] = useState<EdDisposition | null>(null);
   const [note, setNote] = useState('');
   const [wards, setWards] = useState<WardOption[] | null>(null);
   const [wardId, setWardId] = useState('');
@@ -354,7 +356,9 @@ export function DispositionDialog({ row, onClose, onDone }: { row: BoardRow; onC
         live &&
         setWards(
           board.wards
-            .filter((w) => w.isActive)
+            // Only wards that take this patient (sex; children's wards under 15) — the server checks too
+            .filter((w) => w.isActive && wardTakes(w.gender, row.patient.sex))
+            .filter((w) => w.type !== 'PAEDIATRIC' || row.patient.age == null || row.patient.age < PAEDIATRIC_MAX_AGE)
             .map((w) => ({ id: w.id, name: w.name, beds: w.beds.filter((b) => b.isActive && b.status === 'AVAILABLE').map((b) => ({ id: b.id, label: b.label })) }))
         )
       )
@@ -367,6 +371,7 @@ export function DispositionDialog({ row, onClose, onDone }: { row: BoardRow; onC
   const ward = wards?.find((w) => w.id === wardId) ?? null;
 
   const save = async () => {
+    if (!disposition) return setError(t('ed.dispo.choiceRequired'));
     if (admitting && !wardId) return setError(t('ed.dispo.wardRequired'));
     if (admitting && !reason.trim()) return setError(t('ed.dispo.reasonRequired'));
     if (disposition === 'TRANSFERRED' && !destination.trim()) return setError(t('ed.dispo.destinationRequired'));

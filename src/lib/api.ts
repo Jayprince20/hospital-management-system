@@ -1901,6 +1901,8 @@ interface QueueTicket {
     gender?: string;
     age?: number | null;
     phoneMasked?: string | null;
+    /** Registered without identity (emergency): allergies are unknown */
+    unidentified?: boolean;
     allergies: string[];
   };
   appointment: { id: string; startTime: string; reason: string } | null;

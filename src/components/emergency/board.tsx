@@ -149,7 +149,7 @@ export function BoardRowCard({ row, nowMs, actions, onAction, onOpen, draggable 
           )}
         </div>
         <div className="text-sm min-w-0">
-          <p className={row.assignedDoctor ? 'text-gray-900 dark:text-white truncate' : 'text-ink-muted dark:text-gray-400'}>{row.assignedDoctor ? `Dr ${row.assignedDoctor.name}` : t('ed.noDoctor')}</p>
+          <p className={row.assignedDoctor ? 'text-gray-900 dark:text-white truncate' : 'text-ink-muted dark:text-gray-400'}>{row.assignedDoctor ? row.assignedDoctor.name : t('ed.noDoctor')}</p>
           {row.assignedNurse && <p className="text-xs text-ink-muted dark:text-gray-400 truncate">{t('ed.nurse', { name: row.assignedNurse.name })}</p>}
           <div className="mt-1"><EdStatusChip status={row.status} /></div>
         </div>
