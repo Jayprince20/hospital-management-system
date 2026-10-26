@@ -116,7 +116,7 @@ export function CallRoom({ detail, media, stream, onLeft, onEnded }: {
             <VideoTile
               stream={call.remoteStream}
               className="absolute inset-0"
-              placeholder={call.peerMedia.video ? t('tele.waitingForVideo') : t('tele.peerCameraOff')}
+              placeholder={call.audioOnly ? t('tele.audioOnlyActive') : call.peerMedia.video ? t('tele.waitingForVideo') : t('tele.peerCameraOff')}
             >
               {!call.peerMedia.audio && <span className="absolute top-3 left-3 px-2 py-1 rounded bg-black/60 text-white text-xs">{t('tele.peerMicOff')}</span>}
             </VideoTile>

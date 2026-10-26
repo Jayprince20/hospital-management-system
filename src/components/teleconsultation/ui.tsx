@@ -36,7 +36,8 @@ export function VideoTile({ stream, muted = false, mirrored = false, placeholder
     if (stream) video.play().catch(() => {});
   }, [stream]);
   return (
-    <div className={`relative overflow-hidden bg-gray-900 ${className}`}>
+    // A tile placed by the caller (absolute/fixed, e.g. the self-view) must not get `relative`, which would win and push it out of the frame
+    <div className={`${/\b(absolute|fixed)\b/.test(className) ? '' : 'relative '}overflow-hidden bg-gray-900 ${className}`}>
       {/* The element stays mounted (audio plays even without picture) */}
       <video ref={ref} autoPlay playsInline muted={muted} className={`w-full h-full ${mirrored ? 'object-cover -scale-x-100' : 'object-contain'} ${hasVideo ? '' : 'invisible'}`} />
       {!hasVideo && <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-sm text-center p-3">{placeholder}</div>}
