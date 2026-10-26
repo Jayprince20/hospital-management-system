@@ -1,6 +1,18 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { OFFLINE_QUEUED_EVENT } from '@/lib/offline/state';
+
+/**
+ * A write queued offline already shows "Enregistré hors ligne"; the form's own "saved" success
+ * toast that follows in the same action would wrongly claim the server has it, so it is dropped.
+ */
+const QUEUED_WINDOW_MS = 2000;
+let lastQueuedAt = 0;
+if (typeof window !== 'undefined') window.addEventListener(OFFLINE_QUEUED_EVENT, () => { lastQueuedAt = Date.now(); });
+export function successJustQueued(now = Date.now()): boolean {
+  return now - lastQueuedAt < QUEUED_WINDOW_MS;
+}
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -47,6 +59,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [removeToast]);
 
   const success = useCallback((title: string, message?: string) => {
+    if (successJustQueued()) return;
     addToast({ type: 'success', title, message });
   }, [addToast]);
 

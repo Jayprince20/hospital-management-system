@@ -377,3 +377,15 @@ describe('API client: queue on network failure, replay with the same key', () =>
     }
   });
 });
+
+describe('success toast after an offline save', () => {
+  it('is suppressed right after a write was queued, not otherwise', async () => {
+    const { successJustQueued } = await import('@/components/toast');
+    const { OFFLINE_QUEUED_EVENT } = await import('@/lib/offline/state');
+    const t0 = Date.now();
+    expect(successJustQueued(t0 + 60_000)).toBe(false);
+    window.dispatchEvent(new CustomEvent(OFFLINE_QUEUED_EVENT, { detail: { kind: 'vitals' } }));
+    expect(successJustQueued()).toBe(true);
+    expect(successJustQueued(Date.now() + 5_000)).toBe(false);
+  });
+});

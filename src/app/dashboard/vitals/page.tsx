@@ -192,6 +192,8 @@ export default function VitalsPage() {
         const response = await api.getPatients({ search: debouncedPatientSearch, limit: 10 });
         setPatientSearchResults(response.data);
       } catch (err) {
+        // Offline (or server unreachable): search the patients already loaded on this page
+        setPatientSearchResults(searchPatientsLocally(patients, debouncedPatientSearch, 10));
         console.error('Failed to search patients:', err);
       } finally {
         setSearchingPatients(false);
@@ -199,7 +201,7 @@ export default function VitalsPage() {
     };
 
     searchPatients();
-  }, [debouncedPatientSearch]);
+  }, [debouncedPatientSearch, patients]);
 
   const handleAddVitals = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -960,4 +962,16 @@ export default function VitalsPage() {
 
     </div>
   );
+}
+
+/** Accent- and case-insensitive match on name, record number or phone, for searching without the server */
+function searchPatientsLocally<T extends { firstName?: string; lastName?: string; patientId?: string; phoneNumber?: string | null }>(list: T[], query: string, limit: number): T[] {
+  const fold = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const terms = fold(query).split(/\s+/).filter(Boolean);
+  return list
+    .filter((p) => {
+      const hay = fold([p.firstName, p.lastName, p.patientId, p.phoneNumber].filter(Boolean).join(' '));
+      return terms.every((t) => hay.includes(t));
+    })
+    .slice(0, limit);
 }
