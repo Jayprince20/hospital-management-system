@@ -22,8 +22,9 @@ import { PatientImagingPanel } from '@/components/imaging';
 import { PatientFamilyAccessPanel } from '@/components/family';
 import { GrowthPanel, PregnancyPanel, VaccinationPanel } from '@/components/maternal-child';
 import { showGrowth, showPregnancy, showVaccination } from '@/lib/maternal-child';
+import { PatientAttachmentsPanel, ProblemListPanel } from '@/components/clinical-docs';
 
-type TabType = 'overview' | 'appointments' | 'prescriptions' | 'lab-results' | 'imaging' | 'vitals' | 'billing' | 'coverage' | 'documents' | 'consents' | 'family' | 'vaccination' | 'growth' | 'pregnancy';
+type TabType = 'overview' | 'appointments' | 'prescriptions' | 'lab-results' | 'imaging' | 'vitals' | 'billing' | 'coverage' | 'documents' | 'consents' | 'family' | 'vaccination' | 'growth' | 'pregnancy' | 'attachments';
 
 export default function PatientDetailPage() {
   const params = useParams();
@@ -92,6 +93,10 @@ export default function PatientDetailPage() {
     { id: 'coverage', label: t('ins.coverage.tab'), icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
     { id: 'imaging', label: t('img.panel.tab'), icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
     { id: 'documents', label: t('mdoc.panel.tab'), icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
+    // Files on the record: clinical staff; the desk files ID documents, letters and consent forms
+    ...(user && ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'].includes(user.role)
+      ? [{ id: 'attachments' as TabType, label: t('cdoc.att.tab'), icon: 'M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13' }]
+      : []),
     { id: 'consents', label: t('privacy.tab'), icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
     // Family access (parents, guardians, carers): managed by the desk
     ...(user?.role === 'ADMIN' || user?.role === 'RECEPTIONIST'
@@ -355,6 +360,10 @@ export default function PatientDetailPage() {
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Problem list: what the care team follows for this patient */}
+            {user && ['ADMIN', 'DOCTOR', 'NURSE'].includes(user.role) && <div className="lg:col-span-3">
+              <ProblemListPanel patientId={patient.id} canEdit={user?.role === 'DOCTOR' || user?.role === 'ADMIN'} />
+            </div>}
             {/* Personal Information */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
               <div className="p-4 border-b border-gray-100 dark:border-gray-700">
@@ -777,6 +786,7 @@ export default function PatientDetailPage() {
           </div>
         )}
 
+        {activeTab === 'attachments' && <PatientAttachmentsPanel patientId={patient.id} />}
         {/* Medical documents: certificates, sick leave, referral letters */}
         {activeTab === 'imaging' && (
           <PatientImagingPanel patient={{ id: patient.id, patientId: patient.patientId, name: `${patient.firstName} ${patient.lastName}` }} />

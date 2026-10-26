@@ -28,9 +28,10 @@ import clinicalSafety from './clinical-safety';
 import priceList from './price-list';
 import shell from './shell';
 import maternalChild from './maternal-child';
+import clinicalDocs from './clinical-docs';
 
 // Register feature dictionaries here. Later entries override earlier ones.
-const dictionaries: LocaleDictionary[] = [common, lab, patients, appointments, pharmacy, clinical, admin, audit, privacy, security, ops, payments, insurance, queue, inpatient, pharmacyPos, documentsMedical, imaging, patientExtras, labWorkflow, rosters, purchasing, cashDesk, statistics, teleconsultation, clinicalSafety, priceList, shell, maternalChild];
+const dictionaries: LocaleDictionary[] = [common, lab, patients, appointments, pharmacy, clinical, admin, audit, privacy, security, ops, payments, insurance, queue, inpatient, pharmacyPos, documentsMedical, imaging, patientExtras, labWorkflow, rosters, purchasing, cashDesk, statistics, teleconsultation, clinicalSafety, priceList, shell, maternalChild, clinicalDocs];
 
 export const extraTranslations: LocaleDictionary = dictionaries.reduce<LocaleDictionary>(
   (acc, dict) => ({ en: { ...acc.en, ...dict.en }, fr: { ...acc.fr, ...dict.fr } }),

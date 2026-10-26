@@ -17,6 +17,7 @@ import { MyFeedbackCard } from '@/components/feedback';
 import { ConfirmPresenceButton } from '@/components/confirmation';
 import { useActingPatient } from '@/context/acting-patient-context';
 import { GrowthPanel, PregnancyPanel, VaccinationPanel } from '@/components/maternal-child';
+import { PatientAttachmentsPanel } from '@/components/clinical-docs';
 import { showGrowth, showPregnancy, showVaccination } from '@/lib/maternal-child';
 import { isLegalRepresentative, visiblePortalTab } from '@/lib/patient-extras';
 
@@ -194,7 +195,13 @@ export default function MyHealthPage() {
             if (activeTab === 'growth') return <GrowthPanel patient={mchPatient} readOnly />;
             return <PregnancyPanel patient={mchPatient} readOnly />;
           })()}
-          {activeTab === 'documents' && <MyMedicalDocuments />}
+          {activeTab === 'documents' && (
+            <div className="space-y-6">
+              <MyMedicalDocuments />
+              {/* Files the care team shared, and results or letters sent by the patient */}
+              {patientData?.id && <PatientAttachmentsPanel patientId={patientData.id} patientMode title={t('cdoc.att.mineTitle')} subtitle={t('cdoc.att.mineSubtitle')} />}
+            </div>
+          )}
           {activeTab === 'billing' && (
             <>
               {patientData?.id && <PayInvoices patientId={patientData.id} phone={patientData.phoneNumber} onPaid={() => setRefreshKey((n) => n + 1)} />}

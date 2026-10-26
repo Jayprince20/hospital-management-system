@@ -48,6 +48,7 @@ const navTranslationKeys: Record<string, string> = {
   'Medication Round': 'nav.marRound',
   'Vaccination': 'nav.vaccination',
   'Antenatal Care': 'nav.antenatal',
+  'Consultation Templates': 'nav.templates',
   'Imaging': 'nav.imaging',
   'Imaging Catalogue': 'nav.imagingCatalogue',
   'Medical Documents': 'nav.medicalDocuments',

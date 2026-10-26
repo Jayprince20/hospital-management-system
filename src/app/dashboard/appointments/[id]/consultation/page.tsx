@@ -12,6 +12,9 @@ import { DiagnosisPicker, MdoBanner } from '@/components/clinical-safety/diagnos
 import { AllergyStrip, PrescriptionSafetyPanel, usePrescriptionSafety } from '@/components/clinical-safety/safety';
 import { LatestVitalsCard } from '@/components/clinical-safety/vitals';
 import { FollowUpDialog, FollowUpSummary } from '@/components/clinical-safety/follow-up';
+import { PatientAttachmentsPanel, ProblemListPanel, SaveAsTemplateDialog, TemplatePickerDialog, TemplateSuggestionsPanel, type SuggestedRxItem } from '@/components/clinical-docs';
+import { mergeTemplate, type ConsultationTemplate, type TemplateSuggestions } from '@/lib/clinical-docs';
+import { todayString } from '@/lib/maternal-child';
 import {
   canSubmitPrescription,
   diagnosesFromArrays,
@@ -82,6 +85,10 @@ export default function ConsultationPage() {
   const [mdoAlerts, setMdoAlerts] = useState<MdoAlert[]>([]);
   const [followUp, setFollowUp] = useState<FollowUpAppointment | null>(null);
   const [bookingFollowUp, setBookingFollowUp] = useState(false);
+  // Consultation templates: picker, orders the applied template proposes, save the write-up as a template
+  const [pickingTemplate, setPickingTemplate] = useState(false);
+  const [suggestions, setSuggestions] = useState<{ name: string; items: TemplateSuggestions } | null>(null);
+  const [savingAsTemplate, setSavingAsTemplate] = useState(false);
 
   const [medications, setMedications] = useState<Array<{ id: string; name: string; dosageForm: string }>>([]);
   const [labTests, setLabTests] = useState<Array<{ id: string; name: string; code: string }>>([]);
@@ -215,6 +222,26 @@ export default function ConsultationPage() {
       }
       return { ...item, [field]: value };
     }));
+  };
+
+  // Text is merged (never overwritten); orders come back as suggestions the doctor confirms
+  const applyTemplate = (template: ConsultationTemplate) => {
+    const merged = mergeTemplate(consultationForm, template, todayString());
+    setConsultationForm((prev) => ({ ...prev, ...merged.form }));
+    const hasOrders = merged.suggestions.prescriptionLines.length > 0 || merged.suggestions.labTests.length > 0;
+    setSuggestions(hasOrders ? { name: template.name, items: merged.suggestions } : null);
+    setPickingTemplate(false);
+    setActiveTab('consultation');
+    toast.success(t('cdoc.tpl.applied'), t('cdoc.tpl.appliedMessage', { name: template.name }));
+  };
+
+  const addSuggestedOrders = (rx: SuggestedRxItem[], lab: Array<{ id: string; name: string }>) => {
+    const newRx = rx.filter((item) => !prescriptionItems.some((p) => p.medicationId === item.medicationId));
+    const newLab = lab.filter((test) => !labOrderItems.some((l) => l.labTestId === test.id));
+    if (newRx.length) setPrescriptionItems((prev) => [...prev, ...newRx.map((item) => ({ ...item, quantity: 1 }))]);
+    if (newLab.length) setLabOrderItems((prev) => [...prev, ...newLab.map((test) => ({ labTestId: test.id, testName: test.name, priority: 'ROUTINE' as const, notes: '' }))]);
+    setSuggestions(null);
+    toast.success(t('cdoc.sugg.added', { rx: newRx.length, lab: newLab.length }));
   };
 
   const safety = usePrescriptionSafety(appointment?.patient.id, prescriptionItems.map((item) => item.medicationId));
@@ -384,6 +411,26 @@ export default function ConsultationPage() {
               {t('consultationForm.title')}
             </h1>
           </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setPickingTemplate(true)}
+            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 7h6m-6 4h4" />
+            </svg>
+            {t('cdoc.tpl.button')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSavingAsTemplate(true)}
+            disabled={!existingConsultation}
+            title={existingConsultation ? undefined : t('cdoc.tpl.saveAsNeedsSave')}
+            className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {t('cdoc.tpl.saveAs')}
+          </button>
           <button
             onClick={handleSaveConsultation}
             disabled={saving || !consultationForm.chiefComplaint}
@@ -397,6 +444,7 @@ export default function ConsultationPage() {
             )}
             {t('consultationForm.complete')}
           </button>
+          </div>
         </div>
 
         {/* Patient Info Card */}
@@ -447,6 +495,21 @@ export default function ConsultationPage() {
           <LatestVitalsCard patientId={appointment.patient.id} />
         </div>
 
+        {suggestions && (
+          <div className="mb-6">
+            <TemplateSuggestionsPanel
+              key={suggestions.name}
+              templateName={suggestions.name}
+              suggestions={suggestions.items}
+              medications={medications}
+              onAdd={addSuggestedOrders}
+              onDismiss={() => setSuggestions(null)}
+            />
+          </div>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] items-start">
+        <div className="min-w-0">
         {/* Tabs */}
         <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
           <button
@@ -814,7 +877,29 @@ export default function ConsultationPage() {
             )}
           </div>
         )}
+        </div>
+
+        {/* Problem list and files of the consultation, next to the write-up */}
+        <aside className="space-y-4 lg:sticky lg:top-24">
+          <ProblemListPanel
+            patientId={appointment.patient.id}
+            canEdit={user?.role === 'DOCTOR' || user?.role === 'ADMIN'}
+            diagnoses={consultationForm.diagnoses}
+            consultationId={existingConsultation?.id}
+            compact
+          />
+          <PatientAttachmentsPanel
+            key={existingConsultation?.id ?? 'patient'}
+            patientId={appointment.patient.id}
+            consultationId={existingConsultation?.id}
+            title={t('cdoc.att.consultationTitle')}
+            compact
+          />
+        </aside>
+        </div>
       </div>
+      {pickingTemplate && <TemplatePickerDialog onClose={() => setPickingTemplate(false)} onApply={applyTemplate} />}
+      {savingAsTemplate && existingConsultation && <SaveAsTemplateDialog consultationId={existingConsultation.id} onClose={() => setSavingAsTemplate(false)} />}
       {bookingFollowUp && existingConsultation && (
         <FollowUpDialog
           consultationId={existingConsultation.id}

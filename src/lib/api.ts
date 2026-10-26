@@ -61,6 +61,18 @@ import type {
   PregnancySummary,
 } from '@/lib/maternal-child';
 import type {
+  AttachmentPatch,
+  AttachmentUpload,
+  ClinicalAttachment,
+  ConsultationTemplate,
+  Problem,
+  ProblemInput,
+  ProblemPatch,
+  TemplateInput,
+  TemplateScope,
+  TemplateSummary,
+} from '@/lib/clinical-docs';
+import type {
   PayerTariff,
   PayerTariffInput,
   PriceChangeResponse,
@@ -6148,6 +6160,106 @@ class ApiClient {
     for (const [key, value] of Object.entries(params)) if (value !== undefined) query.append(key, String(value));
     const res = await this.data<Paginated<CaseloadItem>>(`/api/antenatal/caseload?${query.toString()}`);
     return { data: res.data ?? [], pagination: res.pagination ?? { page: 1, limit: 20, total: 0, totalPages: 1 } };
+  }
+
+  // ---- Clinical documentation: consultation templates, attachments, problem list ----
+
+  /** List endpoints answer { data: [...] } inside the envelope */
+  private async list<T>(endpoint: string): Promise<T[]> {
+    const res = await this.data<T[] | { data?: T[] }>(endpoint);
+    return Array.isArray(res) ? res : res.data ?? [];
+  }
+
+  async getConsultationTemplates(filters: { search?: string; specialty?: string; scope?: TemplateScope | 'ALL' } = {}): Promise<TemplateSummary[]> {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value) query.append(key, value);
+    return this.list<TemplateSummary>(`/api/consultation-templates?${query.toString()}`);
+  }
+
+  async getConsultationTemplate(id: string): Promise<ConsultationTemplate> {
+    return this.data<ConsultationTemplate>(`/api/consultation-templates/${id}`);
+  }
+
+  async createConsultationTemplate(input: TemplateInput): Promise<ConsultationTemplate> {
+    return this.data<ConsultationTemplate>('/api/consultation-templates', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updateConsultationTemplate(id: string, input: Partial<TemplateInput>): Promise<ConsultationTemplate> {
+    return this.data<ConsultationTemplate>(`/api/consultation-templates/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  }
+
+  async deleteConsultationTemplate(id: string): Promise<void> {
+    await this.data(`/api/consultation-templates/${id}`, { method: 'DELETE' });
+  }
+
+  /** Counts the use and returns the full template to merge into the form */
+  async useConsultationTemplate(id: string): Promise<ConsultationTemplate> {
+    return this.data<ConsultationTemplate>(`/api/consultation-templates/${id}/use`, { method: 'POST' });
+  }
+
+  async templateFromConsultation(consultationId: string, input: { name: string; scope: TemplateScope }): Promise<ConsultationTemplate> {
+    return this.data<ConsultationTemplate>(`/api/consultation-templates/from-consultation/${consultationId}`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async getPatientAttachments(patientId: string, filters: { category?: string; consultationId?: string } = {}): Promise<ClinicalAttachment[]> {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value) query.append(key, value);
+    return this.list<ClinicalAttachment>(`/api/patients/${patientId}/attachments?${query.toString()}`);
+  }
+
+  /** Multipart upload with progress (fraction 0–1) */
+  uploadPatientAttachment(patientId: string, file: File, meta: AttachmentUpload, onProgress?: (fraction: number) => void): Promise<ClinicalAttachment> {
+    return new Promise((resolve, reject) => {
+      const form = new FormData();
+      form.append('file', file);
+      for (const [key, value] of Object.entries(meta)) {
+        if (value !== undefined && value !== null && value !== '') form.append(key, String(value));
+      }
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${this.baseUrl}/api/patients/${patientId}/attachments`);
+      for (const [name, value] of Object.entries(this.authHeaders())) xhr.setRequestHeader(name, value);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+      };
+      xhr.onload = () => {
+        let body: { success?: boolean; data?: ClinicalAttachment; error?: string; message?: string } = {};
+        try {
+          body = JSON.parse(xhr.responseText || '{}');
+        } catch {
+          body = {};
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && body.data) resolve(body.data);
+        else reject(new ApiError(localizeServerMessage(body.error || body.message || (xhr.status === 413 ? 'File too large' : 'Request failed')), xhr.status));
+      };
+      xhr.onerror = () => reject(new ApiError(localizeServerMessage('Unable to reach the server'), 0));
+      xhr.send(form);
+    });
+  }
+
+  /** The file as an object URL (the endpoint needs the session token); revoke it when done */
+  async fetchAttachmentBlobUrl(attachmentId: string): Promise<string> {
+    const response = await this.fetchProtected(`/api/attachments/${attachmentId}/file`);
+    return URL.createObjectURL(await response.blob());
+  }
+
+  async updateAttachment(id: string, patch: AttachmentPatch): Promise<ClinicalAttachment> {
+    return this.data<ClinicalAttachment>(`/api/attachments/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
+  async deleteAttachment(id: string, reason: string): Promise<void> {
+    await this.data(`/api/attachments/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) });
+  }
+
+  async getProblems(patientId: string): Promise<Problem[]> {
+    return this.list<Problem>(`/api/patients/${patientId}/problems`);
+  }
+
+  async addProblem(patientId: string, input: ProblemInput): Promise<Problem> {
+    return this.data<Problem>(`/api/patients/${patientId}/problems`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updateProblem(id: string, patch: ProblemPatch): Promise<Problem> {
+    return this.data<Problem>(`/api/problems/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
   }
 }
 

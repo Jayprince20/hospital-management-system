@@ -528,6 +528,14 @@ export const navigationItems: NavItem[] = [
     roles: ['ADMIN', 'DOCTOR', 'NURSE'], // Ongoing pregnancies: contacts due, alerts
   },
   {
+    label: 'Consultation Templates',
+    href: '/dashboard/templates',
+    group: 'care',
+    icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 7h6m-6 4h4',
+    permission: 'dashboard:view',
+    roles: ['ADMIN', 'DOCTOR'], // Pre-filled consultation notes, ICD-10 codes and orders
+  },
+  {
     label: 'Medication Round',
     href: '/dashboard/mar-round',
     group: 'care',
@@ -796,6 +804,7 @@ export const routePermissions: Record<string, Permission> = {
   '/dashboard/patients': 'patients:view',
   '/dashboard/vaccination': 'dashboard:view', // nurses have no patients:view; routeRoles limits who gets in
   '/dashboard/antenatal': 'dashboard:view', // nurses have no patients:view; routeRoles limits who gets in
+  '/dashboard/templates': 'dashboard:view', // routeRoles: doctors and admins
   '/dashboard/patients/new': 'patients:create',
   '/dashboard/doctors': 'doctors:view',
   '/dashboard/doctors/new': 'doctors:create',
@@ -855,6 +864,7 @@ export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/mar-round': ['NURSE', 'ADMIN', 'DOCTOR'],
   '/dashboard/vaccination': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
   '/dashboard/antenatal': ['ADMIN', 'DOCTOR', 'NURSE'],
+  '/dashboard/templates': ['ADMIN', 'DOCTOR'],
   '/dashboard/imaging/exams': ['ADMIN'],
   '/dashboard/imaging': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'LAB_TECH'],
   '/dashboard/documents': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
