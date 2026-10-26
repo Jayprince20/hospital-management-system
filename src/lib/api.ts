@@ -39,6 +39,28 @@ import type {
 } from '@/lib/statistics';
 import type { TeleconsultDetail, TeleconsultEventType, TeleconsultJoin, TeleconsultListItem, TeleconsultOutcome } from '@/lib/teleconsultation';
 import type {
+  AntenatalVisit,
+  AntenatalVisitInput,
+  CaseloadFilter,
+  CaseloadItem,
+  DueChild,
+  GrowthIndicator,
+  GrowthInput,
+  GrowthOverview,
+  GrowthPoint,
+  GrowthReference,
+  ImmunizationCreated,
+  ImmunizationInput,
+  ImmunizationOverview,
+  ImmunizationPatch,
+  ImmunizationRecord,
+  Paginated,
+  PregnancyDetail,
+  PregnancyInput,
+  PregnancyPatch,
+  PregnancySummary,
+} from '@/lib/maternal-child';
+import type {
   PayerTariff,
   PayerTariffInput,
   PriceChangeResponse,
@@ -6058,6 +6080,74 @@ class ApiClient {
 
   async deletePayerTariff(payerId: string, tariffId: string): Promise<void> {
     await this.data(`/api/payers/${payerId}/tariffs/${tariffId}`, { method: 'DELETE' });
+  }
+  // ---- Maternal & child health: immunisation, growth, antenatal care ----
+
+  async getImmunizations(patientId: string): Promise<ImmunizationOverview> {
+    return this.data<ImmunizationOverview>(`/api/patients/${patientId}/immunizations`);
+  }
+
+  async recordImmunization(patientId: string, input: ImmunizationInput): Promise<ImmunizationCreated> {
+    return this.data<ImmunizationCreated>(`/api/patients/${patientId}/immunizations`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updateImmunization(id: string, patch: ImmunizationPatch): Promise<ImmunizationRecord> {
+    return this.data<ImmunizationRecord>(`/api/immunizations/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
+  async getImmunizationsDue(params: { on?: string; status?: 'DUE' | 'OVERDUE' | 'ALL'; page?: number; limit?: number } = {}): Promise<Paginated<DueChild>> {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== '') query.append(key, String(value));
+    const res = await this.data<Paginated<DueChild>>(`/api/immunizations/due?${query.toString()}`);
+    return { data: res.data ?? [], pagination: res.pagination ?? { page: 1, limit: 20, total: 0, totalPages: 1 } };
+  }
+
+  /** The child's vaccination card (PDF) in a new tab */
+  async openImmunizationCard(patientId: string): Promise<void> {
+    await this.openProtectedPdf(`/api/patients/${patientId}/immunizations/card.pdf`, `carnet-vaccination-${patientId}.pdf`);
+  }
+
+  async getGrowth(patientId: string): Promise<GrowthOverview> {
+    return this.data<GrowthOverview>(`/api/patients/${patientId}/growth`);
+  }
+
+  async recordGrowth(patientId: string, input: GrowthInput): Promise<GrowthPoint> {
+    return this.data<GrowthPoint>(`/api/patients/${patientId}/growth`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async deleteGrowth(id: string): Promise<void> {
+    await this.data(`/api/growth/${id}`, { method: 'DELETE' });
+  }
+
+  async getGrowthReference(indicator: GrowthIndicator, sex: 'M' | 'F'): Promise<GrowthReference> {
+    return this.data<GrowthReference>(`/api/growth/reference?indicator=${indicator}&sex=${sex}`);
+  }
+
+  async getPregnancies(patientId: string): Promise<PregnancySummary[]> {
+    return this.data<PregnancySummary[]>(`/api/patients/${patientId}/pregnancies`);
+  }
+
+  async openPregnancy(patientId: string, input: PregnancyInput): Promise<PregnancyDetail> {
+    return this.data<PregnancyDetail>(`/api/patients/${patientId}/pregnancies`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async getPregnancy(id: string): Promise<PregnancyDetail> {
+    return this.data<PregnancyDetail>(`/api/pregnancies/${id}`);
+  }
+
+  async updatePregnancy(id: string, patch: PregnancyPatch): Promise<PregnancyDetail> {
+    return this.data<PregnancyDetail>(`/api/pregnancies/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
+  async addAntenatalVisit(pregnancyId: string, input: AntenatalVisitInput): Promise<AntenatalVisit> {
+    return this.data<AntenatalVisit>(`/api/pregnancies/${pregnancyId}/visits`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async getAntenatalCaseload(params: { status?: 'ONGOING'; filter?: CaseloadFilter; page?: number; limit?: number } = {}): Promise<Paginated<CaseloadItem>> {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) if (value !== undefined) query.append(key, String(value));
+    const res = await this.data<Paginated<CaseloadItem>>(`/api/antenatal/caseload?${query.toString()}`);
+    return { data: res.data ?? [], pagination: res.pagination ?? { page: 1, limit: 20, total: 0, totalPages: 1 } };
   }
 }
 

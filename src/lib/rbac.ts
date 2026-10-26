@@ -512,6 +512,22 @@ export const navigationItems: NavItem[] = [
     roles: ['ADMIN', 'RECEPTIONIST', 'DOCTOR'], // Satisfaction surveys, NPS, complaints
   },
   {
+    label: 'Vaccination',
+    href: '/dashboard/vaccination',
+    group: 'care',
+    icon: 'M18 2l4 4M17 7l3-3M19 9l-8.7 8.7a1 1 0 01-.6.3H6v-3.7a1 1 0 01.3-.7L15 5M9 11l4 4M5 19l-3 3M14 4l6 6',
+    permission: 'patients:view',
+    roles: ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'], // EPI session: doses due and defaulters
+  },
+  {
+    label: 'Antenatal Care',
+    href: '/dashboard/antenatal',
+    group: 'care',
+    icon: 'M12 21s-7-4.35-7-10a4 4 0 017-2.65A4 4 0 0119 11c0 5.65-7 10-7 10z',
+    permission: 'patients:view',
+    roles: ['ADMIN', 'DOCTOR', 'NURSE'], // Ongoing pregnancies: contacts due, alerts
+  },
+  {
     label: 'Medication Round',
     href: '/dashboard/mar-round',
     group: 'care',
@@ -778,6 +794,8 @@ export const routePermissions: Record<string, Permission> = {
   '/dashboard/schedule': 'doctors:manage_schedule',
   '/dashboard/my-patients': 'patients:view_own', // Doctor's own patients
   '/dashboard/patients': 'patients:view',
+  '/dashboard/vaccination': 'patients:view',
+  '/dashboard/antenatal': 'patients:view',
   '/dashboard/patients/new': 'patients:create',
   '/dashboard/doctors': 'doctors:view',
   '/dashboard/doctors/new': 'doctors:create',
@@ -835,6 +853,8 @@ export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/wards': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
   '/dashboard/admissions': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST'],
   '/dashboard/mar-round': ['NURSE', 'ADMIN', 'DOCTOR'],
+  '/dashboard/vaccination': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],
+  '/dashboard/antenatal': ['ADMIN', 'DOCTOR', 'NURSE'],
   '/dashboard/imaging/exams': ['ADMIN'],
   '/dashboard/imaging': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'LAB_TECH'],
   '/dashboard/documents': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'],

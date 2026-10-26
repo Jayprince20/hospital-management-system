@@ -16,9 +16,11 @@ import { MyImaging } from '@/components/imaging';
 import { MyFeedbackCard } from '@/components/feedback';
 import { ConfirmPresenceButton } from '@/components/confirmation';
 import { useActingPatient } from '@/context/acting-patient-context';
+import { GrowthPanel, PregnancyPanel, VaccinationPanel } from '@/components/maternal-child';
+import { showGrowth, showPregnancy, showVaccination } from '@/lib/maternal-child';
 import { isLegalRepresentative, visiblePortalTab } from '@/lib/patient-extras';
 
-type TabType = 'overview' | 'appointments' | 'vitals' | 'lab-results' | 'imaging' | 'prescriptions' | 'consultations' | 'documents' | 'billing' | 'privacy';
+type TabType = 'overview' | 'appointments' | 'vitals' | 'lab-results' | 'imaging' | 'prescriptions' | 'consultations' | 'documents' | 'billing' | 'privacy' | 'vaccination' | 'growth' | 'pregnancy';
 
 export default function MyHealthPage() {
   const { user } = useAuth();
@@ -89,6 +91,15 @@ export default function MyHealthPage() {
     { id: 'billing', label: t('admin.health.tab.billing'), icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
     { id: 'privacy', label: t('privacy.portal.title'), icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' },
   ];
+
+  // Maternal & child health sections for the ages and sex they concern (a child's card when acting for them)
+  if (patientData?.dateOfBirth) {
+    const extra: { id: TabType; label: string; icon: string }[] = [];
+    if (showVaccination(patientData.dateOfBirth)) extra.push({ id: 'vaccination', label: t('mc.tab.vaccination'), icon: 'M18 2l4 4M17 7l3-3M19 9l-8.7 8.7a1 1 0 01-.6.3H6v-3.7a1 1 0 01.3-.7L15 5M9 11l4 4M5 19l-3 3M14 4l6 6' });
+    if (showGrowth(patientData.dateOfBirth)) extra.push({ id: 'growth', label: t('mc.tab.growth'), icon: 'M3 3v18h18M7 15l4-4 3 3 5-6' });
+    if (showPregnancy(patientData.gender, patientData.dateOfBirth)) extra.push({ id: 'pregnancy', label: t('mc.tab.pregnancy'), icon: 'M12 21s-7-4.35-7-10a4 4 0 017-2.65A4 4 0 0119 11c0 5.65-7 10-7 10z' });
+    allTabs.splice(3, 0, ...extra);
+  }
 
   // A relative's record: consents/export only for a parent or guardian with full access;
   // appointments-and-billing access: no clinical tabs
@@ -177,6 +188,12 @@ export default function MyHealthPage() {
           {activeTab === 'prescriptions' && <PrescriptionsTab prescriptions={patientData?.prescriptions || []} />}
           {activeTab === 'consultations' && <ConsultationsTab patientId={patientData?.id} />}
           {activeTab === 'imaging' && <MyImaging />}
+          {(activeTab === 'vaccination' || activeTab === 'growth' || activeTab === 'pregnancy') && patientData && (() => {
+            const mchPatient = { id: patientData.id, name: `${patientData.firstName} ${patientData.lastName}`, dateOfBirth: patientData.dateOfBirth, gender: patientData.gender };
+            if (activeTab === 'vaccination') return <VaccinationPanel patient={mchPatient} readOnly />;
+            if (activeTab === 'growth') return <GrowthPanel patient={mchPatient} readOnly />;
+            return <PregnancyPanel patient={mchPatient} readOnly />;
+          })()}
           {activeTab === 'documents' && <MyMedicalDocuments />}
           {activeTab === 'billing' && (
             <>

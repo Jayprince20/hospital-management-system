@@ -96,7 +96,7 @@ export function isOwnerOnlyPath(pathname: string | null | undefined): boolean {
 }
 
 /** My-health tabs that show clinical data, hidden for an appointments & billing access */
-export const CLINICAL_TABS = ['vitals', 'lab-results', 'imaging', 'prescriptions', 'consultations', 'documents'] as const;
+export const CLINICAL_TABS = ['vitals', 'lab-results', 'imaging', 'prescriptions', 'consultations', 'documents', 'vaccination', 'growth', 'pregnancy'] as const;
 /** My-health tabs only the owner sees (consents, data export) */
 export const OWNER_ONLY_TABS = ['privacy'] as const;
 

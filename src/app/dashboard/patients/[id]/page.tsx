@@ -20,8 +20,10 @@ import { AdmissionDialog } from '@/components/inpatient';
 import { PatientDocumentsPanel } from '@/components/documents';
 import { PatientImagingPanel } from '@/components/imaging';
 import { PatientFamilyAccessPanel } from '@/components/family';
+import { GrowthPanel, PregnancyPanel, VaccinationPanel } from '@/components/maternal-child';
+import { showGrowth, showPregnancy, showVaccination } from '@/lib/maternal-child';
 
-type TabType = 'overview' | 'appointments' | 'prescriptions' | 'lab-results' | 'imaging' | 'vitals' | 'billing' | 'coverage' | 'documents' | 'consents' | 'family';
+type TabType = 'overview' | 'appointments' | 'prescriptions' | 'lab-results' | 'imaging' | 'vitals' | 'billing' | 'coverage' | 'documents' | 'consents' | 'family' | 'vaccination' | 'growth' | 'pregnancy';
 
 export default function PatientDetailPage() {
   const params = useParams();
@@ -76,6 +78,16 @@ export default function PatientDetailPage() {
     { id: 'prescriptions', label: t('patientDetail.tabPrescriptions'), icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
     { id: 'lab-results', label: t('patientDetail.tabLab'), icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z' },
     { id: 'vitals', label: t('patientDetail.tabVitals'), icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
+    // Maternal & child health: shown for the ages and sex they concern
+    ...(patient && showVaccination(patient.dateOfBirth)
+      ? [{ id: 'vaccination' as TabType, label: t('mc.tab.vaccination'), icon: 'M18 2l4 4M17 7l3-3M19 9l-8.7 8.7a1 1 0 01-.6.3H6v-3.7a1 1 0 01.3-.7L15 5M9 11l4 4M5 19l-3 3M14 4l6 6' }]
+      : []),
+    ...(patient && showGrowth(patient.dateOfBirth)
+      ? [{ id: 'growth' as TabType, label: t('mc.tab.growth'), icon: 'M3 3v18h18M7 15l4-4 3 3 5-6' }]
+      : []),
+    ...(patient && showPregnancy(patient.gender, patient.dateOfBirth)
+      ? [{ id: 'pregnancy' as TabType, label: t('mc.tab.pregnancy'), icon: 'M12 21s-7-4.35-7-10a4 4 0 017-2.65A4 4 0 0119 11c0 5.65-7 10-7 10z' }]
+      : []),
     { id: 'billing', label: t('patientDetail.tabBilling'), icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
     { id: 'coverage', label: t('ins.coverage.tab'), icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
     { id: 'imaging', label: t('img.panel.tab'), icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
@@ -772,6 +784,14 @@ export default function PatientDetailPage() {
         {activeTab === 'documents' && (
           <PatientDocumentsPanel patient={{ id: patient.id, patientId: patient.patientId, name: `${patient.firstName} ${patient.lastName}` }} />
         )}
+        {(activeTab === 'vaccination' || activeTab === 'growth' || activeTab === 'pregnancy') && (() => {
+          const mchPatient = { id: patient.id, name: `${patient.firstName} ${patient.lastName}`, dateOfBirth: patient.dateOfBirth, gender: patient.gender };
+          const readOnly = !(user?.role === 'ADMIN' || user?.role === 'DOCTOR' || user?.role === 'NURSE');
+          if (activeTab === 'vaccination') return <VaccinationPanel patient={mchPatient} readOnly={readOnly} />;
+          if (activeTab === 'growth') return <GrowthPanel patient={mchPatient} readOnly={readOnly} />;
+          return <PregnancyPanel patient={mchPatient} readOnly={readOnly} />;
+        })()}
+
         {activeTab === 'family' && (
           <PatientFamilyAccessPanel patient={{ id: patient.id, name: `${patient.firstName} ${patient.lastName}`, dateOfBirth: patient.dateOfBirth }} />
         )}
