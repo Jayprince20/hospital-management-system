@@ -8,7 +8,7 @@ import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { LoadingState } from '@/components/ui';
 import { readActingProfile } from '@/lib/patient-extras';
-import { formatCountdown, type TeleconsultDetail, type TeleconsultOutcome } from '@/lib/teleconsultation';
+import { formatCountdown, type TeleMedia, type TeleconsultDetail, type TeleconsultOutcome } from '@/lib/teleconsultation';
 import { ConsentStep, DeviceCheck } from '@/components/teleconsultation/precall';
 import { CallRoom } from '@/components/teleconsultation/call-room';
 import { ErrorBox, cancelBtn, cardClass, messageOf, primaryBtn, useTeleError } from '@/components/teleconsultation/ui';
@@ -26,6 +26,7 @@ export default function TeleconsultationPage() {
   const teleError = useTeleError();
 
   const [detail, setDetail] = useState<TeleconsultDetail | null>(null);
+  const [media, setMedia] = useState<TeleMedia | null>(null);
   const [loadError, setLoadError] = useState('');
   const [stage, setStage] = useState<Stage>('prejoin');
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -84,8 +85,9 @@ export default function TeleconsultationPage() {
     setBusy(true);
     setActionError('');
     try {
-      const fresh = await api.joinTeleconsultation(appointmentId);
+      const { media: issued, ...fresh } = await api.joinTeleconsultation(appointmentId);
       setDetail(fresh);
+      setMedia(issued ?? null);
       keepStream(chosen);
       setStage('call');
     } catch (err) {
@@ -151,7 +153,7 @@ export default function TeleconsultationPage() {
         </div>
       )}
 
-      {detail && stage === 'call' && <CallRoom detail={detail} stream={stream} onLeft={() => setStage('left')} onEnded={onEnded} />}
+      {detail && stage === 'call' && <CallRoom detail={detail} media={media} stream={stream} onLeft={() => setStage('left')} onEnded={onEnded} />}
 
       {detail && stage === 'left' && (
         <div className={`${cardClass} p-6 space-y-4 max-w-xl mx-auto text-center`}>

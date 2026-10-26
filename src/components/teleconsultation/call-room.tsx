@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useLanguage } from '@/context/language-context';
 import { useTeleconsultCall } from '@/hooks/useTeleconsultCall';
-import { CHAT_MAX_LENGTH, TELE_OUTCOMES, formatElapsed, type TeleChatMessage, type TeleconsultDetail, type TeleconsultOutcome } from '@/lib/teleconsultation';
+import { CHAT_MAX_LENGTH, TELE_OUTCOMES, formatElapsed, type TeleChatMessage, type TeleMedia, type TeleconsultDetail, type TeleconsultOutcome } from '@/lib/teleconsultation';
 import {
   ConnectionBadge,
   ControlButton,
@@ -35,8 +35,9 @@ function useElapsed(since: number | null): string {
   return since === null ? '' : formatElapsed(now - since);
 }
 
-export function CallRoom({ detail, stream, onLeft, onEnded }: {
+export function CallRoom({ detail, media, stream, onLeft, onEnded }: {
   detail: TeleconsultDetail;
+  media: TeleMedia | null;
   stream: MediaStream | null;
   onLeft: () => void;
   onEnded: (outcome: TeleconsultOutcome | null, byDoctor: boolean) => void;
@@ -44,7 +45,7 @@ export function CallRoom({ detail, stream, onLeft, onEnded }: {
   const { t } = useLanguage();
   const teleError = useTeleError();
   const isDoctor = detail.role === 'DOCTOR';
-  const call = useTeleconsultCall({ appointmentId: detail.appointmentId, role: detail.role, iceServers: detail.iceServers, localStream: stream });
+  const call = useTeleconsultCall({ appointmentId: detail.appointmentId, role: detail.role, iceServers: detail.iceServers, localStream: stream, media });
   const [chatOpen, setChatOpen] = useState(false);
   const [ending, setEnding] = useState(false);
   const [unread, setUnread] = useState(0);

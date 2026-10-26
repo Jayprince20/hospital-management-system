@@ -37,7 +37,7 @@ import type {
   MonthlyReportDetail,
   MonthlyReportSummary,
 } from '@/lib/statistics';
-import type { TeleconsultDetail, TeleconsultEventType, TeleconsultListItem, TeleconsultOutcome } from '@/lib/teleconsultation';
+import type { TeleconsultDetail, TeleconsultEventType, TeleconsultJoin, TeleconsultListItem, TeleconsultOutcome } from '@/lib/teleconsultation';
 import type {
   PayerTariff,
   PayerTariffInput,
@@ -5989,8 +5989,8 @@ class ApiClient {
     return this.data<TeleconsultDetail>(`/api/teleconsultations/${appointmentId}`);
   }
 
-  async joinTeleconsultation(appointmentId: string): Promise<TeleconsultDetail> {
-    return this.data<TeleconsultDetail>(`/api/teleconsultations/${appointmentId}/join`, { method: 'POST', body: JSON.stringify({}) });
+  async joinTeleconsultation(appointmentId: string): Promise<TeleconsultJoin> {
+    return this.data<TeleconsultJoin>(`/api/teleconsultations/${appointmentId}/join`, { method: 'POST', body: JSON.stringify({}) });
   }
 
   async acceptTeleconsultationConsent(appointmentId: string): Promise<void> {

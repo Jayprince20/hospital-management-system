@@ -60,6 +60,19 @@ export interface TeleconsultDetail {
   reason: string | null;
   session: TeleconsultSessionSummary | null;
   iceServers: RTCIceServer[];
+  /** livekit: media through the LiveKit server; p2p: direct WebRTC between the two browsers */
+  mediaProvider?: TeleMediaProvider;
+}
+
+export type TeleMediaProvider = 'livekit' | 'p2p';
+
+/** How this participant reaches the media, issued by the join (the LiveKit token only after the join checks) */
+export type TeleMedia =
+  | { provider: 'livekit'; url: string; room: string; identity: string; token: string; expiresAt: string }
+  | { provider: 'p2p' };
+
+export interface TeleconsultJoin extends TeleconsultDetail {
+  media?: TeleMedia;
 }
 
 // Socket.io events (same names as backend src/socket/events.ts)

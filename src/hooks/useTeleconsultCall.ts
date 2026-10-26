@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import { api } from '@/lib/api';
 import { useNotifications } from '@/context/notification-context';
+import { useLivekitMedia } from '@/hooks/useLivekitMedia';
 import {
   CHAT_MAX_LENGTH,
   TeleEvents,
@@ -14,6 +15,7 @@ import {
   type CallQuality,
   type TeleChatMessage,
   type TeleJoinAck,
+  type TeleMedia,
   type TeleRole,
   type TeleSignalData,
   type TeleconsultEventType,
@@ -21,8 +23,10 @@ import {
 } from '@/lib/teleconsultation';
 
 /**
- * One video call between the doctor and the patient: peer-to-peer WebRTC, signalling over the shared
- * Socket.io connection. The doctor makes the offer when both are in the room; the patient answers.
+ * One video call between the doctor and the patient. Presence, chat and ending go over the shared
+ * Socket.io connection; the media goes through LiveKit when the join issued a LiveKit token
+ * (useLivekitMedia), otherwise peer-to-peer WebRTC with signalling over the same socket.
+ * Peer-to-peer: The doctor makes the offer when both are in the room; the patient answers.
  * Both sides always negotiate one audio and one video transceiver (sendrecv); a missing camera or
  * microphone is a sender without track, so joining needs no device and turning one on needs no renegotiation.
  */
@@ -58,11 +62,13 @@ interface Options {
   iceServers: RTCIceServer[];
   /** Camera/microphone chosen in the device check; null to join without any device */
   localStream: MediaStream | null;
+  /** Media access issued by the join; null or p2p for peer-to-peer WebRTC */
+  media?: TeleMedia | null;
 }
 
 const STATS_EVERY_MS = 4000;
 
-export function useTeleconsultCall({ appointmentId, role, iceServers, localStream }: Options): TeleconsultCall {
+export function useTeleconsultCall({ appointmentId, role, iceServers, localStream, media = null }: Options): TeleconsultCall {
   const { getSocket, isConnected: socketConnected } = useNotifications();
 
   const [joined, setJoined] = useState(false);
@@ -99,6 +105,11 @@ export function useTeleconsultCall({ appointmentId, role, iceServers, localStrea
     },
     [appointmentId]
   );
+
+  const livekit = media?.provider === 'livekit' ? media : null;
+  const usesLivekit = livekit !== null;
+  const lk = useLivekitMedia({ media: livekit, role, active: joined && usesLivekit, localStream, logEvent });
+  const { setMicEnabled: lkMic, setCameraEnabled: lkCamera, setAudioOnly: lkAudioOnly } = lk;
 
   const emit = useCallback(
     (event: string, payload: Record<string, unknown>) => {
@@ -246,9 +257,9 @@ export function useTeleconsultCall({ appointmentId, role, iceServers, localStrea
       const present = Boolean(ack.peers?.includes(other));
       setPeerPresent(present);
       announceMedia();
-      if (present && role === 'DOCTOR') void makeOffer();
+      if (present && role === 'DOCTOR' && !usesLivekit) void makeOffer();
     },
-    [role, announceMedia, makeOffer]
+    [role, announceMedia, makeOffer, usesLivekit]
   );
 
   // Room events on the shared socket
@@ -264,7 +275,7 @@ export function useTeleconsultCall({ appointmentId, role, iceServers, localStrea
       setPeerPresent(true);
       announceMedia();
       // A (re)joining patient has a fresh connection: the doctor starts over (the patient answers the offer)
-      if (role === 'DOCTOR') void makeOffer();
+      if (role === 'DOCTOR' && !usesLivekit) void makeOffer();
     };
     const onPeerLeft = ({ role: who }: { role: TeleRole }) => {
       if (who !== other) return;
@@ -272,6 +283,7 @@ export function useTeleconsultCall({ appointmentId, role, iceServers, localStrea
       closePeer();
     };
     const onSignal = (payload: { from: TeleRole; data: TeleSignalData }) => {
+      if (usesLivekit) return;
       void handleSignal(payload).catch(() => {});
     };
     const onChat = (message: TeleChatMessage) => setMessages((prev) => [...prev, message].slice(-200));
@@ -301,7 +313,7 @@ export function useTeleconsultCall({ appointmentId, role, iceServers, localStrea
       socket.off(TeleEvents.ENDED, onEnded);
       socket.off('connect', onReconnect);
     };
-  }, [socketConnected, getSocket, role, announceMedia, makeOffer, closePeer, handleSignal, emitJoin, afterJoin]);
+  }, [socketConnected, getSocket, role, announceMedia, makeOffer, closePeer, handleSignal, emitJoin, afterJoin, usesLivekit]);
 
   const join = useCallback(async () => {
     const socket = getSocket();
@@ -357,8 +369,9 @@ export function useTeleconsultCall({ appointmentId, role, iceServers, localStrea
     track.enabled = !track.enabled;
     mediaRef.current.audio = track.enabled;
     setAudioEnabled(track.enabled);
+    if (usesLivekit) lkMic(track.enabled);
     announceMedia();
-  }, [announceMedia]);
+  }, [announceMedia, usesLivekit, lkMic]);
 
   const toggleVideo = useCallback(() => {
     const track = localRef.current?.getVideoTracks()[0];
@@ -366,20 +379,22 @@ export function useTeleconsultCall({ appointmentId, role, iceServers, localStrea
     track.enabled = !track.enabled;
     mediaRef.current.video = track.enabled;
     setVideoEnabled(track.enabled);
+    if (usesLivekit) lkCamera(track.enabled);
     announceMedia();
-  }, [announceMedia]);
+  }, [announceMedia, usesLivekit, lkCamera]);
 
   /** Audio only: stop sending video to spare a weak connection (the camera track is kept for later) */
   const setAudioOnly = useCallback(
     (on: boolean) => {
       audioOnlyRef.current = on;
       setAudioOnlyState(on);
+      if (usesLivekit) lkAudioOnly(on, mediaRef.current.video);
       const pc = pcRef.current;
       if (pc) attachLocalTracks(pc);
       if (on) logEvent('audio-only');
       announceMedia();
     },
-    [attachLocalTracks, logEvent, announceMedia]
+    [attachLocalTracks, logEvent, announceMedia, usesLivekit, lkAudioOnly]
   );
 
   const sendChat = useCallback(
@@ -424,15 +439,15 @@ export function useTeleconsultCall({ appointmentId, role, iceServers, localStrea
     joined,
     joinError,
     peerPresent,
-    connection,
-    quality,
-    connectedSince,
-    remoteStream,
+    connection: usesLivekit ? lk.connection : connection,
+    quality: usesLivekit ? lk.quality : quality,
+    connectedSince: usesLivekit ? lk.connectedSince : connectedSince,
+    remoteStream: usesLivekit ? lk.remoteStream : remoteStream,
     localStream,
     audioEnabled,
     videoEnabled,
     audioOnly,
-    peerMedia,
+    peerMedia: usesLivekit ? lk.peerMedia : peerMedia,
     messages,
     endedOutcome,
     join,
