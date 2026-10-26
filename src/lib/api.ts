@@ -84,6 +84,24 @@ import type {
   TariffSearchItem,
 } from '@/lib/price-list';
 import type { BayState, EdArrivalInput, EdBayInput, EdBoard, EdDailyStats, EdDispositionInput, EdEncounterDetail, EdEncounterPatch } from '@/lib/emergency';
+import { toQcSeries } from '@/lib/lab-qc';
+import type {
+  InstrumentMessage,
+  InstrumentMessageStatus,
+  InstrumentTestMapping,
+  InstrumentTestMappingInput,
+  LabInstrument,
+  LabInstrumentInput,
+  Paged,
+  QcMaterial,
+  QcMaterialInput,
+  QcResult,
+  QcResultInput,
+  QcSeries,
+  QcStatus,
+  QcStatusEntry,
+  QcWarning,
+} from '@/lib/lab-qc';
 import type { DrugInteraction, FollowUpAppointment, FollowUpType, Icd10Code, MdoAlert, PrescriptionCheck, SafetyAlert, VitalFlag } from '@/lib/clinical-safety';
 
 function getApiUrl(): string {
@@ -964,6 +982,11 @@ interface LabOrderDetailItem {
   criticalCalledAt?: string | null;
   criticalCalledTo?: string | null;
   rerunCount?: number;
+  /** MANUAL, or INSTRUMENT when the value came from an analyser */
+  source?: 'MANUAL' | 'INSTRUMENT' | string;
+  instrumentId?: string | null;
+  instrument?: { id: string; code: string; name?: string } | null;
+  qcOverrideReason?: string | null;
 }
 
 interface LabWorklistOrder {
@@ -4195,8 +4218,18 @@ class ApiClient {
     return this.data<LabOrderDetail>(`/api/lab-orders/${orderId}/rerun`, { method: 'POST', body: JSON.stringify({ itemId, reason }) });
   }
 
-  async validateLabResults(orderId: string, body: { itemIds?: string[]; criticalCall?: { calledTo: string } } = {}): Promise<LabOrderDetail> {
-    return this.data<LabOrderDetail>(`/api/lab-orders/${orderId}/validate`, { method: 'POST', body: JSON.stringify(body) });
+  /**
+   * Validate entered results. With QC enforcement on 'warn' the answer carries `qcWarning`; on
+   * 'block' the server answers 409 unless a biologist gives `qcOverrideReason`.
+   */
+  async validateLabResults(
+    orderId: string,
+    body: { itemIds?: string[]; criticalCall?: { calledTo: string }; qcOverrideReason?: string } = {}
+  ): Promise<LabOrderDetail & { qcWarning?: QcWarning }> {
+    const response = await this.request<LabOrderDetail & { qcWarning?: QcWarning }>(`/api/lab-orders/${orderId}/validate`, { method: 'POST', body: JSON.stringify(body) });
+    if (!response.success || response.data === undefined) throw new Error(response.message || response.error || 'Request failed');
+    const envelopeWarning = (response as unknown as { qcWarning?: QcWarning }).qcWarning;
+    return { ...response.data, qcWarning: response.data.qcWarning ?? envelopeWarning };
   }
 
   async documentLabCriticalCall(orderId: string, itemId: string, calledTo: string): Promise<LabOrderDetail> {
@@ -6306,6 +6339,84 @@ class ApiClient {
   async getEdStats(from: string, to: string): Promise<EdDailyStats[]> {
     const query = new URLSearchParams({ from, to });
     return this.list<EdDailyStats>(`/api/ed/stats?${query.toString()}`);
+  }
+
+  // ---- Laboratory: analysers (instruments) and quality control ----
+
+  async getLabInstruments(): Promise<LabInstrument[]> {
+    return this.list<LabInstrument>('/api/lab/instruments');
+  }
+
+  async createLabInstrument(input: LabInstrumentInput): Promise<LabInstrument> {
+    return this.data<LabInstrument>('/api/lab/instruments', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updateLabInstrument(id: string, patch: Partial<LabInstrumentInput>): Promise<LabInstrument> {
+    return this.data<LabInstrument>(`/api/lab/instruments/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
+  /** A new key for the analyser middleware: returned once, in clear */
+  async generateLabInstrumentKey(id: string): Promise<string> {
+    const res = await this.data<{ apiKey?: string; key?: string } | string>(`/api/lab/instruments/${id}/api-key`, { method: 'POST', body: '{}' });
+    const key = typeof res === 'string' ? res : res.apiKey ?? res.key;
+    if (!key) throw new Error('Request failed');
+    return key;
+  }
+
+  async getInstrumentMappings(instrumentId: string): Promise<InstrumentTestMapping[]> {
+    return this.list<InstrumentTestMapping>(`/api/lab/instruments/${instrumentId}/mappings`);
+  }
+
+  async createInstrumentMapping(instrumentId: string, input: InstrumentTestMappingInput): Promise<InstrumentTestMapping> {
+    return this.data<InstrumentTestMapping>(`/api/lab/instruments/${instrumentId}/mappings`, { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updateInstrumentMapping(instrumentId: string, mappingId: string, patch: Partial<InstrumentTestMappingInput>): Promise<InstrumentTestMapping> {
+    return this.data<InstrumentTestMapping>(`/api/lab/instruments/${instrumentId}/mappings/${mappingId}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
+  async deleteInstrumentMapping(instrumentId: string, mappingId: string): Promise<void> {
+    await this.request(`/api/lab/instruments/${instrumentId}/mappings/${mappingId}`, { method: 'DELETE' });
+  }
+
+  async getInstrumentMessages(filters: { instrumentId?: string; status?: InstrumentMessageStatus | ''; page?: number; limit?: number } = {}): Promise<Paged<InstrumentMessage>> {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== '') query.append(key, String(value));
+    const res = await this.data<InstrumentMessage[] | Paged<InstrumentMessage>>(`/api/lab/instrument-messages?${query.toString()}`);
+    return Array.isArray(res) ? { data: res } : { data: res.data ?? [], pagination: res.pagination };
+  }
+
+  async getQcMaterials(filters: { labTestId?: string; active?: boolean } = {}): Promise<QcMaterial[]> {
+    const query = new URLSearchParams();
+    if (filters.labTestId) query.append('labTestId', filters.labTestId);
+    if (filters.active !== undefined) query.append('active', String(filters.active));
+    return this.list<QcMaterial>(`/api/lab/qc/materials?${query.toString()}`);
+  }
+
+  async createQcMaterial(input: QcMaterialInput): Promise<QcMaterial> {
+    return this.data<QcMaterial>('/api/lab/qc/materials', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updateQcMaterial(id: string, patch: Partial<QcMaterialInput>): Promise<QcMaterial> {
+    return this.data<QcMaterial>(`/api/lab/qc/materials/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
+  async addQcResult(input: QcResultInput): Promise<QcResult> {
+    return this.data<QcResult>('/api/lab/qc/results', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async getQcResults(filters: { materialId?: string; from?: string; to?: string; status?: QcStatus } = {}): Promise<QcSeries> {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value) query.append(key, value);
+    return toQcSeries(await this.data<unknown>(`/api/lab/qc/results?${query.toString()}`));
+  }
+
+  async reviewQcResult(id: string, patch: { correctiveAction?: string; comment?: string }): Promise<QcResult> {
+    return this.data<QcResult>(`/api/lab/qc/results/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
+  async getQcStatus(date?: string): Promise<QcStatusEntry[]> {
+    return this.list<QcStatusEntry>(`/api/lab/qc/status${date ? `?date=${encodeURIComponent(date)}` : ''}`);
   }
 }
 

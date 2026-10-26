@@ -30,6 +30,8 @@ import {
 } from '@/components/lab/ui';
 import { RejectDialog } from '@/components/lab/scan-panel';
 import { OnCallSuggestion } from '@/components/rosters/on-call';
+import { InstrumentBadge, QcWarningBanner } from '@/components/lab-qc';
+import { isQcBlock, qcWarningLines, type QcWarning } from '@/lib/lab-qc';
 
 type Draft = { value: string; notes: string };
 
@@ -69,6 +71,9 @@ export default function LabOrderPage() {
   const [rerunItem, setRerunItem] = useState<LabOrderDetailItem | null>(null);
   const [rejectBarcode, setRejectBarcode] = useState<string | null>(null);
   const [showCancel, setShowCancel] = useState(false);
+  const [qcWarning, setQcWarning] = useState<QcWarning>(null);
+  // Validation refused by the server because QC is not in control: ids and calledTo to retry with a reason
+  const [qcBlocked, setQcBlocked] = useState<{ ids: string[]; message: string; lines: string[] } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -174,7 +179,7 @@ export default function LabOrderPage() {
     }
   };
 
-  const validate = async (ids: string[], calledTo?: string) => {
+  const validate = async (ids: string[], calledTo?: string, qcOverrideReason?: string) => {
     setBusy('validate');
     setError('');
     try {
@@ -183,15 +188,23 @@ export default function LabOrderPage() {
           await api.documentLabCriticalCall(order.id, item.id, calledTo);
         }
       }
-      await api.validateLabResults(order.id, { itemIds: ids });
-      toast.success(t('labw.validate.done', { n: ids.length }));
+      const res = await api.validateLabResults(order.id, { itemIds: ids, ...(qcOverrideReason ? { qcOverrideReason } : {}) });
+      toast.success(qcOverrideReason ? t('qc.validate.done', { n: ids.length }) : t('labw.validate.done', { n: ids.length }));
+      setQcWarning(qcWarningLines(res.qcWarning).length > 0 ? res.qcWarning : null);
+      setQcBlocked(null);
       setSelected([]);
       setCriticalDialog(null);
       await load();
     } catch (err) {
       const message = messageOf(err, t('labw.actionFailed'));
-      setError(message);
-      toast.error(t('labw.validate.failed'), message);
+      if (isQcBlock(err)) {
+        // QC enforcement 'block': a biologist may retry with a reason
+        setCriticalDialog(null);
+        setQcBlocked({ ids, message, lines: qcWarningLines((err as { data?: unknown }).data as QcWarning) });
+      } else {
+        setError(message);
+        toast.error(t('labw.validate.failed'), message);
+      }
     } finally {
       setBusy(null);
     }
@@ -403,6 +416,7 @@ export default function LabOrderPage() {
                     <td className="py-2.5 pr-3 align-top min-w-[14rem]">
                       {canEdit ? (
                         <div className="space-y-1">
+                          {item.source === 'INSTRUMENT' && item.status === 'ENTERED' && <InstrumentBadge code={item.instrument?.code} />}
                           {type === 'OPTION' ? (
                             <select
                               aria-label={t('labw.results.valueFor', { test: test.name })}
@@ -447,8 +461,12 @@ export default function LabOrderPage() {
                         </div>
                       ) : item.result ? (
                         <div>
-                          <FlaggedValue value={item.result} unit={item.unit ?? test.unit} flag={item.flag} />
+                          <span className="inline-flex flex-wrap items-center gap-1.5">
+                            <FlaggedValue value={item.result} unit={item.unit ?? test.unit} flag={item.flag} />
+                            {item.source === 'INSTRUMENT' && <InstrumentBadge code={item.instrument?.code} />}
+                          </span>
                           {item.status === 'ENTERED' && <p className="text-xs text-amber-700 dark:text-amber-400">{t('labw.results.notValidated')}</p>}
+                          {item.qcOverrideReason && <p className="text-xs text-amber-800 dark:text-amber-300">{t('qc.validate.overridden', { reason: item.qcOverrideReason })}</p>}
                           {item.notes && <p className="text-xs text-gray-500 dark:text-gray-400">{item.notes}</p>}
                         </div>
                       ) : (
@@ -491,6 +509,7 @@ export default function LabOrderPage() {
           </table>
         </div>
         {error && <div className="mt-3"><ErrorBox message={error} /></div>}
+        {qcWarning && <div className="mt-3"><QcWarningBanner warning={qcWarning} onDismiss={() => setQcWarning(null)} /></div>}
         <div className="mt-4 flex flex-wrap justify-end gap-2">
           {canEnter && order.items.some(editable) && (
             <button type="button" onClick={save} disabled={busy !== null} className={primaryBtn}>{t('labw.results.save')}</button>
@@ -537,6 +556,16 @@ export default function LabOrderPage() {
           busy={busy === 'validate'}
           onClose={() => setCriticalDialog(null)}
           onConfirm={(calledTo) => validate(criticalDialog, calledTo)}
+        />
+      )}
+      {qcBlocked && (
+        <QcOverrideDialog
+          message={qcBlocked.message}
+          lines={qcBlocked.lines}
+          canOverride={isBiologist}
+          busy={busy === 'validate'}
+          onClose={() => setQcBlocked(null)}
+          onConfirm={(reason) => validate(qcBlocked.ids, undefined, reason)}
         />
       )}
       {rerunItem && (
@@ -626,6 +655,79 @@ function CriticalCallDialog({
       </div>
       {/* If the prescriber can't be reached: who is on call in their department */}
       <OnCallSuggestion doctorId={doctorId} onPick={setCalledTo} />
+    </DialogShell>
+  );
+}
+
+/**
+ * The server refused validation because today's QC is not in control ('block' mode). A biologist
+ * may validate anyway with a reason, recorded on each result; others can only close.
+ */
+function QcOverrideDialog({
+  message,
+  lines,
+  canOverride,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  message: string;
+  lines: string[];
+  canOverride: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const { t } = useLanguage();
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+  const confirm = () => {
+    if (reason.trim().length < 10) return setError(t('qc.validate.reasonRequired'));
+    onConfirm(reason.trim());
+  };
+  return (
+    <DialogShell
+      title={t('qc.validate.blockedTitle')}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className={cancelBtn}>{t('common.close')}</button>
+          {canOverride && (
+            <button type="button" onClick={confirm} disabled={busy} className={primaryBtn}>{t('qc.validate.override')}</button>
+          )}
+        </>
+      }
+    >
+      <div className="space-y-3 text-sm">
+        <div role="alert" className="p-3 rounded-lg border border-red-300 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
+          <p className="font-semibold">{message}</p>
+          <p className="mt-1">{t('qc.validate.blockedBody')}</p>
+          {lines.length > 0 && (
+            <ul className="mt-1 list-disc pl-5">
+              {lines.map((line, i) => <li key={i}>{line}</li>)}
+            </ul>
+          )}
+        </div>
+        {canOverride ? (
+          <div>
+            <label htmlFor="qc-override-reason" className={labelClass}>{t('qc.validate.reason')}</label>
+            <textarea
+              id="qc-override-reason"
+              rows={3}
+              className={inputClass}
+              placeholder={t('qc.validate.reasonPlaceholder')}
+              value={reason}
+              onChange={(e) => {
+                setReason(e.target.value);
+                setError('');
+              }}
+            />
+            {error && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{error}</p>}
+          </div>
+        ) : (
+          <p className="text-gray-700 dark:text-gray-300">{t('qc.validate.notBiologist')}</p>
+        )}
+      </div>
     </DialogShell>
   );
 }

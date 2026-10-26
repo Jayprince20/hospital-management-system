@@ -356,6 +356,8 @@ export interface NavItem {
   group: NavGroup;
   permission?: Permission;
   roles?: UserRole[]; // Restrict to these roles in addition to the permission check
+  /** Among doctors, only biologists (lab/biology department or speciality) — checked by the sidebar */
+  biologistsOnly?: boolean;
   badge?: string;
   children?: NavItem[];
 }
@@ -655,6 +657,23 @@ export const navigationItems: NavItem[] = [
     permission: 'laboratory:enter_results', // Only lab techs who enter results
   },
   {
+    label: 'Quality Control',
+    href: '/dashboard/laboratory/qc',
+    group: 'care',
+    icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+    permission: 'laboratory:view',
+    roles: ['ADMIN', 'LAB_TECH', 'DOCTOR'], // Westgard QC: technicians and biologists
+    biologistsOnly: true,
+  },
+  {
+    label: 'Analysers',
+    href: '/dashboard/laboratory/instruments',
+    group: 'care',
+    icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+    permission: 'laboratory:view',
+    roles: ['ADMIN', 'LAB_TECH'], // Analyser links (HL7/ASTM), mappings, message log
+  },
+  {
     label: 'Lab Results',
     href: '/dashboard/lab-results',
     group: 'care',
@@ -829,6 +848,8 @@ export const routePermissions: Record<string, Permission> = {
   '/dashboard/consultations/new': 'records:create',
   '/dashboard/pharmacy': 'pharmacy:dispense', // Pharmacists only
   '/dashboard/laboratory': 'laboratory:enter_results', // Lab techs only
+  '/dashboard/laboratory/qc': 'laboratory:view', // Lab techs, biologists (page checks), admin — routeRoles
+  '/dashboard/laboratory/instruments': 'laboratory:view', // Lab techs (read), admin — routeRoles
   '/dashboard/laboratory/orders/new': 'laboratory:create_orders', // Doctors order tests
   '/dashboard/laboratory/orders': 'laboratory:view', // Order detail for anyone with lab access
   '/dashboard/lab-results': 'laboratory:view_patient_results', // Doctors, nurses, lab techs
@@ -865,6 +886,8 @@ export const routeRoles: Record<string, UserRole[]> = {
   '/dashboard/leave': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH'],
   '/dashboard/on-call': ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH'],
   '/dashboard/my-patients': ['DOCTOR'],
+  '/dashboard/laboratory/qc': ['ADMIN', 'LAB_TECH', 'DOCTOR'],
+  '/dashboard/laboratory/instruments': ['ADMIN', 'LAB_TECH'],
   '/dashboard/insurers': ['ADMIN', 'RECEPTIONIST'],
   '/dashboard/price-list': ['ADMIN', 'RECEPTIONIST', 'DOCTOR'],
   '/dashboard/queue': ['ADMIN', 'RECEPTIONIST', 'NURSE', 'DOCTOR'],

@@ -20,6 +20,7 @@ import {
   writeStored,
 } from '@/lib/navigation';
 import { useOnCall } from '@/components/rosters/on-call';
+import { useIsBiologist } from '@/components/lab/ui';
 import { myDepartment, useRosterDepartments } from '@/components/rosters/ui';
 
 // Map navigation labels to translation keys
@@ -63,6 +64,8 @@ const navTranslationKeys: Record<string, string> = {
   'Pharmacy Stock': 'nav.pharmacyStock',
   'Till Sessions': 'nav.pharmacySessions',
   'Laboratory': 'nav.laboratory',
+  'Quality Control': 'nav.labQc',
+  'Analysers': 'nav.labInstruments',
   'Billing': 'nav.billing',
   'Cash Desk': 'nav.cashDesk',
   'Cash Desk Supervision': 'nav.cashDeskSupervision',
@@ -95,17 +98,20 @@ function useNavModel() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const { isActing } = useActingPatient();
+  const isBiologist = useIsBiologist();
 
   const items: LabelledItem[] = useMemo(
     () =>
       navigationItems
         // Owner-only pages are hidden while a patient acts for a relative
         .filter((item) => isNavItemVisible(item, user?.role) && !(isActing && isOwnerOnlyPath(item.href)))
+        // Lab pages offered to doctors only when they are biologists
+        .filter((item) => !(item.biologistsOnly && user?.role === 'DOCTOR' && !isBiologist))
         .map((item) => {
           const key = navTranslationKeys[item.label];
           return { ...item, text: key ? t(key) : item.label };
         }),
-    [user?.role, isActing, t]
+    [user?.role, isActing, isBiologist, t]
   );
   const sections = useMemo(() => groupNavItems(items, user?.role), [items, user?.role]);
   return { items, sections, activeHref: activeNavHref(items, pathname) };
