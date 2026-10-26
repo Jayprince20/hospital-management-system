@@ -70,7 +70,7 @@ function UploadDialog({
   consultationId?: string;
   patientId: string;
   onClose: () => void;
-  onDone: () => void;
+  onDone: (uploadedIds: string[]) => void;
 }) {
   const { t } = useLanguage();
   const toast = useToast();
@@ -93,13 +93,14 @@ function UploadDialog({
     setBusy(true);
     setError('');
     let ok = 0;
+    const uploadedIds: string[] = [];
     let done = pending.filter((p) => p.progress === 1).length; // already sent on a previous try
     for (let i = 0; i < pending.length; i += 1) {
       const p = pending[i];
       if (p.progress === 1) continue;
       setPending((list) => list.map((x, j) => (j === i ? { ...x, progress: 0 } : x)));
       try {
-        await api.uploadPatientAttachment(
+        const created = await api.uploadPatientAttachment(
           patientId,
           p.file,
           {
@@ -113,6 +114,7 @@ function UploadDialog({
         );
         setPending((list) => list.map((x, j) => (j === i ? { ...x, progress: 1 } : x)));
         ok += 1;
+        uploadedIds.push(created.id);
         done += 1;
       } catch (err) {
         setPending((list) => list.map((x, j) => (j === i ? { ...x, progress: null } : x)));
@@ -122,7 +124,7 @@ function UploadDialog({
     setBusy(false);
     if (ok) {
       toast.success(t('cdoc.att.uploaded'), ok > 1 ? `${ok}` : undefined);
-      onDone();
+      onDone(uploadedIds);
     }
     // Keep the dialog open on a failure so the remaining files can be retried
     if (done === pending.length) onClose();
@@ -291,6 +293,7 @@ export function PatientAttachmentsPanel({
   compact = false,
   title,
   subtitle,
+  onUploaded,
 }: {
   patientId: string;
   consultationId?: string;
@@ -298,6 +301,8 @@ export function PatientAttachmentsPanel({
   compact?: boolean;
   title?: string;
   subtitle?: string;
+  /** Files sent while no consultationId exists yet (the write-up links them once saved) */
+  onUploaded?: (ids: string[]) => void;
 }) {
   const { t, language, formatDate } = useLanguage();
   const { user } = useAuth();
@@ -435,7 +440,10 @@ export function PatientAttachmentsPanel({
           consultationId={consultationId}
           patientId={patientId}
           onClose={() => setToUpload(null)}
-          onDone={load}
+          onDone={(ids) => {
+            onUploaded?.(ids);
+            void load();
+          }}
         />
       )}
       {viewing && <AttachmentViewer attachment={viewing} onClose={() => setViewing(null)} />}

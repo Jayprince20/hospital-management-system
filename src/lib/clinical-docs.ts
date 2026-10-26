@@ -207,6 +207,7 @@ export interface AttachmentPatch {
   category?: AttachmentCategory;
   documentDate?: string | null;
   visibleToPatient?: boolean;
+  consultationId?: string;
 }
 
 export const ATTACHMENT_TYPES = ['image/jpeg', 'image/png', 'application/pdf'] as const;

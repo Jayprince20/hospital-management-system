@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { api, Appointment, Consultation } from '@/lib/api';
@@ -78,6 +78,8 @@ export default function ConsultationPage() {
 
   const [prescriptionItems, setPrescriptionItems] = useState<PrescriptionItem[]>([]);
   const [labOrderItems, setLabOrderItems] = useState<LabOrderItem[]>([]);
+  // Files added before the consultation exists: linked to it once saved
+  const unlinkedUploads = useRef<string[]>([]);
   const [symptomInput, setSymptomInput] = useState('');
   // Prescribing safety: justification when an alert blocks, and alerts returned by a refused save
   const [safetyOverride, setSafetyOverride] = useState('');
@@ -342,12 +344,19 @@ export default function ConsultationPage() {
         setSafetyOverride('');
       }
 
+      if (unlinkedUploads.current.length > 0) {
+        const ids = unlinkedUploads.current;
+        unlinkedUploads.current = [];
+        await Promise.all(ids.map((id) => api.updateAttachment(id, { consultationId: saved.id }).catch(() => undefined)));
+      }
+
       // Create lab orders if there are items
       if (labOrderItems.length > 0 && labOrderItems.some(item => item.labTestId)) {
         const validItems = labOrderItems.filter(item => item.labTestId);
         await api.createLabOrder({
           patientId: appointment.patient.id,
           doctorId: appointment.doctor.id,
+          consultationId: saved.id,
           priority: validItems[0]?.priority || 'ROUTINE',
           notes: validItems.map(item => item.notes).filter(Boolean).join('; '),
           tests: validItems.map(item => ({ labTestId: item.labTestId })),
@@ -892,6 +901,9 @@ export default function ConsultationPage() {
             key={existingConsultation?.id ?? 'patient'}
             patientId={appointment.patient.id}
             consultationId={existingConsultation?.id}
+            onUploaded={(ids) => {
+              if (!existingConsultation) unlinkedUploads.current.push(...ids);
+            }}
             title={t('cdoc.att.consultationTitle')}
             compact
           />
