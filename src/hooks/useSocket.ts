@@ -34,7 +34,6 @@ export interface UseSocketOptions {
 }
 
 export interface UseSocketReturn {
-  socket: Socket | null;
   isConnected: boolean;
   isConnecting: boolean;
   error: string | null;
@@ -43,6 +42,8 @@ export interface UseSocketReturn {
   emit: <T = unknown>(event: ClientEventType, data?: T) => void;
   on: <T = unknown>(event: ServerEventType, callback: (data: T) => void) => () => void;
   off: (event: ServerEventType) => void;
+  /** The underlying connection, for features with their own events and acks (teleconsultation) */
+  getSocket: () => Socket | null;
 }
 
 function getSocketUrl(): string {
@@ -171,11 +172,11 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
 
   // Auto-connect on mount if token exists
   useEffect(() => {
-    if (autoConnect && getToken()) {
-      connect();
-    }
+    // Connect on the next tick: connect() updates state, which must not happen synchronously in an effect
+    const timer = autoConnect && getToken() ? setTimeout(connect, 0) : undefined;
 
     return () => {
+      clearTimeout(timer);
       disconnect();
     };
   }, [autoConnect, connect, disconnect, getToken]);
@@ -196,8 +197,9 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [connect, disconnect]);
 
+  const getSocket = useCallback(() => socketRef.current, []);
+
   return {
-    socket: socketRef.current,
     isConnected,
     isConnecting,
     error,
@@ -206,5 +208,6 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
     emit,
     on,
     off,
+    getSocket,
   };
 }

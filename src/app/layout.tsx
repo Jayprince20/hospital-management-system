@@ -6,12 +6,15 @@ import { LanguageProvider } from "@/context/language-context";
 import { NotificationProvider } from "@/context/notification-context";
 import { ToastProvider } from "@/components/toast";
 import { NotificationToastContainer } from "@/components/notifications";
+import { OfflineProvider } from "@/context/offline-context";
+import { ServiceWorkerRegister } from "@/components/offline/service-worker-register";
 
-// Using system font stack for Docker compatibility - fonts defined in tailwind.config.ts
+// Plus Jakarta Sans from Google Fonts; the system stack in globals.css takes over offline (Docker)
 
 export const metadata: Metadata = {
   title: "HMS Dashboard - Hospital Management System",
   description: "Admin dashboard for Hospital Management System",
+  manifest: '/manifest.webmanifest',
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
@@ -44,18 +47,25 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       </head>
-      <body className="antialiased font-sans">
+      <body suppressHydrationWarning className="antialiased font-sans">
         <ThemeProvider>
           <LanguageProvider>
             <AuthProvider>
               <NotificationProvider>
                 <ToastProvider>
-                  {children}
-                  <NotificationToastContainer />
+                  <OfflineProvider>
+                    {children}
+                    <NotificationToastContainer />
+                    <ServiceWorkerRegister />
+                  </OfflineProvider>
                 </ToastProvider>
               </NotificationProvider>
             </AuthProvider>

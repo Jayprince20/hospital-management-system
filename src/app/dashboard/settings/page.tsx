@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
+import { TwoFactorSettings } from '@/components/two-factor-settings';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -227,7 +228,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleProfileSave}
                     disabled={saving}
-                    className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
                   >
                     {saving ? t('form.saving') : t('form.saveChanges')}
                   </button>
@@ -280,20 +281,14 @@ export default function SettingsPage() {
                   <button
                     onClick={handlePasswordChange}
                     disabled={saving || !passwords.currentPassword || !passwords.newPassword}
-                    className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
                   >
                     {saving ? t('settings.changingPassword') : t('settings.changePassword')}
                   </button>
                 </div>
 
                 <div className="pt-6 mt-6 border-t border-gray-100 dark:border-gray-700">
-                  <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">{t('settings.twoFactor')}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    {t('settings.twoFactorDesc')}
-                  </p>
-                  <button className="px-4 py-2 text-sm text-lime-600 border border-lime-600 rounded-lg hover:bg-lime-50 dark:hover:bg-lime-900/50">
-                    {t('settings.enable2FA')}
-                  </button>
+                  <TwoFactorSettings />
                 </div>
               </div>
             )}
@@ -328,7 +323,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleNotificationsSave}
                     disabled={saving}
-                    className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
                   >
                     {saving ? t('form.saving') : t('settings.savePreferences')}
                   </button>
@@ -349,10 +344,9 @@ export default function SettingsPage() {
                       onChange={(e) => setSystemSettings({ ...systemSettings, timezone: e.target.value })}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     >
-                      <option value="America/New_York">Eastern Time (ET)</option>
-                      <option value="America/Chicago">Central Time (CT)</option>
-                      <option value="America/Denver">Mountain Time (MT)</option>
-                      <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                      <option value="Africa/Douala">{t('admin.settings.tz.douala')}</option>
+                      <option value="Africa/Lagos">{t('admin.settings.tz.lagos')}</option>
+                      <option value="Europe/Paris">{t('admin.settings.tz.paris')}</option>
                       <option value="UTC">UTC</option>
                     </select>
                   </div>
@@ -379,8 +373,8 @@ export default function SettingsPage() {
                       onChange={(e) => setSystemSettings({ ...systemSettings, timeFormat: e.target.value })}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     >
-                      <option value="12h">12-hour (AM/PM)</option>
-                      <option value="24h">24-hour</option>
+                      <option value="12h">{t('admin.settings.time12')}</option>
+                      <option value="24h">{t('admin.settings.time24')}</option>
                     </select>
                   </div>
                   <div>
@@ -416,7 +410,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleSystemSettingsSave}
                     disabled={saving}
-                    className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50"
+                    className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
                   >
                     {saving ? t('form.saving') : t('settings.saveSettings')}
                   </button>

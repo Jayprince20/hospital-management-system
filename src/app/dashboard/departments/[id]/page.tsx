@@ -5,10 +5,12 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, DepartmentDetail } from '@/lib/api';
 import { useToast } from '@/components/toast';
+import { useLanguage } from '@/context/language-context';
 
 export default function DepartmentDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const { t } = useLanguage();
   const [department, setDepartment] = useState<DepartmentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +29,7 @@ export default function DepartmentDetailPage() {
       setDepartment(data);
       setEditData({ name: data.name, description: data.description || '', isActive: data.isActive });
     } catch (err) {
-      setError('Failed to load department');
+      setError(t('clinical.departments.loadFailed'));
       console.error(err);
     } finally {
       setLoading(false);
@@ -42,11 +44,11 @@ export default function DepartmentDetailPage() {
     setIsSaving(true);
     try {
       await api.updateDepartment(params.id as string, editData);
-      toast.success('Department updated', `${editData.name} has been updated successfully.`);
+      toast.success(t('clinical.departments.updated'), t('clinical.departments.updatedMessage', { name: editData.name }));
       await fetchDepartment();
       setIsEditing(false);
     } catch (err) {
-      toast.error('Update failed', err instanceof Error ? err.message : 'Failed to update department');
+      toast.error(t('clinical.departments.updateFailedTitle'), err instanceof Error ? err.message : t('clinical.departments.updateFailed'));
     } finally {
       setIsSaving(false);
     }
@@ -56,10 +58,10 @@ export default function DepartmentDetailPage() {
     try {
       const name = department?.name || 'Department';
       await api.deleteDepartment(params.id as string);
-      toast.success('Department deleted', `${name} has been removed.`);
+      toast.success(t('clinical.departments.deleted'), t('clinical.departments.deletedMessage', { name }));
       router.push('/dashboard/departments');
     } catch (err) {
-      toast.error('Delete failed', err instanceof Error ? err.message : 'Failed to delete department');
+      toast.error(t('clinical.doctors.deleteFailed'), err instanceof Error ? err.message : t('clinical.departments.deleteFailed'));
       setShowDeleteModal(false);
     }
   };
@@ -75,9 +77,9 @@ export default function DepartmentDetailPage() {
   if (error || !department) {
     return (
       <div className="flex flex-col items-center justify-center h-96">
-        <p className="text-red-600 mb-4">{error || 'Department not found'}</p>
-        <Link href="/dashboard/departments" className="px-4 py-2 bg-lime-600 text-white rounded-lg">
-          Back to Departments
+        <p className="text-red-600 mb-4">{error || t('clinical.departments.notFound')}</p>
+        <Link href="/dashboard/departments" className="px-4 py-2 bg-brand text-white rounded-lg">
+          {t('clinical.departments.backToDepartments')}
         </Link>
       </div>
     );
@@ -104,7 +106,7 @@ export default function DepartmentDetailPage() {
                   ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400'
                   : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
               }`}>
-                {department.isActive ? 'Active' : 'Inactive'}
+                {department.isActive ? t('clinical.departments.badgeActive') : t('clinical.departments.badgeInactive')}
               </span>
             </div>
             {department.description && (
@@ -117,13 +119,13 @@ export default function DepartmentDetailPage() {
             onClick={() => setIsEditing(true)}
             className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           >
-            Edit
+            {t('clinical.departments.edit')}
           </button>
           <button
             onClick={() => setShowDeleteModal(true)}
             className="px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
           >
-            Delete
+            {t('clinical.common.delete')}
           </button>
         </div>
       </div>
@@ -132,22 +134,22 @@ export default function DepartmentDetailPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-3xl font-bold text-lime-600">{department.stats.totalDoctors}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Total Doctors</p>
-          <p className="text-xs text-green-600">{department.stats.activeDoctors} available</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.departments.totalDoctors')}</p>
+          <p className="text-xs text-green-600">{t('clinical.departments.nAvailable', { count: department.stats.activeDoctors })}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-3xl font-bold text-blue-600">{department.stats.totalNurses}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Total Nurses</p>
-          <p className="text-xs text-green-600">{department.stats.activeNurses} active</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.departments.totalNurses')}</p>
+          <p className="text-xs text-green-600">{t('clinical.departments.nActive', { count: department.stats.activeNurses })}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
           <p className="text-3xl font-bold text-purple-600">{department.stats.totalStaff}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Other Staff</p>
-          <p className="text-xs text-green-600">{department.stats.activeStaff} active</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.departments.otherStaff')}</p>
+          <p className="text-xs text-green-600">{t('clinical.departments.nActive', { count: department.stats.activeStaff })}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{department.totalStaff}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Total Members</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">{department.stats.totalDoctors + department.stats.totalNurses + department.stats.totalStaff}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.departments.totalMembers')}</p>
         </div>
       </div>
 
@@ -165,7 +167,7 @@ export default function DepartmentDetailPage() {
                     : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
                 }`}
               >
-                {tab} ({tab === 'doctors' ? department.doctors.length : tab === 'nurses' ? department.nurses.length : department.staff.length})
+                {t(`clinical.departments.tab.${tab}`)} ({tab === 'doctors' ? department.doctors.length : tab === 'nurses' ? department.nurses.length : department.staff.length})
               </button>
             ))}
           </nav>
@@ -175,7 +177,7 @@ export default function DepartmentDetailPage() {
           {activeTab === 'doctors' && (
             <div className="space-y-4">
               {department.doctors.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No doctors in this department</p>
+                <p className="text-gray-500 dark:text-gray-400 text-center py-8">{t('clinical.departments.noDoctorsInThisDepartment')}</p>
               ) : (
                 department.doctors.map((doctor) => (
                   <Link
@@ -201,7 +203,7 @@ export default function DepartmentDetailPage() {
                         ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400'
                         : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
                     }`}>
-                      {doctor.isAvailable ? 'Available' : 'Unavailable'}
+                      {doctor.isAvailable ? t('clinical.departments.badgeAvailable') : t('clinical.departments.badgeUnavailable')}
                     </span>
                   </Link>
                 ))
@@ -212,7 +214,7 @@ export default function DepartmentDetailPage() {
           {activeTab === 'nurses' && (
             <div className="space-y-4">
               {department.nurses.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No nurses in this department</p>
+                <p className="text-gray-500 dark:text-gray-400 text-center py-8">{t('clinical.departments.noNursesInThisDepartment')}</p>
               ) : (
                 department.nurses.map((nurse) => (
                   <div
@@ -240,7 +242,7 @@ export default function DepartmentDetailPage() {
           {activeTab === 'staff' && (
             <div className="space-y-4">
               {department.staff.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No other staff in this department</p>
+                <p className="text-gray-500 dark:text-gray-400 text-center py-8">{t('clinical.departments.noOtherStaffInThisDepartment')}</p>
               ) : (
                 department.staff.map((s) => (
                   <div
@@ -268,10 +270,10 @@ export default function DepartmentDetailPage() {
       {isEditing && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Edit Department</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('clinical.departments.editDepartment')}</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('clinical.departments.name')}</label>
                 <input
                   type="text"
                   value={editData.name}
@@ -280,7 +282,7 @@ export default function DepartmentDetailPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('clinical.departments.description')}</label>
                 <textarea
                   value={editData.description}
                   onChange={(e) => setEditData({ ...editData, description: e.target.value })}
@@ -295,7 +297,7 @@ export default function DepartmentDetailPage() {
                   onChange={(e) => setEditData({ ...editData, isActive: e.target.checked })}
                   className="w-4 h-4 text-lime-600 rounded"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Active</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">{t('enum.ACTIVE')}</span>
               </label>
             </div>
             <div className="flex justify-end gap-3 mt-6">
@@ -303,14 +305,14 @@ export default function DepartmentDetailPage() {
                 onClick={() => setIsEditing(false)}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
               >
-                Cancel
+                {t('clinical.common.cancel')}
               </button>
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50"
+                className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50"
               >
-                {isSaving ? 'Saving...' : 'Save'}
+                {isSaving ? t('clinical.common.saving') : t('clinical.common.save')}
               </button>
             </div>
           </div>
@@ -321,22 +323,22 @@ export default function DepartmentDetailPage() {
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Delete Department</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{t('clinical.departments.deleteDepartment')}</h2>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Are you sure you want to delete "{department.name}"? This action cannot be undone.
+              {t('clinical.departments.deleteConfirm', { name: department.name })}
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDeleteModal(false)}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
               >
-                Cancel
+                {t('clinical.common.cancel')}
               </button>
               <button
                 onClick={handleDelete}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
-                Delete
+                {t('clinical.common.delete')}
               </button>
             </div>
           </div>

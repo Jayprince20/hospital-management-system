@@ -3,9 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
-import { api } from '@/lib/api';
+import { api, Appointment } from '@/lib/api';
 import { LoadingState, ErrorState } from '@/components/ui';
-import { formatTime } from '@/lib/formatters';
+import { useLanguage } from '@/context/language-context';
+import { isCriticalFlag } from '@/lib/clinical-safety';
+import { useToast } from '@/components/toast';
+import { TriageQueueCard } from '@/components/queue';
+import { MarRoundCard } from '@/components/inpatient';
 
 interface WaitingPatient {
   id: string;
@@ -29,6 +33,8 @@ interface NurseStats {
 
 export function NurseDashboard() {
   const { user } = useAuth();
+  const { t, tEnum, formatTime } = useLanguage();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<NurseStats>({
@@ -60,28 +66,32 @@ export function NurseDashboard() {
       setLoading(true);
       setError(null);
 
-      const today = new Date().toISOString().split('T')[0];
+      // Appointment dates are stored at local midnight, so query the full local day
+      // rather than a bare YYYY-MM-DD (which is parsed as UTC and misses today).
+      const dayStart = new Date();
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date();
+      dayEnd.setHours(23, 59, 59, 999);
 
-      // Fetch today's appointments that are checked in or waiting
-      const appointmentsRes = await api.getAppointments({
-        dateFrom: today,
-        dateTo: today,
-        limit: 50,
-      });
+      const [appointmentsRes, vitalsRes] = await Promise.all([
+        api.getAppointments({ dateFrom: dayStart.toISOString(), dateTo: dayEnd.toISOString(), limit: 100 }),
+        api.getVitals({ startDate: dayStart.toISOString(), limit: 1 }),
+      ]);
 
-      const allAppointments = appointmentsRes.data || [];
+      const allAppointments: Appointment[] = appointmentsRes.data || [];
 
-      // Filter for patients who need attention (checked in, waiting for vitals)
+      // Patients who need attention: awaiting check-in or checked in and waiting for vitals
       const waiting = allAppointments
-        .filter((apt: any) => ['CHECKED_IN', 'CONFIRMED'].includes(apt.status))
-        .map((apt: any) => ({
+        .filter((apt) => ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'].includes(apt.status))
+        .sort((a, b) => a.startTime.localeCompare(b.startTime))
+        .map((apt) => ({
           id: apt.patient?.id || '',
           appointmentId: apt.id,
           name: `${apt.patient?.firstName || ''} ${apt.patient?.lastName || ''}`.trim(),
           patientId: apt.patient?.patientId || '',
-          time: apt.startTime || apt.scheduledAt,
+          time: apt.startTime,
           doctor: `Dr. ${apt.doctor?.firstName || ''} ${apt.doctor?.lastName || ''}`.trim(),
-          department: apt.doctor?.department?.name || apt.doctor?.department || 'General',
+          department: apt.doctor?.department || '',
           status: apt.status,
           reason: apt.reason,
           checkedInAt: apt.checkedInAt,
@@ -89,23 +99,23 @@ export function NurseDashboard() {
 
       setWaitingPatients(waiting);
 
-      const checkedIn = allAppointments.filter((a: any) => a.status === 'CHECKED_IN').length;
-      const confirmed = allAppointments.filter((a: any) => a.status === 'CONFIRMED').length;
+      const checkedIn = allAppointments.filter((a) => a.status === 'CHECKED_IN').length;
+      const notCheckedIn = allAppointments.filter((a) => ['SCHEDULED', 'CONFIRMED'].includes(a.status)).length;
 
       setStats({
         waitingPatients: waiting.length,
         checkedInToday: checkedIn,
-        vitalsRecordedToday: 0, // Would need separate API call
-        pendingVitals: confirmed, // Patients confirmed but not checked in
+        vitalsRecordedToday: vitalsRes.pagination.total,
+        pendingVitals: notCheckedIn,
       });
 
     } catch (err) {
-      setError('Failed to load nurse dashboard');
+      setError(t('clinical.nurseDashboard.loadFailed'));
       console.error('Nurse dashboard error:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchNurseData();
@@ -116,9 +126,11 @@ export function NurseDashboard() {
   const handleCheckIn = async (appointmentId: string) => {
     try {
       await api.updateAppointment(appointmentId, { status: 'CHECKED_IN' });
+      toast.success(t('clinical.consultations.checkedIn'));
       fetchNurseData();
     } catch (err) {
       console.error('Check-in failed:', err);
+      toast.error(t('clinical.consultations.checkInFailed'), err instanceof Error ? err.message : undefined);
     }
   };
 
@@ -143,7 +155,7 @@ export function NurseDashboard() {
 
     try {
       setSavingVitals(true);
-      await api.createVitals({
+      const created = await api.createVitals({
         patientId: selectedPatient,
         bloodPressureSys: vitalsForm.bloodPressureSys ? parseInt(vitalsForm.bloodPressureSys) : undefined,
         bloodPressureDia: vitalsForm.bloodPressureDia ? parseInt(vitalsForm.bloodPressureDia) : undefined,
@@ -157,39 +169,47 @@ export function NurseDashboard() {
         recordedBy: `${user?.firstName} ${user?.lastName}`,
       });
       setShowVitalsModal(false);
+      toast.success(t('clinical.vitals.recorded'));
+      const critical = (created.flags ?? []).filter(isCriticalFlag);
+      if (critical.length) toast.warning(t('cs.vitals.critical'), critical.map((f) => f.message).join(' · '));
       fetchNurseData();
     } catch (err) {
       console.error('Failed to save vitals:', err);
+      toast.error(t('clinical.vitals.recordFailed'), err instanceof Error ? err.message : undefined);
     } finally {
       setSavingVitals(false);
     }
   };
 
   const statusColors: Record<string, string> = {
+    'SCHEDULED': 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
     'CONFIRMED': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-400',
     'CHECKED_IN': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-400',
     'IN_PROGRESS': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-400',
   };
 
   if (loading) {
-    return <LoadingState label="Loading nursing station..." minHeight="h-96" />;
+    return <LoadingState label={t('clinical.nurseDashboard.loading')} minHeight="h-96" />;
   }
 
   if (error) {
-    return <ErrorState title="Error" message={error} onRetry={fetchNurseData} />;
+    return <ErrorState title={t('clinical.doctorDashboard.errorTitle')} message={error} onRetry={fetchNurseData} />;
   }
 
   return (
     <div>
-      {/* Welcome Section */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Nursing Station
-        </h1>
+      {/* Summary line (the page header already greets the nurse) */}
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+          {t('clinical.nurseDashboard.title')}
+        </h2>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
-          {stats.waitingPatients} patient{stats.waitingPatients !== 1 ? 's' : ''} waiting for assistance
+          {t(stats.waitingPatients === 1 ? 'clinical.nurseDashboard.waitingOne' : 'clinical.nurseDashboard.waitingMany', { count: stats.waitingPatients })}
         </p>
       </div>
+
+      <TriageQueueCard />
+      <MarRoundCard />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -202,7 +222,7 @@ export function NurseDashboard() {
             </div>
             <div>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.waitingPatients}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Waiting Patients</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.doctorDashboard.waitingPatients')}</p>
             </div>
           </div>
         </div>
@@ -216,7 +236,7 @@ export function NurseDashboard() {
             </div>
             <div>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.checkedInToday}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Checked In Today</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.nurseDashboard.checkedInToday')}</p>
             </div>
           </div>
         </div>
@@ -230,7 +250,7 @@ export function NurseDashboard() {
             </div>
             <div>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.vitalsRecordedToday}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Vitals Recorded</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.nurseDashboard.vitalsRecorded')}</p>
             </div>
           </div>
         </div>
@@ -244,7 +264,7 @@ export function NurseDashboard() {
             </div>
             <div>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.pendingVitals}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Pending Check-in</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.nurseDashboard.pendingCheckIn')}</p>
             </div>
           </div>
         </div>
@@ -254,14 +274,14 @@ export function NurseDashboard() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Patient Queue</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Patients waiting for check-in and vitals</p>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('clinical.nurseDashboard.patientQueue')}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.nurseDashboard.patientsWaitingForCheckInAnd')}</p>
           </div>
           <button
             onClick={fetchNurseData}
             className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
-            Refresh
+            {t('clinical.nurseDashboard.refresh')}
           </button>
         </div>
 
@@ -270,19 +290,19 @@ export function NurseDashboard() {
             <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="text-gray-500 dark:text-gray-400">No patients waiting</p>
+            <p className="text-gray-500 dark:text-gray-400">{t('clinical.nurseDashboard.noPatientsWaiting')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Time</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Patient</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Doctor</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reason</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('clinical.nurseDashboard.time')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('clinical.common.patient')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('clinical.common.doctor')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('clinical.nurseDashboard.reason')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('clinical.doctorDashboard.status')}</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('clinical.common.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -318,17 +338,17 @@ export function NurseDashboard() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${statusColors[patient.status]}`}>
-                        {patient.status.replace('_', ' ')}
+                        {tEnum(patient.status)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        {patient.status === 'CONFIRMED' && (
+                        {['SCHEDULED', 'CONFIRMED'].includes(patient.status) && (
                           <button
                             onClick={() => handleCheckIn(patient.appointmentId)}
                             className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
                           >
-                            Check In
+                            {t('clinical.consultations.checkIn')}
                           </button>
                         )}
                         {patient.status === 'CHECKED_IN' && (
@@ -336,14 +356,14 @@ export function NurseDashboard() {
                             onClick={() => openVitalsModal(patient.id)}
                             className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
                           >
-                            Record Vitals
+                            {t('clinical.vitals.record')}
                           </button>
                         )}
                         <Link
                           href={`/dashboard/patients/${patient.id}`}
                           className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-lime-600 dark:hover:text-lime-400"
                         >
-                          View
+                          {t('clinical.doctorDashboard.view')}
                         </Link>
                       </div>
                     </td>
@@ -368,8 +388,8 @@ export function NurseDashboard() {
               </svg>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900 dark:text-white">View All Patients</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Search and view patient records</p>
+              <h3 className="font-medium text-gray-900 dark:text-white">{t('clinical.nurseDashboard.viewAllPatients')}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.nurseDashboard.searchAndViewPatientRecords')}</p>
             </div>
           </div>
         </Link>
@@ -385,8 +405,8 @@ export function NurseDashboard() {
               </svg>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900 dark:text-white">Today's Appointments</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">View all scheduled appointments</p>
+              <h3 className="font-medium text-gray-900 dark:text-white">{t('doctors.todayAppointments')}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.nurseDashboard.viewAllScheduledAppointments')}</p>
             </div>
           </div>
         </Link>
@@ -402,8 +422,8 @@ export function NurseDashboard() {
               </svg>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900 dark:text-white">Medical Records</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">View consultation records</p>
+              <h3 className="font-medium text-gray-900 dark:text-white">{t('records.title')}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('clinical.nurseDashboard.viewConsultationRecords')}</p>
             </div>
           </div>
         </Link>
@@ -415,19 +435,19 @@ export function NurseDashboard() {
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowVitalsModal(false)} />
           <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Record Vital Signs</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Enter patient's current vital signs</p>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('clinical.vitals.recordTitle')}</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('clinical.nurseDashboard.enterPatientSCurrentVitalSigns')}</p>
             </div>
 
             <div className="p-6">
               <div className="grid grid-cols-2 gap-4">
                 {/* Blood Pressure */}
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Blood Pressure (mmHg)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('clinical.nurseDashboard.bloodPressureMmhg')}</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
-                      placeholder="Systolic"
+                      placeholder={t('clinical.nurseDashboard.systolic')}
                       value={vitalsForm.bloodPressureSys}
                       onChange={(e) => setVitalsForm({ ...vitalsForm, bloodPressureSys: e.target.value })}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -435,7 +455,7 @@ export function NurseDashboard() {
                     <span className="text-gray-500">/</span>
                     <input
                       type="number"
-                      placeholder="Diastolic"
+                      placeholder={t('clinical.nurseDashboard.diastolic')}
                       value={vitalsForm.bloodPressureDia}
                       onChange={(e) => setVitalsForm({ ...vitalsForm, bloodPressureDia: e.target.value })}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -445,10 +465,10 @@ export function NurseDashboard() {
 
                 {/* Heart Rate */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Heart Rate (bpm)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('clinical.nurseDashboard.heartRateBpm')}</label>
                   <input
                     type="number"
-                    placeholder="e.g., 72"
+                    placeholder={t('clinical.nurseDashboard.eG72')}
                     value={vitalsForm.heartRate}
                     onChange={(e) => setVitalsForm({ ...vitalsForm, heartRate: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -457,11 +477,11 @@ export function NurseDashboard() {
 
                 {/* Temperature */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Temperature (°C)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('clinical.nurseDashboard.temperatureC')}</label>
                   <input
                     type="number"
                     step="0.1"
-                    placeholder="e.g., 36.5"
+                    placeholder={t('clinical.nurseDashboard.eG365')}
                     value={vitalsForm.temperature}
                     onChange={(e) => setVitalsForm({ ...vitalsForm, temperature: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -470,10 +490,10 @@ export function NurseDashboard() {
 
                 {/* Respiratory Rate */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Respiratory Rate (breaths/min)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('clinical.nurseDashboard.respiratoryRateBreathsMin')}</label>
                   <input
                     type="number"
-                    placeholder="e.g., 16"
+                    placeholder={t('clinical.nurseDashboard.eG16')}
                     value={vitalsForm.respiratoryRate}
                     onChange={(e) => setVitalsForm({ ...vitalsForm, respiratoryRate: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -482,10 +502,10 @@ export function NurseDashboard() {
 
                 {/* Oxygen Saturation */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Oxygen Saturation (%)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('clinical.nurseDashboard.oxygenSaturation')}</label>
                   <input
                     type="number"
-                    placeholder="e.g., 98"
+                    placeholder={t('clinical.nurseDashboard.eG98')}
                     value={vitalsForm.oxygenSaturation}
                     onChange={(e) => setVitalsForm({ ...vitalsForm, oxygenSaturation: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -494,11 +514,11 @@ export function NurseDashboard() {
 
                 {/* Weight */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Weight (kg)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('clinical.nurseDashboard.weightKg')}</label>
                   <input
                     type="number"
                     step="0.1"
-                    placeholder="e.g., 70.5"
+                    placeholder={t('clinical.nurseDashboard.eG705')}
                     value={vitalsForm.weight}
                     onChange={(e) => setVitalsForm({ ...vitalsForm, weight: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -507,11 +527,11 @@ export function NurseDashboard() {
 
                 {/* Height */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Height (cm)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('clinical.nurseDashboard.heightCm')}</label>
                   <input
                     type="number"
                     step="0.1"
-                    placeholder="e.g., 175"
+                    placeholder={t('clinical.nurseDashboard.eG175')}
                     value={vitalsForm.height}
                     onChange={(e) => setVitalsForm({ ...vitalsForm, height: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -520,10 +540,10 @@ export function NurseDashboard() {
 
                 {/* Notes */}
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('clinical.common.notes')}</label>
                   <textarea
                     rows={3}
-                    placeholder="Any additional observations..."
+                    placeholder={t('clinical.nurseDashboard.anyAdditionalObservations')}
                     value={vitalsForm.notes}
                     onChange={(e) => setVitalsForm({ ...vitalsForm, notes: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
@@ -537,14 +557,14 @@ export function NurseDashboard() {
                 onClick={() => setShowVitalsModal(false)}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
-                Cancel
+                {t('clinical.common.cancel')}
               </button>
               <button
                 onClick={handleSaveVitals}
                 disabled={savingVitals}
-                className="px-4 py-2 text-sm font-medium text-white bg-lime-600 hover:bg-lime-700 rounded-lg transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-brand hover:bg-brand-hover rounded-lg transition-colors disabled:opacity-50"
               >
-                {savingVitals ? 'Saving...' : 'Save Vitals'}
+                {savingVitals ? t('clinical.common.saving') : t('clinical.nurseDashboard.saveVitals')}
               </button>
             </div>
           </div>

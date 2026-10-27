@@ -6,13 +6,17 @@ import Link from 'next/link';
 import { api, Appointment } from '@/lib/api';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth-context';
+import { useLanguage } from '@/context/language-context';
+import { toLocalDateString } from '@/lib/formatters';
+import { DiagnosisPicker, MdoBanner } from '@/components/clinical-safety/diagnosis-picker';
+import { LatestVitalsCard } from '@/components/clinical-safety/vitals';
+import { diagnosesPayload, type DiagnosisEntry, type MdoAlert } from '@/lib/clinical-safety';
 
 interface ConsultationFormData {
   chiefComplaint: string;
   symptoms: string[];
   examination: string;
-  diagnosis: string[];
-  diagnosisCodes: string[];
+  diagnoses: DiagnosisEntry[];
   treatmentPlan: string;
   notes: string;
   followUpDate: string;
@@ -22,8 +26,7 @@ const initialFormData: ConsultationFormData = {
   chiefComplaint: '',
   symptoms: [],
   examination: '',
-  diagnosis: [],
-  diagnosisCodes: [],
+  diagnoses: [],
   treatmentPlan: '',
   notes: '',
   followUpDate: '',
@@ -35,6 +38,7 @@ export default function NewConsultationPage() {
   const appointmentId = searchParams.get('appointmentId');
   const { user } = useAuth();
   const toast = useToast();
+  const { t, tEnum, formatDate: formatLocaleDate, formatTime } = useLanguage();
 
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,11 +46,11 @@ export default function NewConsultationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState<ConsultationFormData>(initialFormData);
   const [symptomInput, setSymptomInput] = useState('');
-  const [diagnosisInput, setDiagnosisInput] = useState('');
+  const [mdoAlerts, setMdoAlerts] = useState<MdoAlert[]>([]);
 
   const fetchAppointment = useCallback(async () => {
     if (!appointmentId) {
-      setError('No appointment ID provided');
+      setError(t('clinical.consultationNew.noAppointmentId'));
       setLoading(false);
       return;
     }
@@ -61,11 +65,11 @@ export default function NewConsultationPage() {
         setFormData(prev => ({ ...prev, chiefComplaint: data.reason }));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch appointment');
+      setError(err instanceof Error ? err.message : t('clinical.consultationNew.fetchError'));
     } finally {
       setLoading(false);
     }
-  }, [appointmentId]);
+  }, [appointmentId, t]);
 
   useEffect(() => {
     fetchAppointment();
@@ -75,34 +79,36 @@ export default function NewConsultationPage() {
     e.preventDefault();
 
     if (!appointment) {
-      toast.error('No appointment', 'Please select a valid appointment');
+      toast.error(t('clinical.consultationNew.noAppointment'), t('clinical.consultationNew.selectValid'));
       return;
     }
 
     if (!formData.chiefComplaint.trim()) {
-      toast.error('Chief complaint required', 'Please enter the chief complaint');
+      toast.error(t('clinical.consultations.complaintRequired'), t('clinical.consultations.enterComplaint'));
       return;
     }
 
     try {
       setSubmitting(true);
 
-      await api.createConsultation({
+      const diagnoses = diagnosesPayload(formData.diagnoses);
+      const saved = await api.createConsultation({
         appointmentId: appointment.id,
         chiefComplaint: formData.chiefComplaint,
         symptoms: formData.symptoms.length > 0 ? formData.symptoms : undefined,
         examination: formData.examination || undefined,
-        diagnosis: formData.diagnosis.length > 0 ? formData.diagnosis : undefined,
-        diagnosisCodes: formData.diagnosisCodes.length > 0 ? formData.diagnosisCodes : undefined,
+        diagnoses: diagnoses.length > 0 ? diagnoses : undefined,
         treatmentPlan: formData.treatmentPlan || undefined,
         notes: formData.notes || undefined,
         followUpDate: formData.followUpDate || undefined,
       });
 
-      toast.success('Consultation created', `Consultation for ${appointment.patient.firstName} ${appointment.patient.lastName} has been recorded.`);
-      router.push('/dashboard/consultations');
+      toast.success(t('clinical.consultations.created'), t('clinical.consultations.createdMessage', { name: `${appointment.patient.firstName} ${appointment.patient.lastName}` }));
+      // A notifiable disease keeps the doctor here so the reporting banner is seen
+      if (saved.mdoAlerts?.length) setMdoAlerts(saved.mdoAlerts);
+      else router.push(`/dashboard/consultations/${saved.id}`);
     } catch (err) {
-      toast.error('Failed to create consultation', err instanceof Error ? err.message : 'An error occurred');
+      toast.error(t('clinical.consultations.createFailed'), err instanceof Error ? err.message : t('clinical.common.genericError'));
     } finally {
       setSubmitting(false);
     }
@@ -119,40 +125,15 @@ export default function NewConsultationPage() {
     setFormData({ ...formData, symptoms: formData.symptoms.filter(s => s !== symptom) });
   };
 
-  const addDiagnosis = () => {
-    if (diagnosisInput.trim() && !formData.diagnosis.includes(diagnosisInput.trim())) {
-      setFormData({ ...formData, diagnosis: [...formData.diagnosis, diagnosisInput.trim()] });
-      setDiagnosisInput('');
-    }
-  };
-
-  const removeDiagnosis = (diagnosis: string) => {
-    setFormData({ ...formData, diagnosis: formData.diagnosis.filter(d => d !== diagnosis) });
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
-
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
-  };
+  const formatDate = (dateString: string) =>
+    formatLocaleDate(dateString, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-lime-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading appointment...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">{t('clinical.consultationNew.loading')}</p>
         </div>
       </div>
     );
@@ -165,15 +146,15 @@ export default function NewConsultationPage() {
           <svg className="w-16 h-16 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Appointment not found'}</p>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error || t('clinical.consultationNew.notFound')}</p>
           <Link
             href="/dashboard/consultations"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Back to Consultations
+            {t('clinical.consultationNew.back')}
           </Link>
         </div>
       </div>
@@ -194,8 +175,8 @@ export default function NewConsultationPage() {
             </svg>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">New Consultation</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">Record consultation details for this appointment</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('clinical.consultationNew.title')}</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">{t('clinical.consultationNew.subtitle')}</p>
           </div>
         </div>
       </div>
@@ -230,11 +211,22 @@ export default function NewConsultationPage() {
           </div>
           <div className="text-right">
             <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 text-sm rounded-full">
-              {appointment.status.replace('_', ' ')}
+              {tEnum(appointment.status)}
             </span>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{appointment.reason}</p>
           </div>
         </div>
+      </div>
+
+      {mdoAlerts.length > 0 && (
+        <div className="mb-6 space-y-2">
+          <MdoBanner alerts={mdoAlerts} />
+          <Link href="/dashboard/consultations" className="text-sm text-lime-700 dark:text-lime-400 hover:underline">{t('cs.backToConsultations')}</Link>
+        </div>
+      )}
+
+      <div className="mb-6">
+        <LatestVitalsCard patientId={appointment.patient.id} />
       </div>
 
       {/* Consultation Form */}
@@ -243,12 +235,12 @@ export default function NewConsultationPage() {
           {/* Chief Complaint */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Chief Complaint <span className="text-red-500">*</span>
+              {t('clinical.common.chiefComplaint')} <span className="text-red-500">*</span>
             </label>
             <textarea
               value={formData.chiefComplaint}
               onChange={(e) => setFormData({ ...formData, chiefComplaint: e.target.value })}
-              placeholder="Patient's main reason for visit..."
+              placeholder={t('clinical.consultations.complaintPlaceholder')}
               rows={2}
               required
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
@@ -258,7 +250,7 @@ export default function NewConsultationPage() {
           {/* Symptoms */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Symptoms
+              {t('clinical.common.symptoms')}
             </label>
             <div className="flex gap-2 mb-2">
               <input
@@ -266,7 +258,7 @@ export default function NewConsultationPage() {
                 value={symptomInput}
                 onChange={(e) => setSymptomInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSymptom())}
-                placeholder="Add symptom..."
+                placeholder={t('clinical.consultations.addSymptom')}
                 className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
               <button
@@ -274,7 +266,7 @@ export default function NewConsultationPage() {
                 onClick={addSymptom}
                 className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
               >
-                Add
+                {t('clinical.common.add')}
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -294,62 +286,29 @@ export default function NewConsultationPage() {
           {/* Examination */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Physical Examination
+              {t('clinical.consultations.physicalExam')}
             </label>
             <textarea
               value={formData.examination}
               onChange={(e) => setFormData({ ...formData, examination: e.target.value })}
-              placeholder="Examination findings..."
+              placeholder={t('clinical.consultations.examPlaceholder')}
               rows={3}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
             />
           </div>
 
-          {/* Diagnosis */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Diagnosis
-            </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
-                value={diagnosisInput}
-                onChange={(e) => setDiagnosisInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addDiagnosis())}
-                placeholder="Add diagnosis..."
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
-              <button
-                type="button"
-                onClick={addDiagnosis}
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
-              >
-                Add
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {formData.diagnosis.map((d, i) => (
-                <span key={i} className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded-full text-sm">
-                  {d}
-                  <button type="button" onClick={() => removeDiagnosis(d)} className="hover:text-green-900 dark:hover:text-green-100">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </span>
-              ))}
-            </div>
-          </div>
+          {/* Diagnosis (ICD-10) */}
+          <DiagnosisPicker value={formData.diagnoses} onChange={(diagnoses) => setFormData({ ...formData, diagnoses })} />
 
           {/* Treatment Plan */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Treatment Plan
+              {t('clinical.common.treatmentPlan')}
             </label>
             <textarea
               value={formData.treatmentPlan}
               onChange={(e) => setFormData({ ...formData, treatmentPlan: e.target.value })}
-              placeholder="Recommended treatment..."
+              placeholder={t('clinical.consultations.treatmentPlaceholder')}
               rows={3}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
             />
@@ -358,13 +317,13 @@ export default function NewConsultationPage() {
           {/* Follow-up Date */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Follow-up Date
+              {t('clinical.common.followUpDate')}
             </label>
             <input
               type="date"
               value={formData.followUpDate}
               onChange={(e) => setFormData({ ...formData, followUpDate: e.target.value })}
-              min={new Date().toISOString().split('T')[0]}
+              min={toLocalDateString()}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
             />
           </div>
@@ -372,12 +331,12 @@ export default function NewConsultationPage() {
           {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Additional Notes
+              {t('clinical.common.additionalNotes')}
             </label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Any additional notes..."
+              placeholder={t('clinical.common.notesPlaceholder')}
               rows={2}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
             />
@@ -390,14 +349,14 @@ export default function NewConsultationPage() {
             href="/dashboard/consultations"
             className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           >
-            Cancel
+            {t('clinical.common.cancel')}
           </Link>
           <button
             type="submit"
             disabled={submitting || !formData.chiefComplaint.trim()}
-            className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? 'Creating...' : 'Complete Consultation'}
+            {submitting ? t('clinical.common.creating') : t('clinical.consultations.complete')}
           </button>
         </div>
       </form>

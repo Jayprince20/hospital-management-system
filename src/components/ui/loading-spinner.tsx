@@ -1,5 +1,7 @@
 'use client';
 
+import { useLanguage } from '@/context/language-context';
+
 type SpinnerSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 type SpinnerVariant = 'primary' | 'secondary' | 'white' | 'success' | 'danger';
 
@@ -47,6 +49,7 @@ export function LoadingSpinner({
   className = '',
   label,
 }: LoadingSpinnerProps) {
+  const { t } = useLanguage();
   const colors = variantClasses[variant];
 
   return (
@@ -72,7 +75,7 @@ export function LoadingSpinner({
         />
       </svg>
       {label && <span className="text-gray-600 dark:text-gray-400">{label}</span>}
-      <span className="sr-only">{label || 'Loading...'}</span>
+      <span className="sr-only">{label || t('common.loading')}</span>
     </div>
   );
 }
@@ -82,12 +85,13 @@ interface LoadingOverlayProps {
   label?: string;
 }
 
-export function LoadingOverlay({ label = 'Loading...' }: LoadingOverlayProps) {
+export function LoadingOverlay({ label }: LoadingOverlayProps) {
+  const { t } = useLanguage();
   return (
     <div className="fixed inset-0 bg-white/80 dark:bg-gray-900/80 flex items-center justify-center z-50">
       <div className="flex flex-col items-center gap-3">
         <LoadingSpinner size="xl" />
-        <p className="text-gray-600 dark:text-gray-400 font-medium">{label}</p>
+        <p className="text-gray-600 dark:text-gray-400 font-medium">{label ?? t('common.loading')}</p>
       </div>
     </div>
   );
@@ -99,10 +103,11 @@ interface LoadingStateProps {
   minHeight?: string;
 }
 
-export function LoadingState({ label = 'Loading...', minHeight = 'h-64' }: LoadingStateProps) {
+export function LoadingState({ label, minHeight = 'h-64' }: LoadingStateProps) {
+  const { t } = useLanguage();
   return (
     <div className={`flex items-center justify-center ${minHeight}`}>
-      <LoadingSpinner size="lg" label={label} />
+      <LoadingSpinner size="lg" label={label ?? t('common.loading')} />
     </div>
   );
 }

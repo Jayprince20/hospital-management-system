@@ -261,3 +261,12 @@ export function capitalizeWords(text: string): string {
 export function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
+
+/**
+ * Format a date as YYYY-MM-DD in local time (for <input type="date"> values and min/max).
+ * toISOString() would use UTC and can shift the day by one.
+ */
+export function toLocalDateString(date: Date | string = new Date()): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

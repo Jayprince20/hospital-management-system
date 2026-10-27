@@ -7,8 +7,10 @@ import { useToast } from '@/components/toast';
 import { useLanguage } from '@/context/language-context';
 import { TableSkeleton, ErrorState, NoResults, Modal } from '@/components/ui';
 import { ButtonSpinner } from '@/components/ui/loading-spinner';
-import { getRoleColorClasses, getActiveStatusColorClasses, formatRole, formatDate } from '@/lib/formatters';
+import { getRoleColorClasses, getActiveStatusColorClasses } from '@/lib/formatters';
 import { PermissionGate } from '@/components/permission-gate';
+import { ConfirmModal } from '@/components/confirm-modal';
+import { useAuth } from '@/context/auth-context';
 
 interface UserFormData {
   email: string;
@@ -30,18 +32,11 @@ const initialFormData: UserFormData = {
   isActive: true,
 };
 
-const roleOptions = [
-  { value: 'ADMIN', label: 'Admin' },
-  { value: 'DOCTOR', label: 'Doctor' },
-  { value: 'NURSE', label: 'Nurse' },
-  { value: 'RECEPTIONIST', label: 'Receptionist' },
-  { value: 'PHARMACIST', label: 'Pharmacist' },
-  { value: 'LAB_TECH', label: 'Lab Tech' },
-  { value: 'PATIENT', label: 'Patient' },
-];
+const ROLE_VALUES = ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'PHARMACIST', 'LAB_TECH', 'PATIENT'];
 
 export default function UsersPage() {
-  const { t } = useLanguage();
+  const { t, tEnum, formatDate } = useLanguage();
+  const roleOptions = ROLE_VALUES.map((value) => ({ value, label: tEnum(value) }));
   const [users, setUsers] = useState<UserDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -65,6 +60,10 @@ export default function UsersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [resetPasswordResult, setResetPasswordResult] = useState<{ temporaryPassword: string } | null>(null);
+  // Two-factor reset after a lost phone (never offered on the admin's own row)
+  const { user: currentUser } = useAuth();
+  const [mfaResetUser, setMfaResetUser] = useState<UserDetail | null>(null);
+  const [resettingMfa, setResettingMfa] = useState(false);
   const [copiedPassword, setCopiedPassword] = useState(false);
 
   const fetchUsers = useCallback(async () => {
@@ -104,6 +103,15 @@ export default function UsersPage() {
     setShowCreateModal(true);
   };
 
+  // Dashboard quick actions link here with ?new=1 to open the create dialog directly
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('new') === '1') {
+      openCreateModal();
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const openEditModal = (user: UserDetail) => {
     setSelectedUser(user);
     setFormData({
@@ -135,7 +143,7 @@ export default function UsersPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.email.trim() || !formData.password || !formData.firstName.trim() || !formData.lastName.trim()) {
-      setError('Email, password, first name, and last name are required');
+      setError(t('admin.users.requiredCreate'));
       return;
     }
 
@@ -153,10 +161,10 @@ export default function UsersPage() {
       });
       setShowCreateModal(false);
       setFormData(initialFormData);
-      toast.success('User created', `${formData.firstName} ${formData.lastName} has been added.`);
+      toast.success(t('admin.users.created'), t('admin.users.createdMsg', { name: `${formData.firstName} ${formData.lastName}` }));
       fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create user');
+      setError(err instanceof Error ? err.message : t('admin.users.createError'));
     } finally {
       setSaving(false);
     }
@@ -165,7 +173,7 @@ export default function UsersPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser || !formData.firstName.trim() || !formData.lastName.trim()) {
-      setError('First name and last name are required');
+      setError(t('admin.users.requiredNames'));
       return;
     }
 
@@ -189,10 +197,10 @@ export default function UsersPage() {
       setShowEditModal(false);
       setSelectedUser(null);
       setFormData(initialFormData);
-      toast.success('User updated', `${formData.firstName} ${formData.lastName} has been updated.`);
+      toast.success(t('admin.users.updated'), t('admin.users.updatedMsg', { name: `${formData.firstName} ${formData.lastName}` }));
       fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update user');
+      setError(err instanceof Error ? err.message : t('admin.users.updateError'));
     } finally {
       setSaving(false);
     }
@@ -207,11 +215,11 @@ export default function UsersPage() {
       await api.deactivateUser(selectedUser.id);
       setShowDeleteModal(false);
       setSelectedUser(null);
-      toast.success('User deactivated', `${userName} has been deactivated.`);
+      toast.success(t('admin.users.deactivated'), t('admin.users.deactivatedMsg', { name: userName }));
       fetchUsers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to deactivate user');
-      toast.error('Deactivation failed', err instanceof Error ? err.message : 'Failed to deactivate user');
+      setError(err instanceof Error ? err.message : t('admin.users.deactivateError'));
+      toast.error(t('admin.users.deactivationFailed'), err instanceof Error ? err.message : t('admin.users.deactivateError'));
     } finally {
       setSaving(false);
     }
@@ -239,6 +247,21 @@ export default function UsersPage() {
     return password.split('').sort(() => Math.random() - 0.5).join('');
   };
 
+  const handleResetMfa = async () => {
+    if (!mfaResetUser) return;
+    const name = `${mfaResetUser.firstName} ${mfaResetUser.lastName}`;
+    setResettingMfa(true);
+    try {
+      await api.resetUserMfa(mfaResetUser.id);
+      toast.success(t('security.users.resetDone', { name }));
+      setMfaResetUser(null);
+    } catch (err) {
+      toast.error(t('security.users.resetFailed'), err instanceof Error ? err.message : undefined);
+    } finally {
+      setResettingMfa(false);
+    }
+  };
+
   const handleResetPassword = async () => {
     if (!selectedUser) return;
 
@@ -257,10 +280,10 @@ export default function UsersPage() {
         setResetPasswordResult({ temporaryPassword });
       }
 
-      toast.success('Password reset', `Password for ${selectedUser.firstName} ${selectedUser.lastName} has been reset.`);
+      toast.success(t('admin.users.passwordReset'), t('admin.users.passwordResetMsg', { name: `${selectedUser.firstName} ${selectedUser.lastName}` }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reset password');
-      toast.error('Reset failed', err instanceof Error ? err.message : 'Failed to reset password');
+      setError(err instanceof Error ? err.message : t('admin.users.resetError'));
+      toast.error(t('admin.users.resetFailed'), err instanceof Error ? err.message : t('admin.users.resetError'));
     } finally {
       setSaving(false);
     }
@@ -303,7 +326,7 @@ export default function UsersPage() {
         <PermissionGate permission="users:create">
           <button
             onClick={openCreateModal}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -333,7 +356,7 @@ export default function UsersPage() {
             onClick={() => setRole(opt.value)}
           >
             <p className="text-2xl font-bold text-gray-900 dark:text-white">{roleCounts[opt.value] || 0}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{opt.label}s</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t(`admin.users.rolePlural.${opt.value}`)}</p>
           </div>
         ))}
       </div>
@@ -423,7 +446,7 @@ export default function UsersPage() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${getRoleColorClasses(user.role)}`}>
-                        {formatRole(user.role)}
+                        {tEnum(user.role)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
@@ -455,7 +478,7 @@ export default function UsersPage() {
                           <button
                             onClick={() => openEditModal(user)}
                             className="p-1.5 text-lime-600 hover:bg-lime-50 dark:hover:bg-lime-900/50 rounded-lg transition-colors"
-                            title="Edit user"
+                            title={t('admin.users.editUser')}
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -466,18 +489,32 @@ export default function UsersPage() {
                           <button
                             onClick={() => openResetPasswordModal(user)}
                             className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-lg transition-colors"
-                            title="Reset password"
+                            title={t('admin.users.resetPassword')}
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                             </svg>
                           </button>
                         </PermissionGate>
+                        {user.id !== currentUser?.id && (
+                          <PermissionGate permission="users:edit">
+                            <button
+                              onClick={() => setMfaResetUser(user)}
+                              className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/50 rounded-lg transition-colors"
+                              title={t('security.users.resetMfa')}
+                              aria-label={t('security.users.resetMfa')}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                            </button>
+                          </PermissionGate>
+                        )}
                         <PermissionGate permission="users:delete">
                           <button
                             onClick={() => openDeleteModal(user)}
                             className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors"
-                            title="Deactivate user"
+                            title={t('admin.users.deactivateUser')}
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -529,7 +566,7 @@ export default function UsersPage() {
           <form id="create-user-form" onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name *</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.users.firstName')}</label>
                 <input
                   type="text"
                   value={formData.firstName}
@@ -539,7 +576,7 @@ export default function UsersPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name *</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.users.lastName')}</label>
                 <input
                   type="text"
                   value={formData.lastName}
@@ -550,7 +587,7 @@ export default function UsersPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.users.email')}</label>
               <input
                 type="email"
                 value={formData.email}
@@ -560,7 +597,7 @@ export default function UsersPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.users.password')}</label>
               <input
                 type="password"
                 value={formData.password}
@@ -570,16 +607,19 @@ export default function UsersPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.users.phoneNumberRequired')}</label>
               <input
                 type="tel"
+                required
+                minLength={10}
+                placeholder="+237 6XX XX XX XX"
                 value={formData.phoneNumber}
                 onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
                 className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.users.role')}</label>
               <select
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
@@ -598,7 +638,7 @@ export default function UsersPage() {
                 onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                 className="w-4 h-4 text-lime-600 rounded"
               />
-              <label htmlFor="isActive" className="text-sm text-gray-700 dark:text-gray-300">Active</label>
+              <label htmlFor="isActive" className="text-sm text-gray-700 dark:text-gray-300">{t('admin.users.active')}</label>
             </div>
           </form>
         </Modal.Body>
@@ -606,7 +646,7 @@ export default function UsersPage() {
           <button type="button" onClick={closeModals} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
             {t('common.cancel')}
           </button>
-          <button type="submit" form="create-user-form" disabled={saving} className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors flex items-center gap-2">
+          <button type="submit" form="create-user-form" disabled={saving} className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 transition-colors flex items-center gap-2">
             {saving && <ButtonSpinner />}
             {saving ? t('form.creating') : t('users.createUser')}
           </button>
@@ -625,7 +665,7 @@ export default function UsersPage() {
           <form id="edit-user-form" onSubmit={handleUpdate} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name *</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.users.firstName')}</label>
                 <input
                   type="text"
                   value={formData.firstName}
@@ -635,7 +675,7 @@ export default function UsersPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name *</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.users.lastName')}</label>
                 <input
                   type="text"
                   value={formData.lastName}
@@ -646,7 +686,7 @@ export default function UsersPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.users.email')}</label>
               <input
                 type="email"
                 value={formData.email}
@@ -656,7 +696,7 @@ export default function UsersPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Password (leave empty to keep current)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.users.newPasswordLeaveEmptyToKeep')}</label>
               <input
                 type="password"
                 value={formData.password}
@@ -665,7 +705,7 @@ export default function UsersPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.users.phoneNumber')}</label>
               <input
                 type="tel"
                 value={formData.phoneNumber}
@@ -674,7 +714,7 @@ export default function UsersPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('admin.users.role')}</label>
               <select
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
@@ -693,7 +733,7 @@ export default function UsersPage() {
                 onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                 className="w-4 h-4 text-lime-600 rounded"
               />
-              <label htmlFor="editIsActive" className="text-sm text-gray-700 dark:text-gray-300">Active</label>
+              <label htmlFor="editIsActive" className="text-sm text-gray-700 dark:text-gray-300">{t('admin.users.active')}</label>
             </div>
           </form>
         </Modal.Body>
@@ -701,7 +741,7 @@ export default function UsersPage() {
           <button type="button" onClick={closeModals} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
             {t('common.cancel')}
           </button>
-          <button type="submit" form="edit-user-form" disabled={saving} className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors flex items-center gap-2">
+          <button type="submit" form="edit-user-form" disabled={saving} className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 transition-colors flex items-center gap-2">
             {saving && <ButtonSpinner />}
             {saving ? t('form.saving') : t('form.saveChanges')}
           </button>
@@ -739,7 +779,7 @@ export default function UsersPage() {
 
       {/* Reset Password Modal */}
       <Modal isOpen={showResetPasswordModal && !!selectedUser} onClose={closeModals} size="md">
-        <Modal.Header>Reset Password</Modal.Header>
+        <Modal.Header>{t('admin.users.resetPassword')}</Modal.Header>
         <Modal.Body>
           {!resetPasswordResult ? (
             <>
@@ -750,10 +790,10 @@ export default function UsersPage() {
                   </svg>
                 </div>
                 <p className="text-gray-600 dark:text-gray-400">
-                  Are you sure you want to reset the password for <span className="font-semibold text-gray-900 dark:text-white">{selectedUser?.firstName} {selectedUser?.lastName}</span>?
+                  {t('admin.users.resetConfirm', { name: `${selectedUser?.firstName ?? ''} ${selectedUser?.lastName ?? ''}`.trim() })}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
-                  A new temporary password will be generated. The user will be required to change it on their next login.
+                  {t('admin.users.aNewTemporaryPasswordWillBe')}
                 </p>
               </div>
               {error && (
@@ -770,9 +810,9 @@ export default function UsersPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Password Reset Successfully</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{t('admin.users.passwordResetSuccessfully')}</h3>
                 <p className="text-gray-600 dark:text-gray-400">
-                  The password for {selectedUser?.firstName} {selectedUser?.lastName} has been reset.
+                  {t('admin.users.resetDone', { name: `${selectedUser?.firstName ?? ''} ${selectedUser?.lastName ?? ''}`.trim() })}
                 </p>
               </div>
 
@@ -782,7 +822,7 @@ export default function UsersPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                   <p className="text-sm text-amber-700 dark:text-amber-300">
-                    Please share this password securely with the user. They will need to change it on first login.
+                    {t('admin.users.pleaseShareThisPasswordSecurelyWith')}
                   </p>
                 </div>
               </div>
@@ -790,7 +830,7 @@ export default function UsersPage() {
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Temporary Password</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.users.temporaryPassword')}</p>
                     <p className="text-xl font-mono font-bold text-gray-900 dark:text-white">
                       {resetPasswordResult.temporaryPassword}
                     </p>
@@ -798,7 +838,7 @@ export default function UsersPage() {
                   <button
                     onClick={copyPasswordToClipboard}
                     className="p-2 text-gray-500 hover:text-lime-600 hover:bg-lime-50 dark:hover:bg-lime-900/30 rounded-lg transition-colors"
-                    title="Copy password"
+                    title={t('admin.users.copyPassword')}
                   >
                     {copiedPassword ? (
                       <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -823,16 +863,27 @@ export default function UsersPage() {
               </button>
               <button onClick={handleResetPassword} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2">
                 {saving && <ButtonSpinner />}
-                {saving ? 'Resetting...' : 'Reset Password'}
+                {saving ? t('admin.users.resetting') : t('admin.users.resetPassword')}
               </button>
             </>
           ) : (
-            <button onClick={closeModals} className="px-6 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors">
-              Done
+            <button onClick={closeModals} className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors">
+              {t('admin.users.done')}
             </button>
           )}
         </Modal.Footer>
       </Modal>
+      <ConfirmModal
+        isOpen={!!mfaResetUser}
+        onClose={() => setMfaResetUser(null)}
+        onConfirm={handleResetMfa}
+        title={t('security.users.resetMfa')}
+        message={t('security.users.resetMessage', { name: `${mfaResetUser?.firstName ?? ''} ${mfaResetUser?.lastName ?? ''}`.trim() })}
+        confirmText={t('security.users.resetConfirm')}
+        cancelText={t('security.settings.cancel')}
+        variant="warning"
+        isLoading={resettingMfa}
+      />
     </div>
   );
 }

@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, Patient } from '@/lib/api';
+import { useLanguage } from '@/context/language-context';
+import { ConsentCapture, initialConsentCapture, type ConsentCaptureValue } from '@/components/consent';
+import { CONSENT_TYPE_ORDER } from '@/components/consent/consent-utils';
 
 interface PatientFormData {
   // Personal Information
@@ -88,10 +91,14 @@ interface RegistrationResult {
 
 export default function AddPatientPage() {
   const router = useRouter();
+  const { t, tEnum, language } = useLanguage();
   const [formData, setFormData] = useState<PatientFormData>(initialFormData);
   const [errors, setErrors] = useState<Partial<Record<keyof PatientFormData | 'submit', string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [consent, setConsent] = useState<ConsentCaptureValue>(initialConsentCapture);
+  const [consentError, setConsentError] = useState<string | undefined>();
+  const lastStep = 5;
 
   // Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -99,11 +106,21 @@ export default function AddPatientPage() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const steps = [
-    { id: 1, name: 'Personal Info', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-    { id: 2, name: 'Contact & Address', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
-    { id: 3, name: 'Medical Info', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-    { id: 4, name: 'Insurance', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+    { id: 1, name: t('patientForm.stepPersonal'), icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+    { id: 2, name: t('patientForm.stepContact'), icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+    { id: 3, name: t('patientForm.stepMedical'), icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+    { id: 4, name: t('patientForm.stepInsurance'), icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+    { id: 5, name: t('privacy.consent.stepName'), icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
   ];
+
+  // Default the country to Cameroon in the current UI language (only while untouched)
+  useEffect(() => {
+    setFormData((prev) =>
+      ['', 'Cameroun', 'Cameroon'].includes(prev.country)
+        ? { ...prev, country: language === 'fr' ? 'Cameroun' : 'Cameroon' }
+        : prev
+    );
+  }, [language]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -123,44 +140,51 @@ export default function AddPatientPage() {
     const newErrors: Partial<Record<keyof PatientFormData, string>> = {};
 
     if (step === 1) {
-      if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-      if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+      if (!formData.firstName.trim()) newErrors.firstName = t('patientForm.errFirstName');
+      if (!formData.lastName.trim()) newErrors.lastName = t('patientForm.errLastName');
       if (!formData.email.trim()) {
-        newErrors.email = 'Email is required';
+        newErrors.email = t('patientForm.errEmail');
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        newErrors.email = 'Invalid email format';
+        newErrors.email = t('patientForm.errEmailFormat');
       }
-      if (!formData.phoneNumber.trim()) newErrors.phoneNumber = 'Phone number is required';
-      if (!formData.dateOfBirth) newErrors.dateOfBirth = 'Date of birth is required';
-      if (!formData.gender) newErrors.gender = 'Gender is required';
+      if (!formData.phoneNumber.trim()) newErrors.phoneNumber = t('patientForm.errPhone');
+      if (!formData.dateOfBirth) newErrors.dateOfBirth = t('patientForm.errDob');
+      if (!formData.gender) newErrors.gender = t('patientForm.errGender');
     }
 
     if (step === 2) {
-      if (!formData.address.trim()) newErrors.address = 'Address is required';
-      if (!formData.city.trim()) newErrors.city = 'City is required';
-      if (!formData.state.trim()) newErrors.state = 'State is required';
-      if (!formData.zipCode.trim()) newErrors.zipCode = 'ZIP code is required';
-      if (!formData.country.trim()) newErrors.country = 'Country is required';
-      if (!formData.emergencyName.trim()) newErrors.emergencyName = 'Emergency contact name is required';
-      if (!formData.emergencyRelation.trim()) newErrors.emergencyRelation = 'Relationship is required';
-      if (!formData.emergencyPhone.trim()) newErrors.emergencyPhone = 'Emergency phone is required';
+      if (!formData.address.trim()) newErrors.address = t('patientForm.errAddress');
+      if (!formData.city.trim()) newErrors.city = t('patientForm.errCity');
+      if (!formData.state.trim()) newErrors.state = t('patientForm.errState');
+      if (!formData.country.trim()) newErrors.country = t('patientForm.errCountry');
+      if (!formData.emergencyName.trim()) newErrors.emergencyName = t('patientForm.errEmergencyName');
+      if (!formData.emergencyRelation.trim()) newErrors.emergencyRelation = t('patientForm.errRelation');
+      if (!formData.emergencyPhone.trim()) newErrors.emergencyPhone = t('patientForm.errEmergencyPhone');
     }
 
     if (step === 4 && formData.hasInsurance) {
-      if (!formData.insuranceProvider.trim()) newErrors.insuranceProvider = 'Provider is required';
-      if (!formData.policyNumber.trim()) newErrors.policyNumber = 'Policy number is required';
-      if (!formData.insuranceValidFrom) newErrors.insuranceValidFrom = 'Valid from date is required';
-      if (!formData.insuranceValidUntil) newErrors.insuranceValidUntil = 'Valid until date is required';
-      if (!formData.coverageType) newErrors.coverageType = 'Coverage type is required';
+      if (!formData.insuranceProvider.trim()) newErrors.insuranceProvider = t('patientForm.errProvider');
+      if (!formData.policyNumber.trim()) newErrors.policyNumber = t('patientForm.errPolicy');
+      if (!formData.insuranceValidFrom) newErrors.insuranceValidFrom = t('patientForm.errValidFrom');
+      if (!formData.insuranceValidUntil) newErrors.insuranceValidUntil = t('patientForm.errValidUntil');
+      if (!formData.coverageType) newErrors.coverageType = t('patientForm.errCoverage');
     }
 
     setErrors(newErrors);
+
+    // Consent to the processing of health data is required by Law n° 2024/017
+    if (step === 5) {
+      const missing = !consent.granted.DATA_PROCESSING;
+      setConsentError(missing ? t('privacy.consent.errRequired') : undefined);
+      if (missing) return false;
+    }
+
     return Object.keys(newErrors).length === 0;
   };
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep((prev) => Math.min(prev + 1, 4));
+      setCurrentStep((prev) => Math.min(prev + 1, lastStep));
     }
   };
 
@@ -180,6 +204,10 @@ export default function AddPatientPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (currentStep < lastStep) {
+      handleNext();
+      return;
+    }
 
     if (!validateStep(currentStep)) return;
 
@@ -219,7 +247,8 @@ export default function AddPatientPage() {
         address: formData.address,
         city: formData.city,
         state: formData.state,
-        zipCode: formData.zipCode,
+        // Backend requires at least 3 characters; Cameroon has no postal codes
+        zipCode: formData.zipCode.trim(),
         country: formData.country,
         emergencyName: formData.emergencyName,
         emergencyRelation: formData.emergencyRelation,
@@ -229,6 +258,7 @@ export default function AddPatientPage() {
         notes: formData.notes || undefined,
         insurance,
         createUserAccount: formData.createUserAccount,
+        consents: CONSENT_TYPE_ORDER.map((type) => ({ type, granted: consent.granted[type], method: consent.method })),
       });
 
       setRegistrationResult({
@@ -238,7 +268,7 @@ export default function AddPatientPage() {
       setShowSuccessModal(true);
     } catch (error) {
       console.error('Error creating patient:', error);
-      setErrors({ submit: error instanceof Error ? error.message : 'Failed to register patient' });
+      setErrors({ submit: error instanceof Error ? error.message : t('patientForm.errSubmit') });
     } finally {
       setIsSubmitting(false);
     }
@@ -270,9 +300,9 @@ export default function AddPatientPage() {
             </svg>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Add New Patient</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('patientForm.titleNew')}</h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Fill in the patient information to create a new record
+              {t('patientForm.subtitleNew')}
             </p>
           </div>
         </div>
@@ -287,7 +317,7 @@ export default function AddPatientPage() {
                   disabled={currentStep < step.id}
                   className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors ${
                     currentStep === step.id
-                      ? 'bg-lime-600 border-lime-600 text-white'
+                      ? 'bg-brand border-lime-600 text-white'
                       : currentStep > step.id
                       ? 'bg-green-500 border-green-500 text-white cursor-pointer'
                       : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
@@ -333,12 +363,12 @@ export default function AddPatientPage() {
           {currentStep === 1 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Personal Information
+                {t('patientForm.personalInfo')}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    First Name <span className="text-red-500">*</span>
+                    {t('patientForm.firstName')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -346,7 +376,7 @@ export default function AddPatientPage() {
                     value={formData.firstName}
                     onChange={handleChange}
                     className={inputClassName('firstName')}
-                    placeholder="Enter first name"
+                    placeholder={t('patientForm.firstNamePh')}
                   />
                   {errors.firstName && (
                     <p className="mt-1 text-sm text-red-500">{errors.firstName}</p>
@@ -355,7 +385,7 @@ export default function AddPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Last Name <span className="text-red-500">*</span>
+                    {t('patientForm.lastName')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -363,7 +393,7 @@ export default function AddPatientPage() {
                     value={formData.lastName}
                     onChange={handleChange}
                     className={inputClassName('lastName')}
-                    placeholder="Enter last name"
+                    placeholder={t('patientForm.lastNamePh')}
                   />
                   {errors.lastName && (
                     <p className="mt-1 text-sm text-red-500">{errors.lastName}</p>
@@ -372,7 +402,7 @@ export default function AddPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Email Address <span className="text-red-500">*</span>
+                    {t('patientForm.email')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="email"
@@ -380,7 +410,7 @@ export default function AddPatientPage() {
                     value={formData.email}
                     onChange={handleChange}
                     className={inputClassName('email')}
-                    placeholder="Enter email address"
+                    placeholder={t('patientForm.emailPh')}
                   />
                   {errors.email && (
                     <p className="mt-1 text-sm text-red-500">{errors.email}</p>
@@ -389,7 +419,7 @@ export default function AddPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Phone Number <span className="text-red-500">*</span>
+                    {t('patientForm.phone')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="tel"
@@ -397,7 +427,7 @@ export default function AddPatientPage() {
                     value={formData.phoneNumber}
                     onChange={handleChange}
                     className={inputClassName('phoneNumber')}
-                    placeholder="+1 234-567-8900"
+                    placeholder={t('patientForm.phonePh')}
                   />
                   {errors.phoneNumber && (
                     <p className="mt-1 text-sm text-red-500">{errors.phoneNumber}</p>
@@ -406,7 +436,7 @@ export default function AddPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Date of Birth <span className="text-red-500">*</span>
+                    {t('patientForm.dob')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -422,7 +452,7 @@ export default function AddPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Gender <span className="text-red-500">*</span>
+                    {t('patientForm.gender')} <span className="text-red-500">*</span>
                   </label>
                   <select
                     name="gender"
@@ -430,10 +460,10 @@ export default function AddPatientPage() {
                     onChange={handleChange}
                     className={inputClassName('gender')}
                   >
-                    <option value="">Select gender</option>
-                    <option value="MALE">Male</option>
-                    <option value="FEMALE">Female</option>
-                    <option value="OTHER">Other</option>
+                    <option value="">{t('patientForm.selectGender')}</option>
+                    <option value="MALE">{tEnum('MALE')}</option>
+                    <option value="FEMALE">{tEnum('FEMALE')}</option>
+                    <option value="OTHER">{tEnum('OTHER')}</option>
                   </select>
                   {errors.gender && (
                     <p className="mt-1 text-sm text-red-500">{errors.gender}</p>
@@ -442,7 +472,7 @@ export default function AddPatientPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Blood Type
+                    {t('patientForm.bloodType')}
                   </label>
                   <select
                     name="bloodType"
@@ -450,7 +480,7 @@ export default function AddPatientPage() {
                     onChange={handleChange}
                     className={inputClassName('bloodType')}
                   >
-                    <option value="">Select blood type</option>
+                    <option value="">{t('patientForm.selectBloodType')}</option>
                     <option value="A_POSITIVE">A+</option>
                     <option value="A_NEGATIVE">A-</option>
                     <option value="B_POSITIVE">B+</option>
@@ -475,10 +505,10 @@ export default function AddPatientPage() {
                       />
                       <div>
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          Create Portal Account
+                          {t('patientForm.createPortal')}
                         </span>
                         <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                          A user account will be created with a temporary password. The patient will be required to change their password on first login.
+                          {t('patientForm.createPortalHelp')}
                         </p>
                       </div>
                     </label>
@@ -492,18 +522,18 @@ export default function AddPatientPage() {
           {currentStep === 2 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Contact & Address Information
+                {t('patientForm.contactInfo')}
               </h2>
 
               {/* Address Section */}
               <div className="mb-8">
                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
-                  Address
+                  {t('patientForm.address')}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Street Address <span className="text-red-500">*</span>
+                      {t('patientForm.street')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -511,7 +541,7 @@ export default function AddPatientPage() {
                       value={formData.address}
                       onChange={handleChange}
                       className={inputClassName('address')}
-                      placeholder="Enter street address"
+                      placeholder={t('patientForm.streetPh')}
                     />
                     {errors.address && (
                       <p className="mt-1 text-sm text-red-500">{errors.address}</p>
@@ -520,7 +550,7 @@ export default function AddPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      City <span className="text-red-500">*</span>
+                      {t('patientForm.city')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -528,7 +558,7 @@ export default function AddPatientPage() {
                       value={formData.city}
                       onChange={handleChange}
                       className={inputClassName('city')}
-                      placeholder="Enter city"
+                      placeholder={t('patientForm.cityPh')}
                     />
                     {errors.city && (
                       <p className="mt-1 text-sm text-red-500">{errors.city}</p>
@@ -537,7 +567,7 @@ export default function AddPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      State/Province <span className="text-red-500">*</span>
+                      {t('patientForm.state')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -545,7 +575,7 @@ export default function AddPatientPage() {
                       value={formData.state}
                       onChange={handleChange}
                       className={inputClassName('state')}
-                      placeholder="Enter state"
+                      placeholder={t('patientForm.statePh')}
                     />
                     {errors.state && (
                       <p className="mt-1 text-sm text-red-500">{errors.state}</p>
@@ -554,7 +584,7 @@ export default function AddPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      ZIP/Postal Code <span className="text-red-500">*</span>
+                      {t('patientForm.zipCode')} <span className="text-gray-400 font-normal">({t('patientForm.optional')})</span>
                     </label>
                     <input
                       type="text"
@@ -562,7 +592,7 @@ export default function AddPatientPage() {
                       value={formData.zipCode}
                       onChange={handleChange}
                       className={inputClassName('zipCode')}
-                      placeholder="Enter ZIP code"
+                      placeholder={t('patientForm.zipPh')}
                     />
                     {errors.zipCode && (
                       <p className="mt-1 text-sm text-red-500">{errors.zipCode}</p>
@@ -571,7 +601,7 @@ export default function AddPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Country <span className="text-red-500">*</span>
+                      {t('patientForm.country')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -579,7 +609,7 @@ export default function AddPatientPage() {
                       value={formData.country}
                       onChange={handleChange}
                       className={inputClassName('country')}
-                      placeholder="Enter country"
+                      placeholder={t('patientForm.countryPh')}
                     />
                     {errors.country && (
                       <p className="mt-1 text-sm text-red-500">{errors.country}</p>
@@ -591,12 +621,12 @@ export default function AddPatientPage() {
               {/* Emergency Contact Section */}
               <div>
                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
-                  Emergency Contact
+                  {t('patientForm.emergency')}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Contact Name <span className="text-red-500">*</span>
+                      {t('patientForm.contactName')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -604,7 +634,7 @@ export default function AddPatientPage() {
                       value={formData.emergencyName}
                       onChange={handleChange}
                       className={inputClassName('emergencyName')}
-                      placeholder="Enter contact name"
+                      placeholder={t('patientForm.contactNamePh')}
                     />
                     {errors.emergencyName && (
                       <p className="mt-1 text-sm text-red-500">{errors.emergencyName}</p>
@@ -613,7 +643,7 @@ export default function AddPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Relationship <span className="text-red-500">*</span>
+                      {t('patientForm.relationship')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -621,7 +651,7 @@ export default function AddPatientPage() {
                       value={formData.emergencyRelation}
                       onChange={handleChange}
                       className={inputClassName('emergencyRelation')}
-                      placeholder="e.g., Spouse, Parent"
+                      placeholder={t('patientForm.relationPh')}
                     />
                     {errors.emergencyRelation && (
                       <p className="mt-1 text-sm text-red-500">{errors.emergencyRelation}</p>
@@ -630,7 +660,7 @@ export default function AddPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Phone Number <span className="text-red-500">*</span>
+                      {t('patientForm.phone')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="tel"
@@ -638,7 +668,7 @@ export default function AddPatientPage() {
                       value={formData.emergencyPhone}
                       onChange={handleChange}
                       className={inputClassName('emergencyPhone')}
-                      placeholder="+1 234-567-8900"
+                      placeholder={t('patientForm.phonePh')}
                     />
                     {errors.emergencyPhone && (
                       <p className="mt-1 text-sm text-red-500">{errors.emergencyPhone}</p>
@@ -653,12 +683,12 @@ export default function AddPatientPage() {
           {currentStep === 3 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Medical Information
+                {t('patientForm.medicalInfo')}
               </h2>
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Allergies
+                    {t('patientForm.allergies')}
                   </label>
                   <textarea
                     name="allergies"
@@ -666,16 +696,16 @@ export default function AddPatientPage() {
                     onChange={handleChange}
                     rows={3}
                     className={inputClassName('allergies')}
-                    placeholder="List any known allergies (e.g., Penicillin, Peanuts, Latex)"
+                    placeholder={t('patientForm.allergiesPh')}
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Separate multiple allergies with commas
+                    {t('patientForm.allergiesHelp')}
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Chronic Conditions
+                    {t('patientForm.chronic')}
                   </label>
                   <textarea
                     name="chronicConditions"
@@ -683,16 +713,16 @@ export default function AddPatientPage() {
                     onChange={handleChange}
                     rows={3}
                     className={inputClassName('chronicConditions')}
-                    placeholder="List any chronic conditions (e.g., Diabetes, Hypertension, Asthma)"
+                    placeholder={t('patientForm.chronicPh')}
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Separate multiple conditions with commas
+                    {t('patientForm.chronicHelp')}
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Additional Notes
+                    {t('patientForm.notes')}
                   </label>
                   <textarea
                     name="notes"
@@ -700,7 +730,7 @@ export default function AddPatientPage() {
                     onChange={handleChange}
                     rows={4}
                     className={inputClassName('notes')}
-                    placeholder="Any additional medical notes or special considerations..."
+                    placeholder={t('patientForm.notesPh')}
                   />
                 </div>
               </div>
@@ -711,7 +741,7 @@ export default function AddPatientPage() {
           {currentStep === 4 && (
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Insurance Information
+                {t('patientForm.insuranceInfo')}
               </h2>
 
               <div className="mb-6">
@@ -724,7 +754,7 @@ export default function AddPatientPage() {
                     className="w-5 h-5 rounded border-gray-300 text-lime-600 focus:ring-lime-500"
                   />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Patient has health insurance
+                    {t('patientForm.hasInsurance')}
                   </span>
                 </label>
               </div>
@@ -733,7 +763,7 @@ export default function AddPatientPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Insurance Provider <span className="text-red-500">*</span>
+                      {t('patientForm.provider')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -741,7 +771,7 @@ export default function AddPatientPage() {
                       value={formData.insuranceProvider}
                       onChange={handleChange}
                       className={inputClassName('insuranceProvider')}
-                      placeholder="Enter insurance provider name"
+                      placeholder={t('patientForm.providerPh')}
                     />
                     {errors.insuranceProvider && (
                       <p className="mt-1 text-sm text-red-500">{errors.insuranceProvider}</p>
@@ -750,7 +780,7 @@ export default function AddPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Policy Number <span className="text-red-500">*</span>
+                      {t('patientForm.policy')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -758,7 +788,7 @@ export default function AddPatientPage() {
                       value={formData.policyNumber}
                       onChange={handleChange}
                       className={inputClassName('policyNumber')}
-                      placeholder="Enter policy number"
+                      placeholder={t('patientForm.policyPh')}
                     />
                     {errors.policyNumber && (
                       <p className="mt-1 text-sm text-red-500">{errors.policyNumber}</p>
@@ -767,7 +797,7 @@ export default function AddPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Group Number
+                      {t('patientForm.group')}
                     </label>
                     <input
                       type="text"
@@ -775,13 +805,13 @@ export default function AddPatientPage() {
                       value={formData.groupNumber}
                       onChange={handleChange}
                       className={inputClassName('groupNumber')}
-                      placeholder="Enter group number (optional)"
+                      placeholder={t('patientForm.groupPh')}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Valid From <span className="text-red-500">*</span>
+                      {t('patientForm.validFrom')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="date"
@@ -797,7 +827,7 @@ export default function AddPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Valid Until <span className="text-red-500">*</span>
+                      {t('patientForm.validUntil')} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="date"
@@ -813,7 +843,7 @@ export default function AddPatientPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Coverage Type <span className="text-red-500">*</span>
+                      {t('patientForm.coverage')} <span className="text-red-500">*</span>
                     </label>
                     <select
                       name="coverageType"
@@ -821,11 +851,11 @@ export default function AddPatientPage() {
                       onChange={handleChange}
                       className={inputClassName('coverageType')}
                     >
-                      <option value="">Select coverage type</option>
-                      <option value="FULL">Full Coverage</option>
-                      <option value="PARTIAL">Partial Coverage</option>
-                      <option value="BASIC">Basic Coverage</option>
-                      <option value="PREMIUM">Premium Coverage</option>
+                      <option value="">{t('patientForm.selectCoverage')}</option>
+                      <option value="FULL">{t('patientForm.coverageFULL')}</option>
+                      <option value="PARTIAL">{t('patientForm.coveragePARTIAL')}</option>
+                      <option value="BASIC">{t('patientForm.coverageBASIC')}</option>
+                      <option value="PREMIUM">{t('patientForm.coveragePREMIUM')}</option>
                     </select>
                     {errors.coverageType && (
                       <p className="mt-1 text-sm text-red-500">{errors.coverageType}</p>
@@ -840,13 +870,26 @@ export default function AddPatientPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
                   <p className="text-gray-500 dark:text-gray-400">
-                    No insurance information to enter
+                    {t('patientForm.noInsurance')}
                   </p>
                   <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                    Check the box above if the patient has health insurance
+                    {t('patientForm.checkInsurance')}
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {currentStep === 5 && (
+            <div className="p-6">
+              <ConsentCapture
+                value={consent}
+                onChange={(value) => {
+                  setConsent(value);
+                  if (value.granted.DATA_PROCESSING) setConsentError(undefined);
+                }}
+                error={consentError}
+              />
             </div>
           )}
 
@@ -859,7 +902,7 @@ export default function AddPatientPage() {
                   onClick={handlePrevious}
                   className="px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  Previous
+                  {t('patientForm.previous')}
                 </button>
               )}
             </div>
@@ -868,21 +911,21 @@ export default function AddPatientPage() {
                 href="/dashboard/patients"
                 className="px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
               >
-                Cancel
+                {t('patientForm.cancel')}
               </Link>
-              {currentStep < 4 ? (
-                <button
+              {currentStep < lastStep ? (
+                <button key="step-next"
                   type="button"
                   onClick={handleNext}
-                  className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="px-6 py-2.5 bg-brand hover:bg-brand-hover text-white text-sm font-medium rounded-lg transition-colors"
                 >
-                  Next Step
+                  {t('patientForm.nextStep')}
                 </button>
               ) : (
-                <button
+                <button key="step-submit"
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 disabled:bg-lime-400 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center gap-2"
+                  className="px-6 py-2.5 bg-brand hover:bg-brand-hover disabled:bg-lime-400 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center gap-2"
                 >
                   {isSubmitting ? (
                     <>
@@ -890,14 +933,14 @@ export default function AddPatientPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Creating Patient...
+                      {t('patientForm.creating')}
                     </>
                   ) : (
                     <>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Create Patient
+                      {t('patientForm.create')}
                     </>
                   )}
                 </button>
@@ -919,10 +962,10 @@ export default function AddPatientPage() {
                 </svg>
               </div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center">
-                Patient Registered Successfully!
+                {t('patientForm.successTitle')}
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-center mt-2">
-                {registrationResult.patient.firstName} {registrationResult.patient.lastName} has been added to the system.
+                {t('patientForm.successMessage', { name: `${registrationResult.patient.firstName} ${registrationResult.patient.lastName}` })}
               </p>
             </div>
 
@@ -932,16 +975,16 @@ export default function AddPatientPage() {
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Patient ID</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('patientForm.patientId')}</p>
                     <p className="text-lg font-mono font-bold text-gray-900 dark:text-white">
-                      {registrationResult.patient.patientId || 'Auto-generated'}
+                      {registrationResult.patient.patientId || t('patientForm.autoGenerated')}
                     </p>
                   </div>
                   {registrationResult.patient.patientId && (
                     <button
                       onClick={() => copyToClipboard(registrationResult.patient.patientId, 'patientId')}
                       className="p-2 text-gray-500 hover:text-lime-600 hover:bg-lime-50 dark:hover:bg-lime-900/30 rounded-lg transition-colors"
-                      title="Copy Patient ID"
+                      title={t('patientForm.copyPatientId')}
                     >
                       {copiedField === 'patientId' ? (
                         <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -967,10 +1010,10 @@ export default function AddPatientPage() {
                       </svg>
                       <div>
                         <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                          Portal Account Created
+                          {t('patientForm.portalCreated')}
                         </p>
                         <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                          Please share these credentials with the patient. They will be required to change their password on first login.
+                          {t('patientForm.portalCreatedHelp')}
                         </p>
                       </div>
                     </div>
@@ -980,7 +1023,7 @@ export default function AddPatientPage() {
                   <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Login Email</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('patientForm.loginEmail')}</p>
                         <p className="text-lg font-medium text-gray-900 dark:text-white">
                           {registrationResult.patient.email}
                         </p>
@@ -988,7 +1031,7 @@ export default function AddPatientPage() {
                       <button
                         onClick={() => copyToClipboard(registrationResult.patient.email, 'email')}
                         className="p-2 text-gray-500 hover:text-lime-600 hover:bg-lime-50 dark:hover:bg-lime-900/30 rounded-lg transition-colors"
-                        title="Copy Email"
+                        title={t('patientForm.copyEmail')}
                       >
                         {copiedField === 'email' ? (
                           <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1007,7 +1050,7 @@ export default function AddPatientPage() {
                   <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Temporary Password</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('patientForm.tempPassword')}</p>
                         <p className="text-lg font-mono font-bold text-gray-900 dark:text-white">
                           {registrationResult.temporaryPassword}
                         </p>
@@ -1015,7 +1058,7 @@ export default function AddPatientPage() {
                       <button
                         onClick={() => copyToClipboard(registrationResult.temporaryPassword!, 'password')}
                         className="p-2 text-gray-500 hover:text-lime-600 hover:bg-lime-50 dark:hover:bg-lime-900/30 rounded-lg transition-colors"
-                        title="Copy Password"
+                        title={t('patientForm.copyPassword')}
                       >
                         {copiedField === 'password' ? (
                           <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1033,7 +1076,11 @@ export default function AddPatientPage() {
                   {/* Copy All Button */}
                   <button
                     onClick={() => {
-                      const text = `Patient Portal Credentials\n\nPatient ID: ${registrationResult.patient.patientId || 'N/A'}\nEmail: ${registrationResult.patient.email}\nTemporary Password: ${registrationResult.temporaryPassword}\n\nPlease change your password upon first login.`;
+                      const text = t('patientForm.credentialsText', {
+                        patientId: registrationResult.patient.patientId || 'N/A',
+                        email: registrationResult.patient.email,
+                        password: registrationResult.temporaryPassword!,
+                      });
                       copyToClipboard(text, 'all');
                     }}
                     className="w-full py-2.5 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
@@ -1043,14 +1090,14 @@ export default function AddPatientPage() {
                         <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        Copied All!
+                        {t('patientForm.copiedAll')}
                       </>
                     ) : (
                       <>
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                         </svg>
-                        Copy All Credentials
+                        {t('patientForm.copyAll')}
                       </>
                     )}
                   </button>
@@ -1062,9 +1109,9 @@ export default function AddPatientPage() {
             <div className="p-6 border-t border-gray-100 dark:border-gray-700">
               <button
                 onClick={handleCloseSuccessModal}
-                className="w-full py-2.5 px-4 bg-lime-600 hover:bg-lime-700 text-white rounded-lg font-medium transition-colors"
+                className="w-full py-2.5 px-4 bg-brand hover:bg-brand-hover text-white rounded-lg font-medium transition-colors"
               >
-                Done
+                {t('patientForm.done')}
               </button>
             </div>
           </div>

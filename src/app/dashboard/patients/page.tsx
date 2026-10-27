@@ -9,9 +9,10 @@ import { useConfirm } from '@/components/confirm-modal';
 import { useLanguage } from '@/context/language-context';
 import { LoadingSpinner, NoResults } from '@/components/ui';
 import { PermissionGate } from '@/components/permission-gate';
+import { toLocalDateString } from '@/lib/formatters';
 
 export default function PatientsPage() {
-  const { t } = useLanguage();
+  const { t, tEnum, formatDate: formatLocaleDate } = useLanguage();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [stats, setStats] = useState({ total: 0, active: 0, newThisMonth: 0 });
   const [isLoading, setIsLoading] = useState(true);
@@ -19,6 +20,12 @@ export default function PatientsPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 300);
+
+  // Pick up a query handed over by the header search (?search=...)
+  useEffect(() => {
+    const initial = new URLSearchParams(window.location.search).get('search');
+    if (initial) setSearchQuery(initial);
+  }, []);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [genderFilter, setGenderFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -50,7 +57,7 @@ export default function PatientsPage() {
       setStats(response.stats);
     } catch (err) {
       console.error('Error fetching patients:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch patients');
+      setError(err instanceof Error ? err.message : t('patientsPage.errFetch'));
     } finally {
       setIsLoading(false);
     }
@@ -81,9 +88,9 @@ export default function PatientsPage() {
 
   const handleDelete = async (id: string, patientName: string) => {
     const confirmed = await confirm({
-      title: 'Delete Patient',
-      message: `Are you sure you want to delete "${patientName}"? This action cannot be undone.`,
-      confirmText: 'Delete',
+      title: t('patientsPage.deleteTitle'),
+      message: t('patientsPage.deleteMessage', { name: patientName }),
+      confirmText: t('common.delete'),
       variant: 'danger',
     });
 
@@ -92,11 +99,11 @@ export default function PatientsPage() {
     try {
       setIsDeleting(true);
       await api.deletePatient(id);
-      toast.success('Patient deleted', `${patientName} has been removed successfully.`);
+      toast.success(t('patientsPage.deletedTitle'), t('patientsPage.deletedMessage', { name: patientName }));
       fetchPatients();
       setSelectedPatients((prev) => prev.filter((p) => p !== id));
     } catch (err) {
-      toast.error('Delete failed', err instanceof Error ? err.message : 'Failed to delete patient');
+      toast.error(t('patientsPage.deleteFailed'), err instanceof Error ? err.message : t('patientsPage.deleteFailedOne'));
     } finally {
       setIsDeleting(false);
     }
@@ -106,9 +113,9 @@ export default function PatientsPage() {
     if (selectedPatients.length === 0) return;
 
     const confirmed = await confirm({
-      title: 'Delete Selected Patients',
-      message: `Are you sure you want to delete ${selectedPatients.length} patient(s)? This action cannot be undone.`,
-      confirmText: `Delete ${selectedPatients.length} Patient(s)`,
+      title: t('patientsPage.bulkDeleteTitle'),
+      message: t('patientsPage.bulkDeleteMessage', { count: selectedPatients.length }),
+      confirmText: t('patientsPage.bulkDeleteConfirm', { count: selectedPatients.length }),
       variant: 'danger',
     });
 
@@ -129,16 +136,16 @@ export default function PatientsPage() {
       }
 
       if (deleted > 0) {
-        toast.success('Patients deleted', `Successfully deleted ${deleted} patient(s).`);
+        toast.success(t('patientsPage.bulkDeletedTitle'), t('patientsPage.bulkDeletedMessage', { count: deleted }));
       }
       if (failed > 0) {
-        toast.warning('Some deletions failed', `Failed to delete ${failed} patient(s).`);
+        toast.warning(t('patientsPage.someFailedTitle'), t('patientsPage.someFailedMessage', { count: failed }));
       }
 
       setSelectedPatients([]);
       fetchPatients();
     } catch (err) {
-      toast.error('Delete failed', err instanceof Error ? err.message : 'Failed to delete patients');
+      toast.error(t('patientsPage.deleteFailed'), err instanceof Error ? err.message : t('patientsPage.deleteFailedMany'));
     } finally {
       setIsDeleting(false);
     }
@@ -146,7 +153,7 @@ export default function PatientsPage() {
 
   const handleExport = () => {
     if (selectedPatients.length === 0) {
-      toast.warning('No selection', 'Please select patients to export.');
+      toast.warning(t('patientsPage.noSelectionTitle'), t('patientsPage.noSelectionMessage'));
       return;
     }
 
@@ -154,7 +161,7 @@ export default function PatientsPage() {
     const selectedData = patients.filter((p) => selectedPatients.includes(p.id));
 
     // Create CSV content
-    const headers = ['Patient ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Gender', 'Date of Birth', 'Blood Type', 'Status'];
+    const headers = [t('patientForm.patientId'), t('patientForm.firstName'), t('patientForm.lastName'), t('patientForm.emailShort'), t('patientForm.phone'), t('patientForm.gender'), t('patientForm.dob'), t('patientForm.bloodType'), t('common.status')];
     const csvContent = [
       headers.join(','),
       ...selectedData.map((p) =>
@@ -164,9 +171,9 @@ export default function PatientsPage() {
           p.lastName,
           p.email,
           p.phoneNumber,
-          p.gender,
+          tEnum(p.gender),
           p.dateOfBirth,
-          p.bloodType || 'N/A',
+          p.bloodType ? tEnum(p.bloodType) : 'N/A',
           p.status,
         ].map((field) => `"${field}"`).join(',')
       ),
@@ -176,14 +183,14 @@ export default function PatientsPage() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `patients_export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `patients_export_${toLocalDateString()}.csv`;
     link.click();
 
-    toast.success('Export complete', `Exported ${selectedData.length} patient(s) to CSV.`);
+    toast.success(t('patientsPage.exportTitle'), t('patientsPage.exportMessage', { count: selectedData.length }));
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return formatLocaleDate(dateString, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -214,7 +221,7 @@ export default function PatientsPage() {
         <PermissionGate permission="patients:create">
           <Link
             href="/dashboard/patients/new"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-lime-600 hover:bg-lime-700 text-white font-medium rounded-lg transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-brand hover:bg-brand-hover text-white font-medium rounded-lg transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -332,7 +339,7 @@ export default function PatientsPage() {
             onClick={fetchPatients}
             className="mt-2 text-sm text-red-600 dark:text-red-300 underline"
           >
-            Try again
+            {t('patientsPage.tryAgain')}
           </button>
         </div>
       )}
@@ -429,7 +436,7 @@ export default function PatientsPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-900 dark:text-white">
-                          {calculateAge(patient.dateOfBirth)} yrs
+                          {t('unit.years', { count: calculateAge(patient.dateOfBirth) })}
                         </span>
                         <span className={`inline-flex items-center justify-center w-5 h-5 rounded text-xs font-medium ${
                           patient.gender === 'MALE'
@@ -438,13 +445,13 @@ export default function PatientsPage() {
                             ? 'bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300'
                             : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                         }`}>
-                          {patient.gender[0]}
+                          {tEnum(patient.gender).charAt(0)}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
-                        {patient.bloodType || 'N/A'}
+                        {patient.bloodType ? tEnum(patient.bloodType) : t('patientsPage.na')}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -453,7 +460,7 @@ export default function PatientsPage() {
                           ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
                           : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                       }`}>
-                        {patient.status}
+                        {tEnum(patient.status?.toUpperCase())}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -526,7 +533,7 @@ export default function PatientsPage() {
                       onClick={() => setCurrentPage(page)}
                       className={`w-10 h-10 text-sm font-medium rounded-lg transition-colors ${
                         currentPage === page
-                          ? 'bg-lime-600 text-white'
+                          ? 'bg-brand text-white'
                           : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                       }`}
                     >

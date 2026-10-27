@@ -9,6 +9,7 @@ import {
   ReactNode,
   useRef,
 } from 'react';
+import type { Socket } from 'socket.io-client';
 import { useSocket, ServerEvents, ClientEvents } from '@/hooks/useSocket';
 import { api } from '@/lib/api';
 import { useAuth } from './auth-context';
@@ -21,6 +22,23 @@ export type NotificationType =
   | 'prescription'
   | 'system'
   | 'promotion';
+
+const KNOWN_TYPES: readonly NotificationType[] = ['appointment', 'lab_result', 'payment', 'prescription', 'system', 'promotion'];
+
+// Backend services emit more specific types (lab_critical, cash-desk, roster…);
+// map them onto the display families so styling lookups never miss.
+const TYPE_ALIASES: Record<string, NotificationType> = {
+  lab_critical: 'lab_result',
+  imaging_critical: 'lab_result',
+  imaging_result: 'lab_result',
+  'cash-desk': 'payment',
+};
+
+export function notificationKind(type: string | null | undefined): NotificationType {
+  if (!type) return 'system';
+  if ((KNOWN_TYPES as readonly string[]).includes(type)) return type as NotificationType;
+  return TYPE_ALIASES[type] ?? 'system';
+}
 
 export interface Notification {
   id: string;
@@ -60,6 +78,8 @@ interface NotificationContextType {
   dismissToast: (id: string) => void;
   updateSettings: (settings: Partial<NotificationSettings>) => void;
   requestDesktopPermission: () => Promise<NotificationPermission>;
+  /** The shared Socket.io connection (one per tab), for teleconsultation signalling */
+  getSocket: () => Socket | null;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -113,13 +133,19 @@ const showDesktopNotification = (notification: Notification) => {
 };
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated } = useAuth();
-  const { isConnected, on, emit, connect, disconnect } = useSocket({ autoConnect: false });
+  const { user, isAuthenticated: signedIn, mfaSetupRequired, mustChangePassword } = useAuth();
+  // Until 2FA enrolment or a forced password change is done the API refuses everything else
+  const isAuthenticated = signedIn && !mfaSetupRequired && !mustChangePassword;
+  const { isConnected, on, emit, connect, disconnect, getSocket } = useSocket({ autoConnect: false });
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
+  const notificationsRef = useRef<Notification[]>([]);
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
 
   const hasInitialized = useRef(false);
@@ -209,7 +235,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   // Handle new notification from socket
   const handleNewNotification = useCallback(
     (notification: Notification) => {
-      setNotifications((prev) => [notification, ...prev]);
+      // A reconnect sync replays stored notifications: ignore the ones already listed
+      if (notificationsRef.current.some((n) => n.id === notification.id)) return;
+      notificationsRef.current = [notification, ...notificationsRef.current];
+      setNotifications((prev) => (prev.some((n) => n.id === notification.id) ? prev : [notification, ...prev]));
       setUnreadCount((prev) => prev + 1);
 
       // Show toast if enabled
@@ -274,8 +303,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       on<{ count: number }>(ServerEvents.NOTIFICATION_UNREAD_COUNT, handleUnreadCount),
     ];
 
-    // Sync notifications on connect
-    emit(ClientEvents.NOTIFICATIONS_SYNC, { since: notifications[0]?.createdAt });
+    // Catch up on what arrived while disconnected. Before the first fetch there is
+    // nothing to catch up from (the REST fetch loads the list), so don't replay it all.
+    const latest = notificationsRef.current[0]?.createdAt;
+    if (latest) emit(ClientEvents.NOTIFICATIONS_SYNC, { lastSyncTimestamp: latest });
 
     return () => {
       cleanups.forEach((cleanup) => cleanup());
@@ -289,7 +320,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     handleNotificationDeleted,
     handleAllRead,
     handleUnreadCount,
-    notifications,
   ]);
 
   // Mark as read
@@ -384,6 +414,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         dismissToast,
         updateSettings,
         requestDesktopPermission,
+        getSocket,
       }}
     >
       {children}

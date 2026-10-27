@@ -1,6 +1,7 @@
 'use client';
 
-import { useNotifications, NotificationType } from '@/context/notification-context';
+import { useNotifications, NotificationType, notificationKind } from '@/context/notification-context';
+import { useLanguage } from '@/context/language-context';
 
 const typeColors: Record<NotificationType, { bg: string; border: string; icon: string }> = {
   appointment: {
@@ -70,13 +71,15 @@ const typeIcons: Record<NotificationType, React.ReactElement> = {
 
 export function NotificationToastContainer() {
   const { toasts, dismissToast, markAsRead } = useNotifications();
+  const { t } = useLanguage();
 
   if (toasts.length === 0) return null;
 
   return (
     <div className="fixed top-4 right-4 z-[100] flex flex-col gap-3 max-w-md">
       {toasts.map((toast) => {
-        const colors = typeColors[toast.notification.type];
+        const kind = notificationKind(toast.notification.type);
+        const colors = typeColors[kind];
 
         return (
           <div
@@ -90,7 +93,7 @@ export function NotificationToastContainer() {
             role="alert"
           >
             <div className={`flex-shrink-0 ${colors.icon}`}>
-              {typeIcons[toast.notification.type]}
+              {typeIcons[kind]}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -108,7 +111,7 @@ export function NotificationToastContainer() {
                     }}
                     className="text-xs text-lime-600 dark:text-lime-400 hover:text-lime-700 font-medium"
                   >
-                    Mark as read
+                    {t('admin.notifBell.markAsRead')}
                   </button>
                 )}
               </div>

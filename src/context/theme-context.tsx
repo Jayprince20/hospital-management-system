@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useSyncExternalStore, ReactNode } from 'react';
+import { useLanguage } from '@/context/language-context';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -14,84 +15,52 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('light');
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
-  const [mounted, setMounted] = useState(false);
+const THEME_EVENT = 'hms-theme-change';
+const DARK_QUERY = '(prefers-color-scheme: dark)';
 
-  // Get system preference
-  const getSystemTheme = (): 'light' | 'dark' => {
-    if (typeof window !== 'undefined') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return 'light';
+// Theme preference lives in localStorage; reading it through useSyncExternalStore keeps
+// every component (and other tabs) in sync without setState-in-effect hydration.
+function subscribeTheme(onChange: () => void) {
+  const media = window.matchMedia(DARK_QUERY);
+  window.addEventListener('storage', onChange);
+  window.addEventListener(THEME_EVENT, onChange);
+  media.addEventListener('change', onChange);
+  return () => {
+    window.removeEventListener('storage', onChange);
+    window.removeEventListener(THEME_EVENT, onChange);
+    media.removeEventListener('change', onChange);
   };
+}
 
-  // Initialize theme from localStorage and apply immediately
+function readTheme(): Theme {
+  const stored = localStorage.getItem('theme');
+  return stored === 'dark' || stored === 'system' ? stored : 'light';
+}
+
+function readSystemDark(): boolean {
+  return window.matchMedia(DARK_QUERY).matches;
+}
+
+const subscribeNothing = () => () => {};
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, () => 'light' as Theme);
+  const systemDark = useSyncExternalStore(subscribeTheme, readSystemDark, () => false);
+  const mounted = useSyncExternalStore(subscribeNothing, () => true, () => false);
+  const resolvedTheme: 'light' | 'dark' = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
+
+  // Apply the resolved theme to the document
   useEffect(() => {
-    const stored = localStorage.getItem('theme') as Theme | null;
-    const initialTheme = stored || 'light';
-    setThemeState(initialTheme);
-
-    // Apply theme immediately
-    const resolved = initialTheme === 'system' ? getSystemTheme() : initialTheme;
-    setResolvedTheme(resolved);
-
-    if (resolved === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-
-    setMounted(true);
-  }, []);
-
-  // Update resolved theme and apply to document when theme changes
-  useEffect(() => {
-    if (!mounted) return;
-
-    const resolved = theme === 'system' ? getSystemTheme() : theme;
-    setResolvedTheme(resolved);
-
-    // Apply theme to document
-    const root = document.documentElement;
-    console.log('[Theme] Applying theme:', resolved, 'Current classes:', root.className);
-    if (resolved === 'dark') {
-      root.classList.add('dark');
-      console.log('[Theme] Added dark class. Classes now:', root.className);
-    } else {
-      root.classList.remove('dark');
-      console.log('[Theme] Removed dark class. Classes now:', root.className);
-    }
-  }, [theme, mounted]);
-
-  // Listen for system theme changes
-  useEffect(() => {
-    if (!mounted || theme !== 'system') return;
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e: MediaQueryListEvent) => {
-      setResolvedTheme(e.matches ? 'dark' : 'light');
-      if (e.matches) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    };
-
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, [theme, mounted]);
+    document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
+  }, [resolvedTheme]);
 
   const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
     localStorage.setItem('theme', newTheme);
+    window.dispatchEvent(new Event(THEME_EVENT));
   };
 
   const toggleTheme = () => {
-    const newTheme = resolvedTheme === 'dark' ? 'light' : 'dark';
-    console.log('[Theme] Toggle called. Current:', resolvedTheme, '-> New:', newTheme);
-    setTheme(newTheme);
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
   };
 
   return (
@@ -112,13 +81,14 @@ export function useTheme() {
 // Theme toggle button component
 export function ThemeToggle({ className = '' }: { className?: string }) {
   const { resolvedTheme, toggleTheme } = useTheme();
+  const { t } = useLanguage();
 
   return (
     <button
       onClick={toggleTheme}
       className={`p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400 transition-colors ${className}`}
-      title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-      aria-label={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={resolvedTheme === 'dark' ? t('theme.toLight') : t('theme.toDark')}
+      aria-label={resolvedTheme === 'dark' ? t('theme.toLight') : t('theme.toDark')}
     >
       {resolvedTheme === 'dark' ? (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -9,10 +9,9 @@ import { useConfirm } from '@/components/confirm-modal';
 import { useLanguage } from '@/context/language-context';
 import { CardSkeleton, NoResults } from '@/components/ui';
 import { PermissionGate } from '@/components/permission-gate';
-import { getDayName } from '@/lib/formatters';
 
 export default function DoctorsPage() {
-  const { t } = useLanguage();
+  const { t, formatCurrency, locale } = useLanguage();
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [stats, setStats] = useState({ total: 0, available: 0, departments: 0, todayAppointments: 0 });
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
@@ -63,11 +62,11 @@ export default function DoctorsPage() {
       setTotalPages(response.totalPages);
       setTotalDoctors(response.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch doctors');
+      setError(err instanceof Error ? err.message : t('clinical.doctors.fetchError'));
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, departmentFilter, specializationFilter, availabilityFilter, currentPage]);
+  }, [debouncedSearch, departmentFilter, specializationFilter, availabilityFilter, currentPage, t]);
 
   useEffect(() => {
     fetchDoctors();
@@ -79,9 +78,9 @@ export default function DoctorsPage() {
 
   const handleDelete = async (id: string, doctorName: string) => {
     const confirmed = await confirm({
-      title: 'Delete Doctor',
-      message: `Are you sure you want to delete Dr. ${doctorName}? This action cannot be undone.`,
-      confirmText: 'Delete',
+      title: t('clinical.doctors.deleteTitle'),
+      message: t('clinical.doctors.deleteMessage', { name: doctorName }),
+      confirmText: t('clinical.common.delete'),
       variant: 'danger',
     });
 
@@ -90,19 +89,22 @@ export default function DoctorsPage() {
     try {
       setIsDeleting(true);
       await api.deleteDoctor(id);
-      toast.success('Doctor deleted', `Dr. ${doctorName} has been removed successfully.`);
+      toast.success(t('clinical.doctors.deleted'), t('clinical.doctors.deletedMessage', { name: doctorName }));
       fetchDoctors();
     } catch (err) {
-      toast.error('Delete failed', err instanceof Error ? err.message : 'Failed to delete doctor');
+      toast.error(t('clinical.doctors.deleteFailed'), err instanceof Error ? err.message : t('clinical.doctors.deleteFailedMessage'));
     } finally {
       setIsDeleting(false);
     }
   };
 
   const getWorkingDays = (schedule: Doctor['schedule']): string => {
-    if (!schedule || schedule.length === 0) return 'No schedule';
-    const activeDays = schedule.filter(s => s.isActive).map(s => getDayName(s.dayOfWeek, 'short'));
-    if (activeDays.length === 0) return 'No schedule';
+    if (!schedule || schedule.length === 0) return t('clinical.doctors.noSchedule');
+    // 7 Jan 2024 was a Sunday, so day N of that week maps to dayOfWeek N
+    const activeDays = schedule
+      .filter(s => s.isActive)
+      .map(s => new Date(2024, 0, 7 + s.dayOfWeek).toLocaleDateString(locale, { weekday: 'short' }));
+    if (activeDays.length === 0) return t('clinical.doctors.noSchedule');
     return activeDays.join(', ');
   };
 
@@ -117,7 +119,7 @@ export default function DoctorsPage() {
         <PermissionGate permission="doctors:create">
           <Link
             href="/dashboard/doctors/new"
-            className="bg-lime-600 hover:bg-lime-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            className="bg-brand hover:bg-brand-hover text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -298,7 +300,7 @@ export default function DoctorsPage() {
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                     </svg>
-                    <span className="truncate">{doctor.specializations?.join(', ') || 'N/A'}</span>
+                    <span className="truncate">{doctor.specializations?.join(', ') || t('clinical.common.na')}</span>
                   </div>
 
                   <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -312,7 +314,7 @@ export default function DoctorsPage() {
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span>${doctor.consultationFee?.toFixed(2) || '0.00'}</span>
+                    <span>{formatCurrency(doctor.consultationFee)}</span>
                   </div>
 
                   <div className="flex items-center gap-2 text-sm">
@@ -384,7 +386,7 @@ export default function DoctorsPage() {
               <PermissionGate permission="doctors:create">
                 <Link
                   href="/dashboard/doctors/new"
-                  className="inline-flex items-center gap-2 bg-lime-600 text-white px-4 py-2 rounded-lg hover:bg-lime-700"
+                  className="inline-flex items-center gap-2 bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-hover"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -415,7 +417,7 @@ export default function DoctorsPage() {
                     onClick={() => setCurrentPage(i + 1)}
                     className={`px-3 py-1 border rounded-lg text-sm ${
                       currentPage === i + 1
-                        ? 'bg-lime-600 text-white border-lime-600'
+                        ? 'bg-brand text-white border-lime-600'
                         : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >

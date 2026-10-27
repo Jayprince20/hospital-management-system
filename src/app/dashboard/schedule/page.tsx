@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { useToast } from '@/components/toast';
-import { api } from '@/lib/api';
+import { api, type Doctor } from '@/lib/api';
 import { LoadingState, ErrorState } from '@/components/ui';
 
 interface ScheduleDay {
@@ -30,17 +31,17 @@ const DEFAULT_SCHEDULE: ScheduleDay[] = [
 
 export default function SchedulePage() {
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, tEnum } = useLanguage();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [schedule, setSchedule] = useState<ScheduleDay[]>(DEFAULT_SCHEDULE);
-  const [doctorData, setDoctorData] = useState<any>(null);
+  const [doctorData, setDoctorData] = useState<Doctor | null>(null);
 
   const fetchSchedule = useCallback(async () => {
     if (!user?.doctorId) {
-      setError('Doctor profile not found. Please contact support.');
+      setError(t('myPatients.noDoctorProfile'));
       setLoading(false);
       return;
     }
@@ -56,7 +57,7 @@ export default function SchedulePage() {
       // Map the schedule from API response
       if (doctorRes.schedule && doctorRes.schedule.length > 0) {
         const scheduleMap = new Map(
-          doctorRes.schedule.map((s: any) => [s.dayOfWeek, s])
+          doctorRes.schedule.map((s) => [s.dayOfWeek, s])
         );
 
         const mappedSchedule = DEFAULT_SCHEDULE.map((day) => {
@@ -77,8 +78,8 @@ export default function SchedulePage() {
       }
     } catch (err) {
       console.error('Error fetching schedule:', err);
-      setError('Failed to load schedule');
-      toast.error('Error', 'Failed to load schedule. Please try again.');
+      setError(t('schedule.errLoad'));
+      toast.error(t('common.error'), t('schedule.errLoadRetry'));
     } finally {
       setLoading(false);
     }
@@ -129,21 +130,21 @@ export default function SchedulePage() {
       }));
 
       await api.updateDoctorSchedule(user.doctorId, formattedSchedule);
-      toast.success('Success', 'Schedule updated successfully!');
+      toast.success(t('common.success'), t('schedule.saved'));
     } catch (err) {
       console.error('Error saving schedule:', err);
-      toast.error('Error', 'Failed to save schedule. Please try again.');
+      toast.error(t('common.error'), t('schedule.errSave'));
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return <LoadingState label="Loading your schedule..." minHeight="h-96" />;
+    return <LoadingState label={t('schedule.loading')} minHeight="h-96" />;
   }
 
   if (error && !doctorData) {
-    return <ErrorState title="Error" message={error} onRetry={fetchSchedule} />;
+    return <ErrorState title={t('common.error')} message={error} onRetry={fetchSchedule} />;
   }
 
   return (
@@ -151,11 +152,14 @@ export default function SchedulePage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          My Schedule
+          {t('schedule.title')}
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
-          Manage your working hours and availability for appointments
+          {t('schedule.subtitle')}
         </p>
+        <Link href="/dashboard/my-schedule" className="inline-block mt-2 text-sm text-lime-700 dark:text-lime-400 hover:underline">
+          {t('ros.mine.seeShifts')}
+        </Link>
       </div>
 
 
@@ -172,10 +176,10 @@ export default function SchedulePage() {
               Dr. {user?.firstName} {user?.lastName}
             </h2>
             <p className="text-gray-600 dark:text-gray-400">
-              {doctorData?.department || 'Doctor'}
+              {doctorData?.department || tEnum('DOCTOR')}
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-500">
-              {doctorData?.specializations?.join(', ') || 'General Practice'}
+              {doctorData?.specializations?.join(', ') || t('schedule.generalPractice')}
             </p>
           </div>
         </div>
@@ -185,10 +189,10 @@ export default function SchedulePage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="p-6 border-b border-gray-100 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Weekly Schedule
+            {t('schedule.weekly')}
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Set your available days and working hours
+            {t('schedule.weeklyHelp')}
           </p>
         </div>
 
@@ -208,10 +212,10 @@ export default function SchedulePage() {
                       onChange={() => handleToggleDay(day.dayOfWeek)}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-lime-300 dark:peer-focus:ring-lime-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-lime-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-lime-300 dark:peer-focus:ring-lime-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-brand"></div>
                   </label>
                   <span className={`font-medium ${day.isActive ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}`}>
-                    {day.dayName}
+                    {t(`schedule.day${day.dayOfWeek}`)}
                   </span>
                 </div>
 
@@ -219,7 +223,7 @@ export default function SchedulePage() {
                 {day.isActive && (
                   <div className="flex flex-wrap items-center gap-4">
                     <div className="flex items-center gap-2">
-                      <label className="text-sm text-gray-500 dark:text-gray-400">From:</label>
+                      <label className="text-sm text-gray-500 dark:text-gray-400">{t('schedule.from')}</label>
                       <input
                         type="time"
                         value={day.startTime}
@@ -228,7 +232,7 @@ export default function SchedulePage() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-sm text-gray-500 dark:text-gray-400">To:</label>
+                      <label className="text-sm text-gray-500 dark:text-gray-400">{t('schedule.to')}</label>
                       <input
                         type="time"
                         value={day.endTime}
@@ -237,7 +241,7 @@ export default function SchedulePage() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-sm text-gray-500 dark:text-gray-400">Slot:</label>
+                      <label className="text-sm text-gray-500 dark:text-gray-400">{t('schedule.slot')}</label>
                       <select
                         value={day.slotDuration}
                         onChange={(e) => handleSlotDurationChange(day.dayOfWeek, parseInt(e.target.value))}
@@ -255,7 +259,7 @@ export default function SchedulePage() {
 
                 {!day.isActive && (
                   <span className="text-sm text-gray-400 dark:text-gray-500">
-                    Not working
+                    {t('schedule.notWorking')}
                   </span>
                 )}
               </div>
@@ -268,7 +272,7 @@ export default function SchedulePage() {
           <button
             onClick={handleSaveSchedule}
             disabled={saving}
-            className="px-6 py-2.5 bg-lime-600 text-white font-medium rounded-lg hover:bg-lime-700 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-6 py-2.5 bg-brand text-white font-medium rounded-lg hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? (
               <span className="flex items-center gap-2">
@@ -276,10 +280,10 @@ export default function SchedulePage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Saving...
+                {t('schedule.saving')}
               </span>
             ) : (
-              'Save Schedule'
+              t('schedule.save')
             )}
           </button>
         </div>
@@ -288,32 +292,32 @@ export default function SchedulePage() {
       {/* Tips Section */}
       <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-3">
-          Tips for Managing Your Schedule
+          {t('schedule.tipsTitle')}
         </h3>
         <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
           <li className="flex items-start gap-2">
             <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Toggle days on/off to set your working days
+            {t('schedule.tip1')}
           </li>
           <li className="flex items-start gap-2">
             <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Set your working hours for each active day
+            {t('schedule.tip2')}
           </li>
           <li className="flex items-start gap-2">
             <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Choose slot duration based on your typical consultation time
+            {t('schedule.tip3')}
           </li>
           <li className="flex items-start gap-2">
             <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Patients can only book during your active working hours
+            {t('schedule.tip4')}
           </li>
         </ul>
       </div>

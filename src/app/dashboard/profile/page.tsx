@@ -5,11 +5,12 @@ import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
-import { roleDisplayNames, roleColors, UserRole } from '@/lib/rbac';
+import { roleColors, UserRole } from '@/lib/rbac';
+import { TwoFactorSettings } from '@/components/two-factor-settings';
 
 export default function ProfilePage() {
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, tEnum } = useLanguage();
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -51,13 +52,13 @@ export default function ProfilePage() {
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      toast.error('Invalid file', 'Please select an image file');
+      toast.error(t('admin.profile.invalidFile'), t('admin.profile.selectImage'));
       return;
     }
 
     // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
-      toast.error('File too large', 'Please select an image smaller than 2MB');
+      toast.error(t('admin.profile.fileTooLarge'), t('admin.profile.under2mb'));
       return;
     }
 
@@ -91,13 +92,13 @@ export default function ProfilePage() {
         phoneNumber: formData.phoneNumber,
         profileImageUrl: formData.profileImageUrl || undefined,
       });
-      toast.success('Profile updated', 'Your profile has been updated successfully');
+      toast.success(t('admin.profile.updated'), t('admin.profile.updatedMsg'));
       setIsEditing(false);
       // Refresh the page to get updated user data
       window.location.reload();
     } catch (error) {
       console.error('Error updating profile:', error);
-      toast.error('Update failed', error instanceof Error ? error.message : 'Failed to update profile');
+      toast.error(t('admin.profile.updateFailed'), error instanceof Error ? error.message : t('admin.profile.updateError'));
     } finally {
       setSaving(false);
     }
@@ -130,8 +131,8 @@ export default function ProfilePage() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Profile</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your account information</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('admin.profile.profile')}</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">{t('admin.profile.manageYourAccountInformation')}</p>
       </div>
 
       {/* Profile Card */}
@@ -168,8 +169,8 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     onClick={handleImageClick}
-                    className="absolute bottom-0 right-0 w-8 h-8 bg-lime-600 text-white rounded-full flex items-center justify-center hover:bg-lime-700 transition-colors"
-                    title="Change photo"
+                    className="absolute bottom-0 right-0 w-8 h-8 bg-brand text-white rounded-full flex items-center justify-center hover:bg-brand-hover transition-colors"
+                    title={t('admin.profile.changePhoto')}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -181,7 +182,7 @@ export default function ProfilePage() {
                       type="button"
                       onClick={handleRemoveImage}
                       className="absolute top-0 right-0 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                      title="Remove photo"
+                      title={t('admin.profile.removePhoto')}
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -197,10 +198,10 @@ export default function ProfilePage() {
               </h2>
               <p className="text-gray-500 dark:text-gray-400">{user.email}</p>
               <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-medium ${roleColor}`}>
-                {roleDisplayNames[user.role as UserRole] || user.role}
+                {tEnum(user.role)}
               </span>
               {isEditing && (
-                <p className="text-xs text-gray-400 mt-2">Click on the image to change your photo</p>
+                <p className="text-xs text-gray-400 mt-2">{t('admin.profile.clickOnTheImageToChange')}</p>
               )}
             </div>
           </div>
@@ -212,7 +213,7 @@ export default function ProfilePage() {
             {/* First Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                First Name
+                {t('admin.profile.firstName')}
               </label>
               {isEditing ? (
                 <input
@@ -231,7 +232,7 @@ export default function ProfilePage() {
             {/* Last Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Last Name
+                {t('admin.profile.lastName')}
               </label>
               {isEditing ? (
                 <input
@@ -250,7 +251,7 @@ export default function ProfilePage() {
             {/* Email (read-only) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Email Address
+                {t('admin.profile.emailAddress')}
               </label>
               <p className="text-gray-900 dark:text-white py-2">{user.email}</p>
               {user.isEmailVerified && (
@@ -258,7 +259,7 @@ export default function ProfilePage() {
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  Verified
+                  {t('admin.profile.verified')}
                 </span>
               )}
             </div>
@@ -266,7 +267,7 @@ export default function ProfilePage() {
             {/* Phone Number */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Phone Number
+                {t('admin.profile.phoneNumber')}
               </label>
               {isEditing ? (
                 <input
@@ -278,7 +279,7 @@ export default function ProfilePage() {
                 />
               ) : (
                 <p className="text-gray-900 dark:text-white py-2">
-                  {user.phoneNumber || <span className="text-gray-400">Not set</span>}
+                  {user.phoneNumber || <span className="text-gray-400">{t('admin.profile.notSet')}</span>}
                 </p>
               )}
             </div>
@@ -286,17 +287,17 @@ export default function ProfilePage() {
             {/* Role (read-only) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Role
+                {t('admin.profile.role')}
               </label>
               <p className="text-gray-900 dark:text-white py-2">
-                {roleDisplayNames[user.role as UserRole] || user.role}
+                {tEnum(user.role)}
               </p>
             </div>
 
             {/* Account Status */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Account Status
+                {t('admin.profile.accountStatus')}
               </label>
               <p className="py-2">
                 {user.isActive ? (
@@ -304,14 +305,14 @@ export default function ProfilePage() {
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    Active
+                    {t('admin.profile.active')}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400">
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                     </svg>
-                    Inactive
+                    {t('admin.profile.inactive')}
                   </span>
                 )}
               </p>
@@ -327,23 +328,23 @@ export default function ProfilePage() {
                   onClick={handleCancel}
                   className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
-                  Cancel
+                  {t('admin.profile.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 transition-colors"
                 >
-                  {isSaving ? 'Saving...' : 'Save Changes'}
+                  {isSaving ? t('form.saving') : t('form.saveChanges')}
                 </button>
               </>
             ) : (
               <button
                 type="button"
                 onClick={() => setIsEditing(true)}
-                className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors"
+                className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
               >
-                Edit Profile
+                {t('admin.profile.editProfile')}
               </button>
             )}
           </div>
@@ -352,21 +353,24 @@ export default function ProfilePage() {
 
       {/* Security Section */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Security</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.profile.security')}</h3>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-gray-900 dark:text-white">Password</p>
+              <p className="font-medium text-gray-900 dark:text-white">{t('admin.profile.password')}</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Change your account password
+                {t('admin.profile.changeYourAccountPassword')}
               </p>
             </div>
             <a
               href="/change-password"
               className="px-4 py-2 text-lime-600 hover:bg-lime-50 dark:hover:bg-lime-900/30 rounded-lg transition-colors"
             >
-              Change Password
+              {t('admin.profile.changePassword')}
             </a>
+          </div>
+          <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+            <TwoFactorSettings />
           </div>
         </div>
       </div>

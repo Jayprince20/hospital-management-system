@@ -5,7 +5,14 @@ import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { api } from '@/lib/api';
 import { LoadingState, ErrorState } from '@/components/ui';
-import { formatDate, formatTime } from '@/lib/formatters';
+import { useLanguage } from '@/context/language-context';
+import { toLocalDateString } from '@/lib/formatters';
+import { MyTicketCard } from '@/components/queue';
+import { MyAdmissionCard } from '@/components/inpatient';
+import { MyFeedbackCard } from '@/components/feedback';
+import { ConfirmPresenceButton } from '@/components/confirmation';
+import { useActingPatient } from '@/context/acting-patient-context';
+import { ClinicalAccessNotice } from '@/components/family';
 
 interface PatientAppointment {
   id: string;
@@ -60,6 +67,9 @@ interface PatientConsultation {
 
 export function PatientDashboard() {
   const { user } = useAuth();
+  const { t, tEnum, formatDate, formatTime } = useLanguage();
+  // Family access: a relative's record when acting for one; clinical blocks only with full access
+  const { effectivePatientId, isActing, acting, canSeeClinical } = useActingPatient();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [upcomingAppointments, setUpcomingAppointments] = useState<PatientAppointment[]>([]);
@@ -80,9 +90,9 @@ export function PatientDashboard() {
 
       // First, we need to find the patient ID
       // Try to search for patient by email if patientId is not available
-      let patientId = (user as any).patientId;
+      let patientId = effectivePatientId ?? user.patientId;
 
-      if (!patientId && user.email) {
+      if (!patientId && !isActing && user.email) {
         try {
           const patientsRes = await api.getPatients({ search: user.email, limit: 1 });
           if (patientsRes.data && patientsRes.data.length > 0) {
@@ -100,23 +110,24 @@ export function PatientDashboard() {
       }
 
       // Fetch upcoming appointments
-      const today = new Date().toISOString().split('T')[0];
+      const today = toLocalDateString();
       try {
         const appointmentsRes = await api.getAppointments({
           patientId: patientId,
           dateFrom: today,
           limit: 5,
         });
-        setUpcomingAppointments((appointmentsRes.data || []).map((apt: any) => ({
+        const closedStatuses = ['CANCELLED', 'NO_SHOW', 'COMPLETED'];
+        setUpcomingAppointments((appointmentsRes.data || []).filter((apt) => !closedStatuses.includes(apt.status)).map((apt) => ({
           id: apt.id,
-          date: apt.appointmentDate || apt.scheduledAt,
-          time: apt.startTime || apt.scheduledAt,
+          date: apt.appointmentDate,
+          time: apt.startTime,
           status: apt.status,
           type: apt.type,
           doctor: {
             id: apt.doctor?.id || '',
             name: `Dr. ${apt.doctor?.firstName || ''} ${apt.doctor?.lastName || ''}`.trim(),
-            department: apt.doctor?.department?.name || apt.doctor?.department || 'General',
+            department: apt.doctor?.department || t('admin.patient.general'),
             profileImageUrl: apt.doctor?.profileImageUrl,
           },
           reason: apt.reason,
@@ -126,29 +137,28 @@ export function PatientDashboard() {
       }
 
       // Fetch patient details including vitals
-      try {
+      if (canSeeClinical) try {
         const patientDetail = await api.getPatient(patientId);
-        setRecentVitals((patientDetail.vitals || []).slice(0, 5).map((v: any) => ({
-          id: v.id,
-          recordedAt: v.recordedAt || v.date,
-          bloodPressure: v.bloodPressure || (v.bloodPressureSys && v.bloodPressureDia ? `${v.bloodPressureSys}/${v.bloodPressureDia}` : undefined),
-          heartRate: v.heartRate,
-          temperature: v.temperature,
-          weight: v.weight,
-          oxygenSaturation: v.oxygenSaturation,
+        setRecentVitals((patientDetail.vitals || []).slice(0, 5).map((v, index) => ({
+          id: `${v.date}-${index}`,
+          recordedAt: v.date,
+          bloodPressure: v.bloodPressure ?? undefined,
+          heartRate: v.heartRate ?? undefined,
+          temperature: v.temperature ?? undefined,
+          weight: v.weight ?? undefined,
         })));
       } catch {
         setRecentVitals([]);
       }
 
       // Fetch active prescriptions
-      try {
+      if (canSeeClinical) try {
         const rxRes = await api.getPrescriptions({ patientId: patientId, limit: 5 });
-        setActivePrescriptions((rxRes.prescriptions || []).map((rx: any) => ({
+        setActivePrescriptions((rxRes.prescriptions || []).map((rx) => ({
           id: rx.id,
-          medications: rx.items?.map((i: any) => i.medication?.name || i.medication || 'Medication') || [],
+          medications: rx.items?.map((item) => item.medication || t('admin.patient.medication')) || [],
           status: rx.status,
-          doctorName: rx.doctorName || `Dr. ${rx.doctor?.firstName || ''} ${rx.doctor?.lastName || ''}`.trim(),
+          doctorName: rx.doctorName,
           createdAt: rx.createdAt,
         })));
       } catch {
@@ -156,12 +166,12 @@ export function PatientDashboard() {
       }
 
       // Fetch recent lab results
-      try {
+      if (canSeeClinical) try {
         const labsRes = await api.getLabOrders({ patientId: patientId, limit: 5 });
-        setRecentLabResults((labsRes.labOrders || []).flatMap((order: any) =>
-          (order.tests || order.items || []).map((item: any) => ({
+        setRecentLabResults((labsRes.labOrders || []).flatMap((order) =>
+          (order.tests || []).map((item) => ({
             id: `${order.id}-${item.id}`,
-            testName: item.name || item.test?.name || 'Lab Test',
+            testName: item.name || t('admin.patient.labTest'),
             status: order.status,
             result: item.result,
             isAbnormal: item.isAbnormal,
@@ -173,13 +183,13 @@ export function PatientDashboard() {
       }
 
       // Fetch recent consultations
-      try {
+      if (canSeeClinical) try {
         const consultationsRes = await api.getConsultations({ patientId: patientId, limit: 5 });
-        setRecentConsultations((consultationsRes.consultations || []).map((c: any) => ({
+        setRecentConsultations((consultationsRes.consultations || []).map((c) => ({
           id: c.id,
           date: c.appointmentDate || c.createdAt,
-          doctorName: c.doctorName || `Dr. ${c.doctor?.firstName || ''} ${c.doctor?.lastName || ''}`.trim(),
-          department: c.department || c.doctor?.department?.name || 'General',
+          doctorName: c.doctorName,
+          department: c.department || t('admin.patient.general'),
           chiefComplaint: c.chiefComplaint || '',
           diagnosis: c.diagnosis || [],
         })));
@@ -188,12 +198,12 @@ export function PatientDashboard() {
       }
 
     } catch (err) {
-      setError('Failed to load your health data');
+      setError(t('admin.patient.failedToLoadYourHealthData'));
       console.error('Patient dashboard error:', err);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, t, effectivePatientId, isActing, canSeeClinical]);
 
   useEffect(() => {
     fetchPatientData();
@@ -211,11 +221,11 @@ export function PatientDashboard() {
   };
 
   if (loading) {
-    return <LoadingState label="Loading your health portal..." minHeight="h-96" />;
+    return <LoadingState label={t('admin.patient.loadingYourHealthPortal')} minHeight="h-96" />;
   }
 
   if (error) {
-    return <ErrorState title="Error" message={error} onRetry={fetchPatientData} />;
+    return <ErrorState title={t('admin.patient.error')} message={error} onRetry={fetchPatientData} />;
   }
 
   // Check if no data loaded (no patient record found)
@@ -230,17 +240,30 @@ export function PatientDashboard() {
       {/* Welcome Section */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Welcome back, {user?.firstName}!
+          {acting ? t('fam.dashboard.title', { name: `${acting.firstName} ${acting.lastName}`.trim() }) : t('admin.patient.welcomeBack', { name: user?.firstName || '' })}
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
           {hasData
-            ? "Here's your health summary and upcoming appointments"
-            : "Your patient portal is ready. Book an appointment to get started!"}
+            ? t('admin.patient.summaryReady')
+            : t('admin.patient.portalReady')}
         </p>
       </div>
 
+      <MyTicketCard />
+      {canSeeClinical && <MyAdmissionCard />}
+      <div className="mb-6">
+        <MyFeedbackCard />
+      </div>
+
+      {/* Appointments-and-billing family access: no clinical summaries */}
+      {!canSeeClinical && (
+        <div className="mb-6">
+          <ClinicalAccessNotice />
+        </div>
+      )}
+
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 ${canSeeClinical ? '' : 'hidden'}`}>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
@@ -250,7 +273,7 @@ export function PatientDashboard() {
             </div>
             <div>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{upcomingAppointments.length}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Upcoming Appointments</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.patient.upcomingAppointments')}</p>
             </div>
           </div>
         </div>
@@ -266,7 +289,7 @@ export function PatientDashboard() {
               <p className="text-3xl font-bold text-gray-900 dark:text-white">
                 {activePrescriptions.filter(p => p.status === 'ACTIVE').length}
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Active Prescriptions</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.patient.activePrescriptions')}</p>
             </div>
           </div>
         </div>
@@ -282,7 +305,7 @@ export function PatientDashboard() {
               <p className="text-3xl font-bold text-gray-900 dark:text-white">
                 {recentLabResults.filter(l => l.status === 'PROCESSING').length}
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Pending Lab Results</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.patient.pendingLabResults')}</p>
             </div>
           </div>
         </div>
@@ -296,7 +319,7 @@ export function PatientDashboard() {
             </div>
             <div>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{recentConsultations.length}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Past Visits</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.patient.pastVisits')}</p>
             </div>
           </div>
         </div>
@@ -307,12 +330,12 @@ export function PatientDashboard() {
         {/* Upcoming Appointments */}
         <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Upcoming Appointments</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.patient.upcomingAppointments')}</h2>
             <Link
               href="/dashboard/appointments/new"
-              className="px-3 py-1.5 bg-lime-600 text-white text-sm font-medium rounded-lg hover:bg-lime-700 transition-colors"
+              className="px-3 py-1.5 bg-brand text-white text-sm font-medium rounded-lg hover:bg-brand-hover transition-colors"
             >
-              Book Appointment
+              {t('admin.patient.bookAppointment')}
             </Link>
           </div>
 
@@ -321,7 +344,7 @@ export function PatientDashboard() {
               <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              <p className="text-gray-500 dark:text-gray-400 mb-4">No upcoming appointments</p>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">{t('admin.patient.noUpcomingAppointments')}</p>
               <Link
                 href="/dashboard/appointments/new"
                 className="inline-flex items-center gap-2 text-lime-600 dark:text-lime-400 hover:text-lime-500 font-medium"
@@ -329,7 +352,7 @@ export function PatientDashboard() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Book an Appointment
+                {t('admin.patient.bookAnAppointment')}
               </Link>
             </div>
           ) : (
@@ -352,19 +375,20 @@ export function PatientDashboard() {
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white">{apt.doctor.name}</p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {apt.doctor.department} • {apt.type === 'IN_PERSON' ? 'In-Person' : apt.type === 'VIDEO' ? 'Video Call' : 'Phone'}
+                          {apt.doctor.department} • {tEnum(apt.type)}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${statusColors[apt.status]}`}>
-                        {apt.status.replace('_', ' ')}
+                        {tEnum(apt.status)}
                       </span>
+                      <ConfirmPresenceButton appointment={apt} onConfirmed={fetchPatientData} />
                       <Link
                         href={`/dashboard/appointments/${apt.id}`}
                         className="text-lime-600 dark:text-lime-400 hover:text-lime-500 text-sm font-medium"
                       >
-                        View
+                        {t('admin.patient.view')}
                       </Link>
                     </div>
                   </div>
@@ -378,7 +402,7 @@ export function PatientDashboard() {
         <div className="space-y-6">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
             <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Quick Access</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.patient.quickAccess')}</h2>
             </div>
             <div className="p-4 space-y-2">
               <Link
@@ -390,7 +414,7 @@ export function PatientDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Book Appointment</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('admin.patient.bookAppointment')}</span>
               </Link>
               <Link
                 href="/dashboard/my-health"
@@ -401,7 +425,7 @@ export function PatientDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                   </svg>
                 </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">My Health Portal</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('admin.patient.myHealthPortal')}</span>
               </Link>
               <Link
                 href="/dashboard/appointments"
@@ -412,7 +436,7 @@ export function PatientDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">My Appointments</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('admin.patient.myAppointments')}</span>
               </Link>
               <Link
                 href="/dashboard/doctors"
@@ -423,7 +447,7 @@ export function PatientDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Find a Doctor</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('admin.patient.findADoctor')}</span>
               </Link>
               <Link
                 href="/dashboard/departments"
@@ -434,7 +458,7 @@ export function PatientDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
                 </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Departments</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('admin.patient.departments')}</span>
               </Link>
             </div>
           </div>
@@ -443,34 +467,34 @@ export function PatientDashboard() {
           {recentVitals.length > 0 && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
               <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Latest Vitals</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.patient.latestVitals')}</h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Recorded {formatDate(recentVitals[0].recordedAt)}
+                  {t('admin.patient.recorded', { date: formatDate(recentVitals[0].recordedAt) })}
                 </p>
               </div>
               <div className="p-4 grid grid-cols-2 gap-4">
                 {recentVitals[0].bloodPressure && (
                   <div className="text-center">
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">{recentVitals[0].bloodPressure}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Blood Pressure</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.patient.bloodPressure')}</p>
                   </div>
                 )}
                 {recentVitals[0].heartRate && (
                   <div className="text-center">
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">{recentVitals[0].heartRate}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Heart Rate (bpm)</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.patient.heartRateBpm')}</p>
                   </div>
                 )}
                 {recentVitals[0].temperature && (
                   <div className="text-center">
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">{recentVitals[0].temperature}°C</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Temperature</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.patient.temperature')}</p>
                   </div>
                 )}
                 {recentVitals[0].oxygenSaturation && (
                   <div className="text-center">
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">{recentVitals[0].oxygenSaturation}%</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Oxygen Saturation</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('admin.patient.oxygenSaturation')}</p>
                   </div>
                 )}
               </div>
@@ -480,18 +504,18 @@ export function PatientDashboard() {
       </div>
 
       {/* Recent Consultations & Lab Results */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+      <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 ${canSeeClinical ? '' : 'hidden'}`}>
         {/* Recent Consultations */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Visits</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.patient.recentVisits')}</h2>
             <Link href="/dashboard/my-health" className="text-sm text-lime-600 dark:text-lime-400 hover:text-lime-500 font-medium">
-              View All
+              {t('admin.patient.viewAll')}
             </Link>
           </div>
           {recentConsultations.length === 0 ? (
             <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-              No consultation records yet
+              {t('admin.patient.noConsultationRecordsYet')}
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -506,7 +530,7 @@ export function PatientDashboard() {
                       <p className="font-medium text-gray-900 dark:text-white">{consultation.doctorName}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">{consultation.department}</p>
                       <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                        {consultation.chiefComplaint || 'General Consultation'}
+                        {consultation.chiefComplaint || t('admin.patient.generalConsultation')}
                       </p>
                     </div>
                     <div className="text-right">
@@ -527,14 +551,14 @@ export function PatientDashboard() {
         {/* Lab Results */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Lab Results</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.patient.labResults')}</h2>
             <Link href="/dashboard/my-health" className="text-sm text-lime-600 dark:text-lime-400 hover:text-lime-500 font-medium">
-              View All
+              {t('admin.patient.viewAll')}
             </Link>
           </div>
           {recentLabResults.length === 0 ? (
             <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-              No lab results yet
+              {t('admin.patient.noLabResultsYet')}
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -545,12 +569,12 @@ export function PatientDashboard() {
                       <p className="font-medium text-gray-900 dark:text-white">{lab.testName}</p>
                       {lab.result && (
                         <p className={`text-sm ${lab.isAbnormal ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
-                          Result: {lab.result} {lab.isAbnormal && '(Abnormal)'}
+                          {t('admin.patient.result', { result: lab.result })} {lab.isAbnormal && t('admin.patient.abnormal')}
                         </p>
                       )}
                     </div>
                     <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${statusColors[lab.status] || statusColors['PROCESSING']}`}>
-                      {lab.status === 'COMPLETED' ? 'Ready' : lab.status.replace('_', ' ')}
+                      {lab.status === 'COMPLETED' ? t('admin.patient.ready') : tEnum(lab.status)}
                     </span>
                   </div>
                 </div>
@@ -564,9 +588,9 @@ export function PatientDashboard() {
       {activePrescriptions.length > 0 && (
         <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Prescriptions</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.patient.myPrescriptions')}</h2>
             <Link href="/dashboard/my-health" className="text-sm text-lime-600 dark:text-lime-400 hover:text-lime-500 font-medium">
-              View All
+              {t('admin.patient.viewAll')}
             </Link>
           </div>
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -576,14 +600,14 @@ export function PatientDashboard() {
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">
                       {rx.medications.slice(0, 3).join(', ')}
-                      {rx.medications.length > 3 && ` +${rx.medications.length - 3} more`}
+                      {rx.medications.length > 3 && t('admin.patient.more', { count: rx.medications.length - 3 })}
                     </p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Prescribed by {rx.doctorName} on {formatDate(rx.createdAt)}
+                      {t('admin.patient.prescribedBy', { doctor: rx.doctorName, date: formatDate(rx.createdAt) })}
                     </p>
                   </div>
                   <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${statusColors[rx.status]}`}>
-                    {rx.status}
+                    {tEnum(rx.status)}
                   </span>
                 </div>
               </div>

@@ -1,5 +1,7 @@
 'use client';
 
+import { useLanguage } from '@/context/language-context';
+
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
@@ -19,6 +21,7 @@ export function Pagination({
   className = '',
   disabled = false,
 }: PaginationProps) {
+  const { t } = useLanguage();
   if (totalPages <= 1) return null;
 
   const getVisiblePages = (): (number | 'ellipsis')[] => {
@@ -72,16 +75,16 @@ export function Pagination({
     <nav
       className={`flex items-center justify-center gap-1 ${className}`}
       role="navigation"
-      aria-label="Pagination"
+      aria-label={t('admin.ui.pagination')}
     >
       {/* Previous Button */}
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={disabled || currentPage === 1}
         className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        aria-label="Go to previous page"
+        aria-label={t('admin.ui.prevPage')}
       >
-        <span className="sr-only sm:not-sr-only">Previous</span>
+        <span className="sr-only sm:not-sr-only">{t('admin.ui.previous')}</span>
         <svg className="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
@@ -106,7 +109,7 @@ export function Pagination({
                 disabled={disabled}
                 className={`min-w-[2.25rem] px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                   page === currentPage
-                    ? 'bg-lime-600 text-white'
+                    ? 'bg-brand text-white'
                     : 'text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
                 aria-label={`Go to page ${page}`}
@@ -129,9 +132,9 @@ export function Pagination({
         onClick={() => onPageChange(currentPage + 1)}
         disabled={disabled || currentPage === totalPages}
         className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        aria-label="Go to next page"
+        aria-label={t('admin.ui.nextPage')}
       >
-        <span className="sr-only sm:not-sr-only">Next</span>
+        <span className="sr-only sm:not-sr-only">{t('admin.ui.next')}</span>
         <svg className="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
@@ -156,6 +159,7 @@ export function SimplePagination({
   className = '',
   disabled = false,
 }: SimplePaginationProps) {
+  const { t } = useLanguage();
   if (totalPages <= 1) return null;
 
   return (
@@ -164,20 +168,20 @@ export function SimplePagination({
         onClick={() => onPageChange(currentPage - 1)}
         disabled={disabled || currentPage === 1}
         className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        aria-label="Go to previous page"
+        aria-label={t('admin.ui.prevPage')}
       >
-        Previous
+        {t('admin.ui.previous')}
       </button>
       <span className="text-sm text-gray-600 dark:text-gray-400">
-        Page {currentPage} of {totalPages}
+        {t('admin.ui.pageOf', { page: currentPage, total: totalPages })}
       </span>
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={disabled || currentPage === totalPages}
         className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        aria-label="Go to next page"
+        aria-label={t('admin.ui.nextPage')}
       >
-        Next
+        {t('admin.ui.next')}
       </button>
     </div>
   );

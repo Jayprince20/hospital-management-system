@@ -12,18 +12,34 @@ import {
   PatientVital,
   PatientBilling,
 } from '@/lib/api';
+import { useLanguage } from '@/context/language-context';
+import { useAuth } from '@/context/auth-context';
+import { PatientConsentsPanel, PatientDataProtection } from '@/components/consent';
+import { PatientCoveragePanel } from '@/components/insurance';
+import { AdmissionDialog } from '@/components/inpatient';
+import { PatientDocumentsPanel } from '@/components/documents';
+import { PatientImagingPanel } from '@/components/imaging';
+import { PatientFamilyAccessPanel } from '@/components/family';
+import { GrowthPanel, PregnancyPanel, VaccinationPanel } from '@/components/maternal-child';
+import { showGrowth, showPregnancy, showVaccination } from '@/lib/maternal-child';
+import { PatientAttachmentsPanel, ProblemListPanel } from '@/components/clinical-docs';
 
-type TabType = 'overview' | 'appointments' | 'prescriptions' | 'lab-results' | 'vitals' | 'billing' | 'documents';
+type TabType = 'overview' | 'appointments' | 'prescriptions' | 'lab-results' | 'imaging' | 'vitals' | 'billing' | 'coverage' | 'documents' | 'consents' | 'family' | 'vaccination' | 'growth' | 'pregnancy' | 'attachments';
 
 export default function PatientDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { t, tEnum, formatDate: formatLocaleDate, formatTime: formatLocaleTime, formatCurrency } = useLanguage();
   const [patient, setPatient] = useState<PatientDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
   const [deleting, setDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [admitting, setAdmitting] = useState(false);
+  const canAdmit = user?.role === 'ADMIN' || user?.role === 'DOCTOR' || user?.role === 'RECEPTIONIST';
 
   const fetchPatient = useCallback(async () => {
     try {
@@ -32,7 +48,7 @@ export default function PatientDetailPage() {
       setPatient(data);
       setError(null);
     } catch (err) {
-      setError('Failed to load patient details');
+      setError(t('patientDetail.errLoad'));
       console.error('Patient fetch error:', err);
     } finally {
       setLoading(false);
@@ -50,7 +66,7 @@ export default function PatientDetailPage() {
       router.push('/dashboard/patients');
     } catch (err) {
       console.error('Delete error:', err);
-      setError('Failed to delete patient');
+      setError(t('patientsPage.deleteFailedOne'));
     } finally {
       setDeleting(false);
       setShowDeleteModal(false);
@@ -58,13 +74,34 @@ export default function PatientDetailPage() {
   };
 
   const tabs: { id: TabType; label: string; icon: string }[] = [
-    { id: 'overview', label: 'Overview', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-    { id: 'appointments', label: 'Appointments', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-    { id: 'prescriptions', label: 'Prescriptions', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-    { id: 'lab-results', label: 'Lab Results', icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z' },
-    { id: 'vitals', label: 'Vitals', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
-    { id: 'billing', label: 'Billing', icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
-    { id: 'documents', label: 'Documents', icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
+    { id: 'overview', label: t('patientDetail.tabOverview'), icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+    { id: 'appointments', label: t('patientDetail.tabAppointments'), icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+    { id: 'prescriptions', label: t('patientDetail.tabPrescriptions'), icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+    { id: 'lab-results', label: t('patientDetail.tabLab'), icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z' },
+    { id: 'vitals', label: t('patientDetail.tabVitals'), icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
+    // Maternal & child health: shown for the ages and sex they concern
+    ...(patient && showVaccination(patient.dateOfBirth)
+      ? [{ id: 'vaccination' as TabType, label: t('mc.tab.vaccination'), icon: 'M18 2l4 4M17 7l3-3M19 9l-8.7 8.7a1 1 0 01-.6.3H6v-3.7a1 1 0 01.3-.7L15 5M9 11l4 4M5 19l-3 3M14 4l6 6' }]
+      : []),
+    ...(patient && showGrowth(patient.dateOfBirth)
+      ? [{ id: 'growth' as TabType, label: t('mc.tab.growth'), icon: 'M3 3v18h18M7 15l4-4 3 3 5-6' }]
+      : []),
+    ...(patient && showPregnancy(patient.gender, patient.dateOfBirth)
+      ? [{ id: 'pregnancy' as TabType, label: t('mc.tab.pregnancy'), icon: 'M12 21s-7-4.35-7-10a4 4 0 017-2.65A4 4 0 0119 11c0 5.65-7 10-7 10z' }]
+      : []),
+    { id: 'billing', label: t('patientDetail.tabBilling'), icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
+    { id: 'coverage', label: t('ins.coverage.tab'), icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z' },
+    { id: 'imaging', label: t('img.panel.tab'), icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
+    { id: 'documents', label: t('mdoc.panel.tab'), icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
+    // Files on the record: clinical staff; the desk files ID documents, letters and consent forms
+    ...(user && ['ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST'].includes(user.role)
+      ? [{ id: 'attachments' as TabType, label: t('cdoc.att.tab'), icon: 'M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13' }]
+      : []),
+    { id: 'consents', label: t('privacy.tab'), icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+    // Family access (parents, guardians, carers): managed by the desk
+    ...(user?.role === 'ADMIN' || user?.role === 'RECEPTIONIST'
+      ? [{ id: 'family' as TabType, label: t('fam.staff.tab'), icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' }]
+      : []),
   ];
 
   const calculateAge = (dateOfBirth: string) => {
@@ -79,7 +116,7 @@ export default function PatientDetailPage() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return formatLocaleDate(dateString, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -87,15 +124,11 @@ export default function PatientDetailPage() {
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
+    return formatLocaleTime(time);
   };
 
   const formatStatus = (status: string) => {
-    return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return tEnum(status);
   };
 
   const statusColors: Record<string, string> = {
@@ -122,12 +155,12 @@ export default function PatientDetailPage() {
   if (error || !patient) {
     return (
       <div className="flex flex-col items-center justify-center h-96">
-        <p className="text-red-600 mb-4">{error || 'Patient not found'}</p>
+        <p className="text-red-600 mb-4">{error || t('patientForm.notFound')}</p>
         <Link
           href="/dashboard/patients"
-          className="px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700"
+          className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover"
         >
-          Back to Patients
+          {t('patientForm.backToPatients')}
         </Link>
       </div>
     );
@@ -156,14 +189,28 @@ export default function PatientDetailPage() {
                   ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
                   : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
               }`}>
-                {patient.status}
+                {tEnum(patient.status?.toUpperCase())}
               </span>
             </div>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Patient ID: {patient.patientId}
+              {t('patientForm.patientIdValue', { id: patient.patientId })}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          {/* An anonymised record is frozen: no new visits, no edits that could bring identity back */}
+          {!patient.anonymizedAt && (
+          <div className="flex flex-wrap items-center gap-3">
+            {canAdmit && (
+              <button
+                type="button"
+                onClick={() => setAdmitting(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg text-sm font-medium transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v11m0-4h18m0 4V9a2 2 0 00-2-2h-8v7M7 11a2 2 0 100-4 2 2 0 000 4z" />
+                </svg>
+                {t('inp.admitPatient')}
+              </button>
+            )}
             <Link
               href={`/dashboard/appointments/new?patientId=${patient.id}`}
               className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
@@ -171,16 +218,16 @@ export default function PatientDetailPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              Book Appointment
+              {t('patientDetail.bookAppointment')}
             </Link>
             <Link
               href={`/dashboard/patients/${params.id}/edit`}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-medium transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
-              Edit Patient
+              {t('patientDetail.editPatient')}
             </Link>
             <button
               onClick={() => setShowDeleteModal(true)}
@@ -189,9 +236,10 @@ export default function PatientDetailPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
-              Delete
+              {t('patientDetail.delete')}
             </button>
           </div>
+          )}
         </div>
       </div>
 
@@ -208,26 +256,26 @@ export default function PatientDetailPage() {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {calculateAge(patient.dateOfBirth)} years old
+                  {t('unit.years', { count: calculateAge(patient.dateOfBirth) })}
                 </span>
                 <span className="text-gray-300 dark:text-gray-600">|</span>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {patient.gender === 'MALE' ? 'Male' : patient.gender === 'FEMALE' ? 'Female' : 'Other'}
+                  {tEnum(patient.gender)}
                 </span>
                 {patient.bloodType && (
                   <>
                     <span className="text-gray-300 dark:text-gray-600">|</span>
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">
-                      {patient.bloodType}
+                      {tEnum(patient.bloodType)}
                     </span>
                   </>
                 )}
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                DOB: {formatDate(patient.dateOfBirth)}
+                {t('patientDetail.dobValue', { date: formatDate(patient.dateOfBirth) })}
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Member since {formatDate(patient.createdAt)}
+                {t('patientDetail.memberSince', { date: formatDate(patient.createdAt) })}
               </p>
             </div>
           </div>
@@ -235,17 +283,17 @@ export default function PatientDetailPage() {
           {/* Contact Info */}
           <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4 lg:border-l lg:border-gray-200 lg:dark:border-gray-700 lg:pl-6">
             <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Email</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{t('patientDetail.email')}</p>
               <p className="text-sm text-gray-900 dark:text-white">{patient.email}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Phone</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{t('patientDetail.phone')}</p>
               <p className="text-sm text-gray-900 dark:text-white">{patient.phoneNumber}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Address</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{t('patientDetail.address')}</p>
               <p className="text-sm text-gray-900 dark:text-white">
-                {patient.city}, {patient.state}
+                {[patient.city, patient.state].filter(Boolean).join(', ') || '—'}
               </p>
             </div>
           </div>
@@ -257,7 +305,7 @@ export default function PatientDetailPage() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                Allergies
+                {t('patientDetail.allergies')}
               </p>
               <div className="flex flex-wrap gap-1">
                 {patient.allergies.map((allergy, index) => (
@@ -270,6 +318,20 @@ export default function PatientDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Patients registered before consent capture: prompt staff to collect it */}
+      {!patient.anonymizedAt && patient.dataProcessingConsent !== true && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          <span>{t('privacy.missingBanner')}</span>
+          <button
+            type="button"
+            onClick={() => setActiveTab('consents')}
+            className="rounded-lg bg-amber-600 px-3 py-1.5 font-medium text-white hover:bg-amber-700"
+          >
+            {t('privacy.missingBannerAction')}
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
@@ -298,36 +360,40 @@ export default function PatientDetailPage() {
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Problem list: what the care team follows for this patient */}
+            {user && ['ADMIN', 'DOCTOR', 'NURSE'].includes(user.role) && <div className="lg:col-span-3">
+              <ProblemListPanel patientId={patient.id} canEdit={user?.role === 'DOCTOR' || user?.role === 'ADMIN'} />
+            </div>}
             {/* Personal Information */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
               <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="font-semibold text-gray-900 dark:text-white">Personal Information</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{t('patientDetail.personalInfo')}</h3>
               </div>
               <div className="p-4 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Full Name</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.fullName')}</p>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{patient.firstName} {patient.lastName}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Date of Birth</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.dob')}</p>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(patient.dateOfBirth)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Gender</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.gender')}</p>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{patient.gender}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Blood Type</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{patient.bloodType || 'N/A'}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.bloodType')}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{patient.bloodType ? tEnum(patient.bloodType) : t('patientsPage.na')}</p>
                   </div>
                 </div>
                 <hr className="border-gray-100 dark:border-gray-700" />
                 <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Full Address</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.fullAddress')}</p>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
                     {patient.address}<br />
-                    {patient.city}, {patient.state} {patient.zipCode}<br />
+                    {[patient.city, [patient.state, patient.zipCode].filter(Boolean).join(' ')].filter(Boolean).join(', ')}<br />
                     {patient.country}
                   </p>
                 </div>
@@ -337,19 +403,19 @@ export default function PatientDetailPage() {
             {/* Emergency Contact */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
               <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="font-semibold text-gray-900 dark:text-white">Emergency Contact</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{t('patientDetail.emergency')}</h3>
               </div>
               <div className="p-4 space-y-4">
                 <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Contact Name</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.contactName')}</p>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{patient.emergencyName}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Relationship</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.relationship')}</p>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{patient.emergencyRelation}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Phone Number</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.phoneNumber')}</p>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{patient.emergencyPhone}</p>
                 </div>
               </div>
@@ -358,32 +424,32 @@ export default function PatientDetailPage() {
             {/* Insurance */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
               <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="font-semibold text-gray-900 dark:text-white">Insurance</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{t('patientDetail.insurance')}</h3>
               </div>
               {patient.insurance ? (
                 <div className="p-4 space-y-4">
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Provider</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.provider')}</p>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{patient.insurance.provider}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Policy Number</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.policy')}</p>
                       <p className="text-sm font-medium text-gray-900 dark:text-white">{patient.insurance.policyNumber}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Group Number</p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{patient.insurance.groupNumber || 'N/A'}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.group')}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{patient.insurance.groupNumber || t('patientsPage.na')}</p>
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Valid Period</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.validPeriod')}</p>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
                       {formatDate(patient.insurance.validFrom)} - {formatDate(patient.insurance.validUntil)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Coverage</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.coverage')}</p>
                     <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">
                       {patient.insurance.coverageType}
                     </span>
@@ -391,7 +457,7 @@ export default function PatientDetailPage() {
                 </div>
               ) : (
                 <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  No insurance information on file
+                  {t('patientDetail.noInsurance')}
                 </div>
               )}
             </div>
@@ -399,11 +465,11 @@ export default function PatientDetailPage() {
             {/* Medical Conditions */}
             <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
               <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="font-semibold text-gray-900 dark:text-white">Medical Information</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{t('patientDetail.medicalInfo')}</h3>
               </div>
               <div className="p-4 space-y-4">
                 <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Chronic Conditions</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t('patientDetail.chronic')}</p>
                   {patient.chronicConditions && patient.chronicConditions.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {patient.chronicConditions.map((condition, index) => (
@@ -413,11 +479,11 @@ export default function PatientDetailPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">None recorded</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('patientDetail.noneRecorded')}</p>
                   )}
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Allergies</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t('patientDetail.allergies')}</p>
                   {patient.allergies && patient.allergies.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {patient.allergies.map((allergy, index) => (
@@ -427,12 +493,12 @@ export default function PatientDetailPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">None recorded</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('patientDetail.noneRecorded')}</p>
                   )}
                 </div>
                 {patient.notes && (
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Notes</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t('patientDetail.notes')}</p>
                     <p className="text-sm text-gray-700 dark:text-gray-300">{patient.notes}</p>
                   </div>
                 )}
@@ -442,7 +508,7 @@ export default function PatientDetailPage() {
             {/* Recent Vitals */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
               <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                <h3 className="font-semibold text-gray-900 dark:text-white">Latest Vitals</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{t('patientDetail.latestVitals')}</h3>
                 {patient.vitals && patient.vitals.length > 0 && (
                   <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(patient.vitals[0].date)}</span>
                 )}
@@ -450,27 +516,27 @@ export default function PatientDetailPage() {
               {patient.vitals && patient.vitals.length > 0 ? (
                 <div className="p-4 grid grid-cols-2 gap-4">
                   <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Blood Pressure</p>
-                    <p className="text-lg font-bold text-gray-900 dark:text-white">{patient.vitals[0].bloodPressure || 'N/A'}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.bp')}</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">{patient.vitals[0].bloodPressure || t('patientsPage.na')}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">mmHg</p>
                   </div>
                   <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Heart Rate</p>
-                    <p className="text-lg font-bold text-gray-900 dark:text-white">{patient.vitals[0].heartRate || 'N/A'}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.hr')}</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">{patient.vitals[0].heartRate || t('patientsPage.na')}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">bpm</p>
                   </div>
                   <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Temperature</p>
-                    <p className="text-lg font-bold text-gray-900 dark:text-white">{patient.vitals[0].temperature || 'N/A'}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.temp')}</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">{patient.vitals[0].temperature || t('patientsPage.na')}</p>
                   </div>
                   <div className="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Weight</p>
-                    <p className="text-lg font-bold text-gray-900 dark:text-white">{patient.vitals[0].weight || 'N/A'}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('patientDetail.weight')}</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">{patient.vitals[0].weight || t('patientsPage.na')}</p>
                   </div>
                 </div>
               ) : (
                 <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  No vitals recorded
+                  {t('patientDetail.noVitals')}
                 </div>
               )}
             </div>
@@ -481,15 +547,15 @@ export default function PatientDetailPage() {
         {activeTab === 'appointments' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
             <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Appointment History</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white">{t('patientDetail.aptHistory')}</h3>
               <Link
                 href={`/dashboard/appointments/new?patientId=${patient.id}`}
-                className="inline-flex items-center gap-2 px-3 py-1.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors"
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-medium transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                New Appointment
+                {t('patientDetail.newAppointment')}
               </Link>
             </div>
             {patient.appointments && patient.appointments.length > 0 ? (
@@ -497,12 +563,12 @@ export default function PatientDetailPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Date & Time</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Doctor</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Department</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                      <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.dateTime')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.doctor')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.department')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.type')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.status')}</th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -512,8 +578,8 @@ export default function PatientDetailPage() {
                           <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(apt.date)}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">{formatTime(apt.startTime)}</p>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{apt.doctor?.name || 'N/A'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{apt.doctor?.department || 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{apt.doctor?.name || t('patientsPage.na')}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{apt.doctor?.department || t('patientsPage.na')}</td>
                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{formatStatus(apt.type)}</td>
                         <td className="px-6 py-4">
                           <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${statusColors[apt.status] || 'bg-gray-100 text-gray-800'}`}>
@@ -525,7 +591,7 @@ export default function PatientDetailPage() {
                             href={`/dashboard/appointments/${apt.id}`}
                             className="text-lime-600 dark:text-lime-400 hover:text-lime-500 text-sm font-medium"
                           >
-                            View
+                            {t('patientDetail.view')}
                           </Link>
                         </td>
                       </tr>
@@ -538,7 +604,7 @@ export default function PatientDetailPage() {
                 <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <p className="text-gray-500 dark:text-gray-400">No appointments found</p>
+                <p className="text-gray-500 dark:text-gray-400">{t('patientDetail.noAppointments')}</p>
               </div>
             )}
           </div>
@@ -548,7 +614,7 @@ export default function PatientDetailPage() {
         {activeTab === 'prescriptions' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
             <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Prescriptions</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white">{t('patientDetail.prescriptions')}</h3>
             </div>
             {patient.prescriptions && patient.prescriptions.length > 0 ? (
               <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -559,11 +625,11 @@ export default function PatientDetailPage() {
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(rx.date)}</span>
                           <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[rx.status] || 'bg-gray-100 text-gray-800'}`}>
-                            {rx.status}
+                            {tEnum(rx.status)}
                           </span>
                         </div>
                         {rx.doctor && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Prescribed by {rx.doctor}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{t('patientDetail.prescribedBy', { doctor: rx.doctor })}</p>
                         )}
                         <div className="flex flex-wrap gap-2">
                           {rx.medications.map((med, index) => (
@@ -582,7 +648,7 @@ export default function PatientDetailPage() {
                 <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p className="text-gray-500 dark:text-gray-400">No prescriptions found</p>
+                <p className="text-gray-500 dark:text-gray-400">{t('patientDetail.noPrescriptions')}</p>
               </div>
             )}
           </div>
@@ -592,7 +658,7 @@ export default function PatientDetailPage() {
         {activeTab === 'lab-results' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
             <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Lab Results</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white">{t('patientDetail.labResults')}</h3>
             </div>
             {patient.labResults && patient.labResults.length > 0 ? (
               <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -602,7 +668,7 @@ export default function PatientDetailPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(lab.date)}</span>
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[lab.status] || 'bg-gray-100 text-gray-800'}`}>
-                          {lab.status}
+                          {tEnum(lab.status)}
                         </span>
                       </div>
                     </div>
@@ -624,7 +690,7 @@ export default function PatientDetailPage() {
                 <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                 </svg>
-                <p className="text-gray-500 dark:text-gray-400">No lab results found</p>
+                <p className="text-gray-500 dark:text-gray-400">{t('patientDetail.noLab')}</p>
               </div>
             )}
           </div>
@@ -634,30 +700,30 @@ export default function PatientDetailPage() {
         {activeTab === 'vitals' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
             <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Vital Signs History</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white">{t('patientDetail.vitalsHistory')}</h3>
             </div>
             {patient.vitals && patient.vitals.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Blood Pressure</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Heart Rate</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Temperature</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Weight</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Height</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.date')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.bp')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.hr')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.temp')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.weight')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.height')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {patient.vitals.map((vital: PatientVital, index: number) => (
                       <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{formatDate(vital.date)}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{vital.bloodPressure || 'N/A'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{vital.heartRate ? `${vital.heartRate} bpm` : 'N/A'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{vital.temperature ? `${vital.temperature}°` : 'N/A'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{vital.weight ? `${vital.weight} kg` : 'N/A'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{vital.height ? `${vital.height} cm` : 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{vital.bloodPressure || t('patientsPage.na')}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{vital.heartRate ? `${vital.heartRate} bpm` : t('patientsPage.na')}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{vital.temperature ? `${vital.temperature}°` : t('patientsPage.na')}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{vital.weight ? `${vital.weight} kg` : t('patientsPage.na')}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{vital.height ? `${vital.height} cm` : t('patientsPage.na')}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -668,7 +734,7 @@ export default function PatientDetailPage() {
                 <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                 </svg>
-                <p className="text-gray-500 dark:text-gray-400">No vitals recorded</p>
+                <p className="text-gray-500 dark:text-gray-400">{t('patientDetail.noVitals')}</p>
               </div>
             )}
           </div>
@@ -678,18 +744,18 @@ export default function PatientDetailPage() {
         {activeTab === 'billing' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
             <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Billing History</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white">{t('patientDetail.billingHistory')}</h3>
             </div>
             {patient.billing && patient.billing.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Invoice ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Description</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Amount</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.invoiceId')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.date')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.description')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.amount')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{t('patientDetail.status')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -698,10 +764,10 @@ export default function PatientDetailPage() {
                         <td className="px-6 py-4 text-sm font-mono text-gray-600 dark:text-gray-400">{bill.id}</td>
                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{formatDate(bill.date)}</td>
                         <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{bill.description}</td>
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">${bill.amount.toFixed(2)}</td>
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(bill.amount)}</td>
                         <td className="px-6 py-4">
                           <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${statusColors[bill.status] || 'bg-gray-100 text-gray-800'}`}>
-                            {bill.status}
+                            {tEnum(bill.status)}
                           </span>
                         </td>
                       </tr>
@@ -714,31 +780,46 @@ export default function PatientDetailPage() {
                 <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                <p className="text-gray-500 dark:text-gray-400">No billing history found</p>
+                <p className="text-gray-500 dark:text-gray-400">{t('patientDetail.noBilling')}</p>
               </div>
             )}
           </div>
         )}
 
-        {/* Documents Tab */}
+        {activeTab === 'attachments' && <PatientAttachmentsPanel patientId={patient.id} />}
+        {/* Medical documents: certificates, sick leave, referral letters */}
+        {activeTab === 'imaging' && (
+          <PatientImagingPanel patient={{ id: patient.id, patientId: patient.patientId, name: `${patient.firstName} ${patient.lastName}` }} />
+        )}
         {activeTab === 'documents' && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-            <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Documents</h3>
-              <button className="inline-flex items-center gap-2 px-3 py-1.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                Upload Document
-              </button>
-            </div>
-            <div className="p-8 text-center">
-              <svg className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-              <p className="text-gray-500 dark:text-gray-400 font-medium">No documents uploaded yet</p>
-              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Upload medical records, reports, or other documents</p>
-            </div>
+          <PatientDocumentsPanel patient={{ id: patient.id, patientId: patient.patientId, name: `${patient.firstName} ${patient.lastName}` }} />
+        )}
+        {(activeTab === 'vaccination' || activeTab === 'growth' || activeTab === 'pregnancy') && (() => {
+          const mchPatient = { id: patient.id, name: `${patient.firstName} ${patient.lastName}`, dateOfBirth: patient.dateOfBirth, gender: patient.gender };
+          const readOnly = !(user?.role === 'ADMIN' || user?.role === 'DOCTOR' || user?.role === 'NURSE');
+          if (activeTab === 'vaccination') return <VaccinationPanel patient={mchPatient} readOnly={readOnly} />;
+          if (activeTab === 'growth') return <GrowthPanel patient={mchPatient} readOnly={readOnly} />;
+          return <PregnancyPanel patient={mchPatient} readOnly={readOnly} />;
+        })()}
+
+        {activeTab === 'family' && (
+          <PatientFamilyAccessPanel patient={{ id: patient.id, name: `${patient.firstName} ${patient.lastName}`, dateOfBirth: patient.dateOfBirth }} />
+        )}
+        {activeTab === 'coverage' && (
+          <PatientCoveragePanel patientId={patient.id} canManage={user?.role === 'ADMIN' || user?.role === 'RECEPTIONIST'} />
+        )}
+        {activeTab === 'consents' && (
+          <div className="space-y-6">
+            <PatientConsentsPanel patientId={patient.id} canRecord={user?.role !== 'PATIENT'} />
+            {isAdmin && (
+              <PatientDataProtection
+                patientId={patient.id}
+                hospitalId={patient.patientId}
+                // Anonymised accounts get a placeholder email on an invalid domain
+                anonymized={Boolean(patient.anonymizedAt)}
+                onAnonymized={fetchPatient}
+              />
+            )}
           </div>
         )}
       </div>
@@ -757,9 +838,9 @@ export default function PatientDetailPage() {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Delete Patient</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('patientDetail.deleteTitle')}</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      Are you sure you want to delete {patient.firstName} {patient.lastName}? This action cannot be undone.
+                      {t('patientsPage.deleteMessage', { name: `${patient.firstName} ${patient.lastName}` })}
                     </p>
                   </div>
                 </div>
@@ -769,19 +850,29 @@ export default function PatientDetailPage() {
                   onClick={() => setShowDeleteModal(false)}
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  Cancel
+                  {t('patientDetail.cancel')}
                 </button>
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
                   className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
                 >
-                  {deleting ? 'Deleting...' : 'Delete Patient'}
+                  {deleting ? t('patientDetail.deleting') : t('patientDetail.deleteTitle')}
                 </button>
               </div>
             </div>
           </div>
         </div>
+      )}
+      {admitting && (
+        <AdmissionDialog
+          patient={{ id: patient.id, patientId: patient.patientId, firstName: patient.firstName, lastName: patient.lastName, gender: patient.gender, dateOfBirth: patient.dateOfBirth }}
+          onClose={() => setAdmitting(false)}
+          onAdmitted={(admission) => {
+            setAdmitting(false);
+            router.push(`/dashboard/admissions/${admission.id}`);
+          }}
+        />
       )}
     </div>
   );

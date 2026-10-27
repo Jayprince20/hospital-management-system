@@ -7,8 +7,8 @@ import { useLanguage } from '@/context/language-context';
 import { api, DashboardData, DashboardAppointment } from '@/lib/api';
 import { LoadingState, ErrorState } from '@/components/ui';
 import { PermissionGate } from '@/components/permission-gate';
-import { formatTime, formatRelativeTime, formatAppointmentStatus } from '@/lib/formatters';
-import { roleQuickActions, roleDescriptions, UserRole, hasPermission } from '@/lib/rbac';
+import { formatRelativeTime } from '@/lib/formatters';
+import { roleQuickActions, UserRole, hasPermission } from '@/lib/rbac';
 import {
   AdminDashboard,
   DoctorDashboard,
@@ -21,10 +21,12 @@ import {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, tEnum, formatTime } = useLanguage();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Doctors and patients have their own dashboards; the hospital stats are for the other staff
+  const ownDashboard = user?.role === 'DOCTOR' || user?.role === 'PATIENT';
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -33,7 +35,7 @@ export default function DashboardPage() {
       setData(dashboardData);
       setError(null);
     } catch (err) {
-      setError('Failed to load dashboard data');
+      setError(t('admin.dash.loadError'));
       console.error('Dashboard fetch error:', err);
     } finally {
       setLoading(false);
@@ -41,11 +43,12 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (!user || ownDashboard) return;
     fetchDashboardData();
     // Refresh every 30 seconds
     const interval = setInterval(fetchDashboardData, 30000);
     return () => clearInterval(interval);
-  }, [fetchDashboardData]);
+  }, [fetchDashboardData, user, ownDashboard]);
 
   const formatGrowth = (value: number) => {
     if (value > 0) return `+${value}%`;
@@ -71,6 +74,9 @@ export default function DashboardPage() {
 
   // formatTime, formatRelativeTime, and formatAppointmentStatus imported from @/lib/formatters
 
+  if (user?.role === 'DOCTOR') return <DoctorDashboard />;
+  if (user?.role === 'PATIENT') return <PatientDashboard />;
+
   if (loading && !data) {
     return <LoadingState label={t('common.loading')} minHeight="h-96" />;
   }
@@ -78,7 +84,7 @@ export default function DashboardPage() {
   if (error && !data) {
     return (
       <ErrorState
-        title="Failed to load dashboard"
+        title={t('admin.dash.loadErrorTitle')}
         message={error}
         onRetry={fetchDashboardData}
         className="h-96 flex flex-col justify-center"
@@ -91,33 +97,15 @@ export default function DashboardPage() {
 
   if (userRole === 'DOCTOR') {
     return (
-      <div>
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {t('dashboard.welcome')}, Dr. {user?.lastName || 'Doctor'}!
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {roleDescriptions.DOCTOR}
-          </p>
-        </div>
-        <DoctorDashboard />
-      </div>
+      // DoctorDashboard renders its own greeting
+      <DoctorDashboard />
     );
   }
 
   if (userRole === 'PATIENT') {
     return (
-      <div>
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {t('dashboard.welcome')}, {user?.firstName || 'Patient'}!
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {roleDescriptions.PATIENT}
-          </p>
-        </div>
-        <PatientDashboard />
-      </div>
+      // PatientDashboard renders its own greeting
+      <PatientDashboard />
     );
   }
 
@@ -126,10 +114,10 @@ export default function DashboardPage() {
       <div>
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {t('dashboard.welcome')}, {user?.firstName || 'Nurse'}!
+            {t('dashboard.welcome')}, {user?.firstName || tEnum('NURSE')}!
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {roleDescriptions.NURSE}
+            {t('admin.roleDesc.NURSE')}
           </p>
         </div>
         <NurseDashboard />
@@ -142,10 +130,10 @@ export default function DashboardPage() {
       <div>
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {t('dashboard.welcome')}, {user?.firstName || 'Pharmacist'}!
+            {t('dashboard.welcome')}, {user?.firstName || tEnum('PHARMACIST')}!
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {roleDescriptions.PHARMACIST}
+            {t('admin.roleDesc.PHARMACIST')}
           </p>
         </div>
         <PharmacistDashboard />
@@ -158,10 +146,10 @@ export default function DashboardPage() {
       <div>
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {t('dashboard.welcome')}, {user?.firstName || 'Lab Technician'}!
+            {t('dashboard.welcome')}, {user?.firstName || tEnum('LAB_TECH')}!
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {roleDescriptions.LAB_TECH}
+            {t('admin.roleDesc.LAB_TECH')}
           </p>
         </div>
         <LabTechDashboard />
@@ -174,10 +162,10 @@ export default function DashboardPage() {
       <div>
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {t('dashboard.welcome')}, {user?.firstName || 'Receptionist'}!
+            {t('dashboard.welcome')}, {user?.firstName || tEnum('RECEPTIONIST')}!
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {roleDescriptions.RECEPTIONIST}
+            {t('admin.roleDesc.RECEPTIONIST')}
           </p>
         </div>
         <ReceptionistDashboard />
@@ -251,7 +239,7 @@ export default function DashboardPage() {
 
   // Get role-specific quick actions for admin
   const quickActions = userRole ? roleQuickActions[userRole] || [] : [];
-  const roleDescription = userRole ? roleDescriptions[userRole] : '';
+  const roleDescription = userRole ? t(`admin.roleDesc.${userRole}`) : '';
 
   return (
     <div>
@@ -383,7 +371,7 @@ export default function DashboardPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${statusColors[apt.status] || statusColors['SCHEDULED']}`}>
-                          {formatAppointmentStatus(apt.status)}
+                          {tEnum(apt.status)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -437,7 +425,7 @@ export default function DashboardPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={action.icon} />
                       </svg>
                     </div>
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{action.label}</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t(`admin.qa.${action.label}`)}</span>
                   </Link>
                 );
               })}

@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useEffect, ReactNode, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { extraTranslations } from '@/locales';
 
 type Language = 'en' | 'fr';
 
@@ -11,6 +12,15 @@ interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: string, params?: Record<string, string | number>) => string;
+  /** Translate an API enum value (e.g. O_POSITIVE, IN_PERSON); falls back to a humanized value */
+  tEnum: (value: string | null | undefined) => string;
+  /** BCP-47 locale matching the current language, for Intl/toLocale* calls */
+  locale: string;
+  formatDate: (value: string | Date, options?: Intl.DateTimeFormatOptions) => string;
+  formatDateTime: (value: string | Date, options?: Intl.DateTimeFormatOptions) => string;
+  formatTime: (value: string, options?: Intl.DateTimeFormatOptions) => string;
+  formatCurrency: (amount: number | string | null | undefined) => string;
+  formatNumber: (value: number) => string;
 }
 
 const translations = {
@@ -742,41 +752,98 @@ interface LanguageContextTypeInternal extends LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextTypeInternal | undefined>(undefined);
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>('fr');
-  const [mounted, setMounted] = useState(false);
+const LANGUAGE_EVENT = 'hms-language-change';
 
-  // Initialize language from localStorage
+// The chosen language lives in localStorage; useSyncExternalStore reads it without a
+// setState-in-effect and keeps other tabs in sync. French is the default.
+function subscribeLanguage(onChange: () => void) {
+  window.addEventListener('storage', onChange);
+  window.addEventListener(LANGUAGE_EVENT, onChange);
+  return () => {
+    window.removeEventListener('storage', onChange);
+    window.removeEventListener(LANGUAGE_EVENT, onChange);
+  };
+}
+
+function readLanguage(): Language {
+  return localStorage.getItem('language') === 'en' ? 'en' : 'fr';
+}
+
+const subscribeNothing = () => () => {};
+
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const language = useSyncExternalStore(subscribeLanguage, readLanguage, () => 'fr' as Language);
+  const mounted = useSyncExternalStore(subscribeNothing, () => true, () => false);
+
+  // Keep <html lang> in sync for screen readers, spellcheck and hyphenation
   useEffect(() => {
-    const stored = localStorage.getItem('language') as Language | null;
-    if (stored && (stored === 'en' || stored === 'fr')) {
-      setLanguageState(stored);
-    }
-    setMounted(true);
-  }, []);
+    document.documentElement.lang = language;
+  }, [language]);
 
   const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
     localStorage.setItem('language', lang);
+    window.dispatchEvent(new Event(LANGUAGE_EVENT));
   };
 
   const t = useCallback((key: string, params?: Record<string, string | number>): string => {
     const translationKey = key as TranslationKey;
     let text: string = (translations[language][translationKey] as string) ||
+                       extraTranslations[language][key] ||
                        (translations.en[translationKey] as string) ||
+                       extraTranslations.en[key] ||
                        key;
 
     if (params) {
       Object.entries(params).forEach(([paramKey, value]) => {
-        text = text.replace(`{${paramKey}}`, String(value));
+        text = text.split(`{${paramKey}}`).join(String(value));
       });
     }
 
     return text;
   }, [language]);
 
+  const helpers = useMemo(() => {
+    const locale = language === 'fr' ? 'fr-FR' : 'en-GB';
+    // A bare YYYY-MM-DD is a calendar day: parse it as local midnight, not UTC
+    const toDate = (value: string | Date) => {
+      if (typeof value !== 'string') return value;
+      const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+      return day ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3])) : new Date(value);
+    };
+
+    const tEnum = (value: string | null | undefined): string => {
+      if (!value) return '';
+      const key = `enum.${value}`;
+      const translated = extraTranslations[language][key] || extraTranslations.en[key];
+      if (translated) return translated;
+      const words = value.toLowerCase().split('_').join(' ');
+      return words.charAt(0).toUpperCase() + words.slice(1);
+    };
+
+    return {
+      locale,
+      tEnum,
+      formatDate: (value: string | Date, options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' }) =>
+        toDate(value).toLocaleDateString(locale, options),
+      formatDateTime: (value: string | Date, options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) =>
+        toDate(value).toLocaleString(locale, options),
+      // Accepts a time of day ("08:30", "08:30:00") or a full date-time (ISO string)
+      formatTime: (value: string, options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }) =>
+        (/^\d{1,2}:\d{2}(:\d{2})?$/.test(value)
+          ? new Date(`1970-01-01T${value.length === 5 ? `${value}:00` : value.padStart(8, '0')}`)
+          : new Date(value)
+        ).toLocaleTimeString(locale, options),
+      // Cameroon uses XAF; always render as "15 000 FCFA" regardless of UI language
+      formatCurrency: (amount: number | string | null | undefined) => {
+        const n = Math.round(Number(amount) || 0);
+        return `${n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA`;
+      },
+      formatNumber: (value: number) => new Intl.NumberFormat(locale).format(value),
+    };
+  }, [language]);
+
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t, mounted }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, mounted, ...helpers }}>
       {children}
     </LanguageContext.Provider>
   );
@@ -814,7 +881,8 @@ export function LanguageToggle({ className = '' }: { className?: string }) {
     <button
       onClick={() => setLanguage(language === 'en' ? 'fr' : 'en')}
       className={`px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors ${className}`}
-      title={language === 'en' ? 'Switch to French' : 'Switch to English'}
+      title={language === 'en' ? 'Passer en français' : 'Switch to English'}
+      aria-label={language === 'en' ? 'Passer en français' : 'Switch to English'}
     >
       {language === 'en' ? 'FR' : 'EN'}
     </button>

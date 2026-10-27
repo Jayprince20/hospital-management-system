@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { api, DashboardData, PaymentStats } from '@/lib/api';
+import { useLanguage } from '@/context/language-context';
 import {
   LineChart,
   Line,
@@ -21,6 +22,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 const COLORS = ['#84cc16', '#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 interface AdminDashboardProps {
@@ -30,6 +33,7 @@ interface AdminDashboardProps {
 }
 
 export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps) {
+  const { t, tEnum, formatCurrency, formatTime, locale, formatNumber } = useLanguage();
   const [paymentStats, setPaymentStats] = useState<PaymentStats | null>(null);
   const [loadingPayments, setLoadingPayments] = useState(true);
 
@@ -49,34 +53,34 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
   }, []);
 
   const stats = data?.stats;
+
+  // The API labels months in English ("Oct 26"); re-render them in the UI language
+  const formatMonthLabel = (label: string) => {
+    const [mon, yy] = String(label).split(' ');
+    const monthIndex = EN_MONTHS.indexOf(mon);
+    if (monthIndex < 0 || !yy) return label;
+    return new Date(2000 + Number(yy), monthIndex, 1).toLocaleDateString(locale, { month: 'short', year: '2-digit' });
+  };
   const todayAppointments = data?.todayAppointments || [];
   const departmentStats = data?.departmentStats || [];
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'XAF',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
   // Mock data for appointment trends (in a real app, this would come from API)
   const appointmentTrends = [
-    { day: 'Mon', scheduled: 45, completed: 38, cancelled: 3 },
-    { day: 'Tue', scheduled: 52, completed: 45, cancelled: 4 },
-    { day: 'Wed', scheduled: 48, completed: 42, cancelled: 2 },
-    { day: 'Thu', scheduled: 55, completed: 48, cancelled: 5 },
-    { day: 'Fri', scheduled: 60, completed: 52, cancelled: 3 },
-    { day: 'Sat', scheduled: 35, completed: 30, cancelled: 2 },
-    { day: 'Sun', scheduled: 20, completed: 18, cancelled: 1 },
+    { day: t('admin.day.mon'), scheduled: 45, completed: 38, cancelled: 3 },
+    { day: t('admin.day.tue'), scheduled: 52, completed: 45, cancelled: 4 },
+    { day: t('admin.day.wed'), scheduled: 48, completed: 42, cancelled: 2 },
+    { day: t('admin.day.thu'), scheduled: 55, completed: 48, cancelled: 5 },
+    { day: t('admin.day.fri'), scheduled: 60, completed: 52, cancelled: 3 },
+    { day: t('admin.day.sat'), scheduled: 35, completed: 30, cancelled: 2 },
+    { day: t('admin.day.sun'), scheduled: 20, completed: 18, cancelled: 1 },
   ];
 
   // Appointment status distribution
   const appointmentStatusData = [
-    { name: 'Completed', value: stats?.appointments.completed || 0, color: '#22c55e' },
-    { name: 'Scheduled', value: stats?.appointments.scheduled || 0, color: '#3b82f6' },
-    { name: 'In Progress', value: stats?.appointments.inProgress || 0, color: '#f59e0b' },
-    { name: 'Cancelled', value: stats?.appointments.cancelled || 0, color: '#ef4444' },
+    { name: tEnum('COMPLETED'), value: stats?.appointments.completed || 0, color: '#22c55e' },
+    { name: tEnum('SCHEDULED'), value: stats?.appointments.scheduled || 0, color: '#3b82f6' },
+    { name: tEnum('IN_PROGRESS'), value: stats?.appointments.inProgress || 0, color: '#f59e0b' },
+    { name: tEnum('CANCELLED'), value: stats?.appointments.cancelled || 0, color: '#ef4444' },
   ];
 
   // Department performance data
@@ -102,18 +106,18 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
-          <p className="text-gray-600 dark:text-gray-400">Hospital overview and analytics</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('admin.dash.title')}</h1>
+          <p className="text-gray-600 dark:text-gray-400">{t('admin.dash.subtitle')}</p>
         </div>
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 text-sm bg-lime-600 text-white rounded-lg hover:bg-lime-700 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-sm bg-brand text-white rounded-lg hover:bg-brand-hover disabled:opacity-50 transition-colors"
         >
           <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          Refresh
+          {t('admin.common.refresh')}
         </button>
       </div>
 
@@ -127,8 +131,8 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
               </svg>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Total Patients</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-white">{stats?.patients.total?.toLocaleString() || 0}</p>
+              <p className="text-xs text-gray-500">{t('admin.dash.totalPatients')}</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{formatNumber(stats?.patients.total || 0)}</p>
             </div>
           </div>
         </div>
@@ -141,7 +145,7 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
               </svg>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Today&apos;s Appointments</p>
+              <p className="text-xs text-gray-500">{t('admin.dash.todayAppointments')}</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{stats?.appointments.today || 0}</p>
             </div>
           </div>
@@ -155,7 +159,7 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
               </svg>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Active Doctors</p>
+              <p className="text-xs text-gray-500">{t('admin.dash.activeDoctors')}</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{stats?.doctors.available || 0}/{stats?.doctors.total || 0}</p>
             </div>
           </div>
@@ -169,7 +173,7 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
               </svg>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Departments</p>
+              <p className="text-xs text-gray-500">{t('admin.dash.departments')}</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{stats?.doctors.departments || 0}</p>
             </div>
           </div>
@@ -182,9 +186,12 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <div>
-              <p className="text-xs text-gray-500">Today&apos;s Revenue</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-white">
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500">{t('admin.dash.todayRevenue')}</p>
+              <p
+                className="text-base xl:text-lg font-bold leading-tight text-gray-900 dark:text-white break-words"
+                title={loadingPayments ? undefined : formatCurrency(paymentStats?.summary.todayAmount || 0)}
+              >
                 {loadingPayments ? '...' : formatCurrency(paymentStats?.summary.todayAmount || 0)}
               </p>
             </div>
@@ -199,7 +206,7 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
               </svg>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Pending</p>
+              <p className="text-xs text-gray-500">{t('admin.dash.pending')}</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{stats?.appointments.scheduled || 0}</p>
             </div>
           </div>
@@ -211,8 +218,8 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
         {/* Revenue Trend */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Revenue Trend</h2>
-            <Link href="/dashboard/payments" className="text-sm text-lime-600 hover:text-lime-700">View Details</Link>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.dash.revenueTrend')}</h2>
+            <Link href="/dashboard/payments" className="text-sm text-lime-600 hover:text-lime-700">{t('admin.common.viewDetails')}</Link>
           </div>
           <div className="h-[250px]">
             {loadingPayments ? (
@@ -229,9 +236,9 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" stroke="#9ca3af" fontSize={11} tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} />
+                  <XAxis dataKey="date" stroke="#9ca3af" fontSize={11} tickFormatter={(v) => new Date(v).toLocaleDateString(locale, { month: 'short', day: 'numeric' })} />
                   <YAxis stroke="#9ca3af" fontSize={11} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(value) => [formatCurrency(value as number), 'Revenue']} />
+                  <Tooltip formatter={(value) => [formatCurrency(value as number), t('admin.dash.revenue')]} />
                   <Area type="monotone" dataKey="amount" stroke="#84cc16" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -242,8 +249,8 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
         {/* Appointment Status Distribution */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Appointment Status</h2>
-            <Link href="/dashboard/appointments" className="text-sm text-lime-600 hover:text-lime-700">View All</Link>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.dash.appointmentStatus')}</h2>
+            <Link href="/dashboard/appointments" className="text-sm text-lime-600 hover:text-lime-700">{t('admin.common.viewAll')}</Link>
           </div>
           <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -273,7 +280,7 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Weekly Appointments */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Weekly Appointments</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.dash.weeklyAppointments')}</h2>
           <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={appointmentTrends}>
@@ -282,9 +289,9 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
                 <YAxis stroke="#9ca3af" fontSize={12} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="completed" name="Completed" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="scheduled" name="Scheduled" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="cancelled" name="Cancelled" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="completed" name={tEnum('COMPLETED')} fill="#22c55e" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="scheduled" name={tEnum('SCHEDULED')} fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="cancelled" name={tEnum('CANCELLED')} fill="#ef4444" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -293,8 +300,8 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
         {/* Department Performance */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Department Activity</h2>
-            <Link href="/dashboard/departments" className="text-sm text-lime-600 hover:text-lime-700">View All</Link>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.dash.departmentActivity')}</h2>
+            <Link href="/dashboard/departments" className="text-sm text-lime-600 hover:text-lime-700">{t('admin.common.viewAll')}</Link>
           </div>
           <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -304,8 +311,8 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
                 <YAxis dataKey="name" type="category" stroke="#9ca3af" fontSize={11} width={100} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="appointments" name="Today's Appointments" fill="#84cc16" radius={[0, 4, 4, 0]} />
-                <Bar dataKey="doctors" name="Total Doctors" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="appointments" name={t('admin.dash.todayAppointments')} fill="#84cc16" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="doctors" name={t('admin.dash.totalDoctors')} fill="#3b82f6" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -316,18 +323,18 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
       {!loadingPayments && paymentStats && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Monthly Revenue (Last 12 Months)</h2>
-            <Link href="/dashboard/payments" className="text-sm text-lime-600 hover:text-lime-700">Full Report</Link>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.dash.monthlyRevenue')}</h2>
+            <Link href="/dashboard/payments" className="text-sm text-lime-600 hover:text-lime-700">{t('admin.dash.fullReport')}</Link>
           </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={paymentStats.monthlyTrend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
+                <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} tickFormatter={formatMonthLabel} />
                 <YAxis stroke="#9ca3af" fontSize={12} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
-                <Tooltip formatter={(value, name) => [name === 'amount' ? formatCurrency(value as number) : value, name === 'amount' ? 'Revenue' : 'Payments']} />
+                <Tooltip labelFormatter={(label) => formatMonthLabel(label as string)} formatter={(value, _name, item) => [item?.dataKey === 'amount' ? formatCurrency(value as number) : value, item?.dataKey === 'amount' ? t('admin.dash.revenue') : t('admin.dash.payments')]} />
                 <Legend />
-                <Bar dataKey="amount" name="Revenue" fill="#84cc16" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="amount" name={t('admin.dash.revenue')} fill="#84cc16" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -339,28 +346,28 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
         {/* Today's Appointments */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Today&apos;s Appointments</h2>
-            <span className="text-sm text-gray-500">{todayAppointments.length} scheduled</span>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.dash.todayAppointments')}</h2>
+            <span className="text-sm text-gray-500">{t('admin.dash.scheduledCount', { count: todayAppointments.length })}</span>
           </div>
           <div className="overflow-x-auto max-h-[300px]">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('admin.common.time')}</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('admin.common.patient')}</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('admin.common.status')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {todayAppointments.slice(0, 8).map((apt) => (
                   <tr key={apt.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
-                      {new Date(`2000-01-01T${apt.time}`).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      {formatTime(apt.time)}
                     </td>
                     <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">{apt.patient.name}</td>
                     <td className="px-4 py-2">
                       <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[apt.status]}`}>
-                        {apt.status.replace('_', ' ')}
+                        {tEnum(apt.status)}
                       </span>
                     </td>
                   </tr>
@@ -368,14 +375,14 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
               </tbody>
             </table>
             {todayAppointments.length === 0 && (
-              <p className="text-center text-gray-500 py-8">No appointments today</p>
+              <p className="text-center text-gray-500 py-8">{t('admin.dash.noAppointmentsToday')}</p>
             )}
           </div>
         </div>
 
         {/* Quick Actions */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.dash.quickActions')}</h2>
           <div className="grid grid-cols-2 gap-3">
             <Link
               href="/dashboard/patients/new"
@@ -386,7 +393,7 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                 </svg>
               </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Add Patient</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('admin.dash.addPatient')}</span>
             </Link>
 
             <Link
@@ -398,11 +405,11 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">New Appointment</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('admin.dash.newAppointment')}</span>
             </Link>
 
             <Link
-              href="/dashboard/billing"
+              href="/dashboard/billing?new=1"
               className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-lime-500 hover:bg-lime-50 dark:hover:bg-lime-900/20 transition-colors"
             >
               <div className="p-2 bg-lime-100 dark:bg-lime-900/50 rounded-lg">
@@ -410,7 +417,7 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
               </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Create Invoice</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('admin.dash.createInvoice')}</span>
             </Link>
 
             <Link
@@ -422,7 +429,7 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">View Reports</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('admin.dash.viewReports')}</span>
             </Link>
 
             <Link
@@ -434,7 +441,7 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
               </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Manage Users</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('admin.dash.manageUsers')}</span>
             </Link>
 
             <Link
@@ -446,7 +453,7 @@ export function AdminDashboard({ data, onRefresh, loading }: AdminDashboardProps
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Payment Analytics</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('admin.dash.paymentAnalytics')}</span>
             </Link>
           </div>
         </div>

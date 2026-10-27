@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { useLanguage } from '@/context/language-context';
 
 export default function NewDepartmentPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -27,9 +29,9 @@ export default function NewDepartmentPage() {
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) {
-      newErrors.name = 'Department name is required';
+      newErrors.name = t('clinical.departments.nameRequired');
     } else if (formData.name.length < 2) {
-      newErrors.name = 'Name must be at least 2 characters';
+      newErrors.name = t('clinical.departments.nameMinLength');
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -45,7 +47,7 @@ export default function NewDepartmentPage() {
       router.push('/dashboard/departments');
     } catch (error) {
       console.error('Error creating department:', error);
-      setErrors({ submit: error instanceof Error ? error.message : 'Failed to create department' });
+      setErrors({ submit: error instanceof Error ? error.message : t('clinical.departments.createFailed') });
     } finally {
       setIsSubmitting(false);
     }
@@ -64,8 +66,8 @@ export default function NewDepartmentPage() {
             </svg>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">New Department</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">Create a new hospital department</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('clinical.departments.newDepartment')}</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">{t('clinical.departments.createANewHospitalDepartment')}</p>
           </div>
         </div>
       </div>
@@ -80,7 +82,7 @@ export default function NewDepartmentPage() {
         <div className="p-6 space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Department Name <span className="text-red-500">*</span>
+              {t('clinical.departments.departmentName')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -92,14 +94,14 @@ export default function NewDepartmentPage() {
                   ? 'border-red-500 focus:ring-red-500'
                   : 'border-gray-300 dark:border-gray-600 focus:ring-lime-500'
               } bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent`}
-              placeholder="e.g., Cardiology"
+              placeholder={t('clinical.departments.eGCardiology')}
             />
             {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name}</p>}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Description
+              {t('clinical.departments.description')}
             </label>
             <textarea
               name="description"
@@ -107,7 +109,7 @@ export default function NewDepartmentPage() {
               onChange={handleChange}
               rows={4}
               className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-lime-500 focus:border-transparent"
-              placeholder="Brief description of the department..."
+              placeholder={t('clinical.departments.briefDescriptionOfTheDepartment')}
             />
           </div>
 
@@ -120,9 +122,9 @@ export default function NewDepartmentPage() {
                 onChange={handleChange}
                 className="w-4 h-4 text-lime-600 bg-gray-100 border-gray-300 rounded focus:ring-lime-500"
               />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Active</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('enum.ACTIVE')}</span>
             </label>
-            <p className="mt-1 text-xs text-gray-500 ml-7">Inactive departments won't appear in selection lists</p>
+            <p className="mt-1 text-xs text-gray-500 ml-7">{t('clinical.departments.inactiveDepartmentsWonTAppearIn')}</p>
           </div>
         </div>
 
@@ -131,14 +133,14 @@ export default function NewDepartmentPage() {
             href="/dashboard/departments"
             className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
           >
-            Cancel
+            {t('clinical.common.cancel')}
           </Link>
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-6 py-2.5 bg-lime-600 hover:bg-lime-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            className="px-6 py-2.5 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
           >
-            {isSubmitting ? 'Creating...' : 'Create Department'}
+            {isSubmitting ? t('clinical.common.creating') : t('clinical.departments.create')}
           </button>
         </div>
       </form>

@@ -1,9 +1,11 @@
 'use client';
 
 import { useNotifications } from '@/context/notification-context';
+import { useLanguage } from '@/context/language-context';
 
 export function NotificationSettings() {
   const { settings, updateSettings, requestDesktopPermission } = useNotifications();
+  const { t } = useLanguage();
 
   const handleDesktopToggle = async () => {
     if (!settings.desktopEnabled) {
@@ -21,7 +23,7 @@ export function NotificationSettings() {
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-          Notification Preferences
+          {t('admin.notifSettings.notificationPreferences')}
         </h3>
         <div className="space-y-4">
           {/* Toast Notifications */}
@@ -31,10 +33,10 @@ export function NotificationSettings() {
                 htmlFor="toast-notifications"
                 className="text-sm font-medium text-gray-900 dark:text-white"
               >
-                In-App Notifications
+                {t('admin.notifSettings.inAppNotifications')}
               </label>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Show popup notifications within the app
+                {t('admin.notifSettings.showPopupNotificationsWithinTheApp')}
               </p>
             </div>
             <button
@@ -66,10 +68,10 @@ export function NotificationSettings() {
                 htmlFor="sound-notifications"
                 className="text-sm font-medium text-gray-900 dark:text-white"
               >
-                Sound Alerts
+                {t('admin.notifSettings.soundAlerts')}
               </label>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Play a sound when new notifications arrive
+                {t('admin.notifSettings.playASoundWhenNewNotifications')}
               </p>
             </div>
             <button
@@ -101,10 +103,10 @@ export function NotificationSettings() {
                 htmlFor="desktop-notifications"
                 className="text-sm font-medium text-gray-900 dark:text-white"
               >
-                Desktop Notifications
+                {t('admin.notifSettings.desktopNotifications')}
               </label>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Show notifications even when the app is in background
+                {t('admin.notifSettings.showNotificationsEvenWhenTheApp')}
               </p>
             </div>
             <button
@@ -151,8 +153,7 @@ export function NotificationSettings() {
           </div>
           <div className="ml-3">
             <p className="text-sm text-blue-700 dark:text-blue-300">
-              Desktop notifications require browser permission. You may need to allow notifications
-              in your browser settings if the prompt doesn&apos;t appear.
+              {t('admin.notifSettings.permissionHint')}
             </p>
           </div>
         </div>

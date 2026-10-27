@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
-import { api } from '@/lib/api';
+import { api, Medication, Prescription } from '@/lib/api';
 import { LoadingState, ErrorState } from '@/components/ui';
-import { formatDate } from '@/lib/formatters';
+import { useLanguage } from '@/context/language-context';
 
 interface PendingPrescription {
   id: string;
@@ -33,7 +33,10 @@ interface PharmacistStats {
 }
 
 export function PharmacistDashboard() {
-  const { user } = useAuth();
+  useAuth();
+  const { t, formatDate, language } = useLanguage();
+  const plural = (key: string, count: number) =>
+    t(`${key}_${count === 1 || (language === 'fr' && count === 0) ? 'one' : 'other'}`, { count });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<PharmacistStats>({
@@ -53,13 +56,14 @@ export function PharmacistDashboard() {
       // Fetch pending prescriptions
       try {
         const rxRes = await api.getPrescriptions({ status: 'ACTIVE', limit: 10 });
-        setPendingPrescriptions((rxRes.prescriptions || []).map((rx: any) => ({
+        // The list endpoint returns flattened names (patientName, doctorName, items[].medication)
+        setPendingPrescriptions((rxRes.prescriptions || []).map((rx: Prescription) => ({
           id: rx.id,
-          patientName: `${rx.patient?.firstName || ''} ${rx.patient?.lastName || ''}`.trim(),
-          patientId: rx.patient?.patientId || '',
-          doctorName: `Dr. ${rx.doctor?.firstName || ''} ${rx.doctor?.lastName || ''}`.trim(),
-          medications: (rx.items || []).map((item: any) => ({
-            name: item.medication?.name || 'Medication',
+          patientName: rx.patientName || '',
+          patientId: rx.patientHospitalId || '',
+          doctorName: rx.doctorName || '',
+          medications: (rx.items || []).map((item) => ({
+            name: item.medication,
             dosage: item.dosage,
             quantity: item.quantity,
           })),
@@ -69,7 +73,7 @@ export function PharmacistDashboard() {
 
         setStats(prev => ({
           ...prev,
-          pendingPrescriptions: rxRes.statusCounts?.ACTIVE || rxRes.prescriptions?.length || 0,
+          pendingPrescriptions: (rxRes.statusCounts?.ACTIVE || 0) + (rxRes.statusCounts?.PARTIALLY_DISPENSED || 0),
           dispensedToday: rxRes.statusCounts?.DISPENSED || 0,
         }));
       } catch {
@@ -79,7 +83,7 @@ export function PharmacistDashboard() {
       // Fetch low stock medications
       try {
         const medsRes = await api.getMedications({ lowStock: true, limit: 10 });
-        setLowStockMedications((medsRes.medications || []).map((med: any) => ({
+        setLowStockMedications((medsRes.medications || []).map((med: Medication) => ({
           id: med.id,
           name: med.name,
           stockQuantity: med.stockQuantity,
@@ -97,11 +101,12 @@ export function PharmacistDashboard() {
       }
 
     } catch (err) {
-      setError('Failed to load pharmacy dashboard');
+      setError(t('ph.dash.loadFailed'));
       console.error('Pharmacist dashboard error:', err);
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -111,11 +116,11 @@ export function PharmacistDashboard() {
   }, [fetchPharmacistData]);
 
   if (loading) {
-    return <LoadingState label="Loading pharmacy dashboard..." minHeight="h-96" />;
+    return <LoadingState label={t('ph.dash.loading')} minHeight="h-96" />;
   }
 
   if (error) {
-    return <ErrorState title="Error" message={error} onRetry={fetchPharmacistData} />;
+    return <ErrorState title={t('ph.common.error')} message={error} onRetry={fetchPharmacistData} />;
   }
 
   return (
@@ -123,10 +128,10 @@ export function PharmacistDashboard() {
       {/* Welcome Section */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Pharmacy Dashboard
+          {t('ph.dash.title')}
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
-          {stats.pendingPrescriptions} prescription{stats.pendingPrescriptions !== 1 ? 's' : ''} waiting to be dispensed
+          {plural('ph.dash.waiting', stats.pendingPrescriptions)}
         </p>
       </div>
 
@@ -141,7 +146,7 @@ export function PharmacistDashboard() {
             </div>
             <div>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.pendingPrescriptions}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Pending Prescriptions</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('ph.dash.pendingRx')}</p>
             </div>
           </div>
         </div>
@@ -155,7 +160,7 @@ export function PharmacistDashboard() {
             </div>
             <div>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.dispensedToday}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Dispensed Today</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('ph.dash.dispensedTotal')}</p>
             </div>
           </div>
         </div>
@@ -169,7 +174,7 @@ export function PharmacistDashboard() {
             </div>
             <div>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.lowStockItems}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Low Stock Alerts</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('ph.dash.lowStockAlerts')}</p>
             </div>
           </div>
         </div>
@@ -183,7 +188,7 @@ export function PharmacistDashboard() {
             </div>
             <div>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.totalMedications}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Medications</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('ph.dash.totalMedications')}</p>
             </div>
           </div>
         </div>
@@ -195,11 +200,11 @@ export function PharmacistDashboard() {
         <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Pending Prescriptions</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Prescriptions awaiting dispensing</p>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('ph.dash.pendingRx')}</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('ph.dash.awaiting')}</p>
             </div>
-            <Link href="/dashboard/pharmacy" className="text-sm text-lime-600 dark:text-lime-400 hover:text-lime-500 font-medium">
-              View All
+            <Link href="/dashboard/prescriptions" className="text-sm text-lime-600 dark:text-lime-400 hover:text-lime-500 font-medium">
+              {t('ph.common.viewAll')}
             </Link>
           </div>
 
@@ -208,7 +213,7 @@ export function PharmacistDashboard() {
               <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-gray-500 dark:text-gray-400">No pending prescriptions</p>
+              <p className="text-gray-500 dark:text-gray-400">{t('ph.dash.noPending')}</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -219,12 +224,12 @@ export function PharmacistDashboard() {
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
                           <span className="text-white font-medium text-sm">
-                            {rx.patientName.split(' ').map(n => n[0]).join('')}
+                            {rx.patientName.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2)}
                           </span>
                         </div>
                         <div>
                           <p className="font-medium text-gray-900 dark:text-white">{rx.patientName}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">{rx.patientId} • {rx.doctorName}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">{[rx.patientId, rx.doctorName].filter(Boolean).join(' • ')}</p>
                         </div>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -235,7 +240,7 @@ export function PharmacistDashboard() {
                         ))}
                         {rx.medications.length > 3 && (
                           <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-xs rounded text-gray-700 dark:text-gray-300">
-                            +{rx.medications.length - 3} more
+                            {t('ph.common.more', { count: rx.medications.length - 3 })}
                           </span>
                         )}
                       </div>
@@ -243,10 +248,10 @@ export function PharmacistDashboard() {
                     <div className="flex items-center gap-3 ml-4">
                       <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(rx.createdAt)}</span>
                       <Link
-                        href={`/dashboard/pharmacy/dispense/${rx.id}`}
+                        href={`/dashboard/prescriptions/${rx.id}`}
                         className="px-3 py-1.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors"
                       >
-                        Dispense
+                        {t('ph.rx.dispense')}
                       </Link>
                     </div>
                   </div>
@@ -259,9 +264,9 @@ export function PharmacistDashboard() {
         {/* Low Stock Alerts */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Low Stock Alerts</h2>
-            <Link href="/dashboard/inventory" className="text-sm text-lime-600 dark:text-lime-400 hover:text-lime-500 font-medium">
-              View All
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('ph.dash.lowStockAlerts')}</h2>
+            <Link href="/dashboard/pharmacy" className="text-sm text-lime-600 dark:text-lime-400 hover:text-lime-500 font-medium">
+              {t('ph.common.viewAll')}
             </Link>
           </div>
 
@@ -270,7 +275,7 @@ export function PharmacistDashboard() {
               <svg className="w-12 h-12 mx-auto text-green-300 dark:text-green-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-gray-500 dark:text-gray-400">All medications well stocked</p>
+              <p className="text-gray-500 dark:text-gray-400">{t('ph.dash.wellStocked')}</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -283,7 +288,7 @@ export function PharmacistDashboard() {
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-red-600 dark:text-red-400">{med.stockQuantity}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Reorder: {med.reorderLevel}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('ph.dash.reorder', { level: med.reorderLevel })}</p>
                     </div>
                   </div>
                 </div>
@@ -296,7 +301,7 @@ export function PharmacistDashboard() {
       {/* Quick Actions */}
       <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <Link
-          href="/dashboard/pharmacy"
+          href="/dashboard/prescriptions?status=ACTIVE"
           className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-100 dark:border-gray-700 hover:border-lime-500 transition-colors"
         >
           <div className="flex items-center gap-4">
@@ -306,8 +311,8 @@ export function PharmacistDashboard() {
               </svg>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900 dark:text-white">Dispense Medications</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Process pending prescriptions</p>
+              <h3 className="font-medium text-gray-900 dark:text-white">{t('ph.dash.dispenseMeds')}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('ph.dash.processPending')}</p>
             </div>
           </div>
         </Link>
@@ -323,8 +328,8 @@ export function PharmacistDashboard() {
               </svg>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900 dark:text-white">Manage Inventory</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Update stock levels</p>
+              <h3 className="font-medium text-gray-900 dark:text-white">{t('ph.dash.manageInventory')}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('ph.dash.updateStockLevels')}</p>
             </div>
           </div>
         </Link>
@@ -340,8 +345,8 @@ export function PharmacistDashboard() {
               </svg>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900 dark:text-white">View All Prescriptions</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Search prescription history</p>
+              <h3 className="font-medium text-gray-900 dark:text-white">{t('ph.dash.viewAllRx')}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('ph.dash.searchHistory')}</p>
             </div>
           </div>
         </Link>
