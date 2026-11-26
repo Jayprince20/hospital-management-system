@@ -8,7 +8,7 @@ import { useToast } from '@/components/toast';
 import { useConfirm } from '@/components/confirm-modal';
 import { useLanguage } from '@/context/language-context';
 import { TableSkeleton } from '@/components/ui';
-import { getStatusColorClasses } from '@/lib/formatters';
+import { getStatusColorClasses, toLocalDateString } from '@/lib/formatters';
 import { ConfirmationBadge } from '@/components/confirmation';
 import { PermissionGate } from '@/components/permission-gate';
 import { useAuth } from '@/context/auth-context';
@@ -59,25 +59,23 @@ export default function AppointmentsPage() {
   const toast = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
+  // Calendar days (YYYY-MM-DD): the API reads dateTo as the end of that day, so "today"
+  // stops at midnight instead of also catching tomorrow's appointments
   const getDateRange = useCallback(() => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const lastDay = new Date(today);
 
     switch (dateFilter) {
-      case 'today': {
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        return { dateFrom: today.toISOString(), dateTo: tomorrow.toISOString() };
-      }
+      case 'today':
+        return { dateFrom: toLocalDateString(today), dateTo: toLocalDateString(today) };
       case 'week': {
-        const endOfWeek = new Date(today);
-        endOfWeek.setDate(endOfWeek.getDate() + 7);
-        return { dateFrom: today.toISOString(), dateTo: endOfWeek.toISOString() };
+        lastDay.setDate(lastDay.getDate() + 6);
+        return { dateFrom: toLocalDateString(today), dateTo: toLocalDateString(lastDay) };
       }
       case 'month': {
-        const endOfMonth = new Date(today);
-        endOfMonth.setMonth(endOfMonth.getMonth() + 1);
-        return { dateFrom: today.toISOString(), dateTo: endOfMonth.toISOString() };
+        lastDay.setMonth(lastDay.getMonth() + 1);
+        lastDay.setDate(lastDay.getDate() - 1);
+        return { dateFrom: toLocalDateString(today), dateTo: toLocalDateString(lastDay) };
       }
       default:
         return {};
