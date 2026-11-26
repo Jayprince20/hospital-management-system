@@ -9,7 +9,7 @@ import { useConfirm } from '@/components/confirm-modal';
 import { useLanguage } from '@/context/language-context';
 import { TableSkeleton } from '@/components/ui';
 import { getStatusColorClasses, toLocalDateString } from '@/lib/formatters';
-import { ConfirmationBadge } from '@/components/confirmation';
+import { ConfirmationBadge, ConfirmBookingButton, awaitsConfirmation } from '@/components/confirmation';
 import { PermissionGate } from '@/components/permission-gate';
 import { useAuth } from '@/context/auth-context';
 import { JoinTeleconsultButton } from '@/components/teleconsultation/join-button';
@@ -471,7 +471,15 @@ export default function AppointmentsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end items-center gap-2">
+                          {user?.role === 'DOCTOR' && appointment.doctor.id === user.doctorId && awaitsConfirmation(appointment) && (
+                            <ConfirmBookingButton
+                              appointmentId={appointment.id}
+                              patientName={`${appointment.patient.firstName} ${appointment.patient.lastName}`}
+                              onConfirmed={fetchAppointments}
+                              size="sm"
+                            />
+                          )}
                           <Link
                             href={`/dashboard/appointments/${appointment.id}`}
                             className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/50"

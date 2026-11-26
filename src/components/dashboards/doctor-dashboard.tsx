@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { api, Appointment } from '@/lib/api';
@@ -9,6 +9,7 @@ import { useLanguage } from '@/context/language-context';
 import { DoctorQueueCard } from '@/components/queue';
 import { DoctorImagingCard } from '@/components/imaging';
 import { DoctorLabCriticalCard } from '@/components/lab';
+import { ConfirmBookingButton, PendingBookingsCard } from '@/components/confirmation';
 
 interface DoctorAppointment {
   id: string;
@@ -69,6 +70,10 @@ export function DoctorDashboard() {
   const [pendingLabs, setPendingLabs] = useState<PendingLabResult[]>([]);
   const [recentPrescriptions, setRecentPrescriptions] = useState<RecentPrescription[]>([]);
 
+  // Bumped when a booking is confirmed from today's list, so the "to confirm" card reloads
+  const [pendingKey, setPendingKey] = useState(0);
+  const loadedOnce = useRef(false);
+
   const fetchDoctorData = useCallback(async () => {
     if (!user?.doctorId) {
       setLoading(false);
@@ -77,7 +82,8 @@ export function DoctorDashboard() {
     }
 
     try {
-      setLoading(true);
+      // Only the first load shows the spinner: refreshes (every minute, after a confirmation) are silent
+      if (!loadedOnce.current) setLoading(true);
       setError(null);
 
       // Today's appointments. Dates are stored at local midnight, so query the
@@ -163,6 +169,7 @@ export function DoctorDashboard() {
       setError(t('clinical.doctorDashboard.loadFailed'));
       console.error('Doctor dashboard error:', err);
     } finally {
+      loadedOnce.current = true;
       setLoading(false);
     }
   }, [user?.doctorId, t]);
@@ -207,6 +214,13 @@ export function DoctorDashboard() {
           {t(stats.pendingToday === 1 ? 'clinical.doctorDashboard.waitingOne' : 'clinical.doctorDashboard.waitingMany', { count: stats.pendingToday })}
         </p>
       </div>
+
+      {/* New bookings waiting for the doctor's confirmation */}
+      {user?.doctorId && (
+        <div className="mb-6">
+          <PendingBookingsCard key={pendingKey} doctorId={user.doctorId} onChanged={fetchDoctorData} />
+        </div>
+      )}
 
       <DoctorQueueCard />
       <DoctorImagingCard />
@@ -338,6 +352,17 @@ export function DoctorDashboard() {
                         >
                           {t('clinical.doctorDashboard.continue')}
                         </Link>
+                      )}
+                      {apt.status === 'SCHEDULED' && (
+                        <ConfirmBookingButton
+                          appointmentId={apt.id}
+                          patientName={apt.patient.name}
+                          onConfirmed={() => {
+                            setPendingKey((k) => k + 1);
+                            fetchDoctorData();
+                          }}
+                          size="sm"
+                        />
                       )}
                       {['SCHEDULED', 'CONFIRMED'].includes(apt.status) && (
                         <Link
