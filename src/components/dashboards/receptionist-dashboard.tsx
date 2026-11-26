@@ -10,14 +10,13 @@ import { ConfirmationBadge, SimulateSmsReply, TomorrowConfirmations } from '@/co
 
 interface Appointment {
   id: string;
-  patientId: string;
   patient: {
+    id: string;
     firstName: string;
     lastName: string;
     patientId: string;
     phoneNumber?: string;
   };
-  doctorId: string;
   doctor: {
     firstName: string;
     lastName: string;
@@ -109,7 +108,7 @@ export function ReceptionistDashboard() {
     try {
       setCheckingIn(appointment.id);
       // Checking in puts the patient in the queue: the ticket number is what they wait with
-      const ticket = await api.createQueueTicket({ patientId: appointment.patientId, appointmentId: appointment.id });
+      const ticket = await api.createQueueTicket({ patientId: appointment.patient.id, appointmentId: appointment.id });
       toast.success(
         t('q.checkIn.done', { number: ticket.number }),
         t('q.checkIn.message', { name: `${appointment.patient.firstName} ${appointment.patient.lastName}`, number: ticket.number })
