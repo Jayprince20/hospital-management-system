@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { AuthShell, OtpInput, authButtonClass, authErrorClass } from '@/components/auth/auth-card';
@@ -10,13 +10,22 @@ import { api } from '@/lib/api';
 
 type Enrollment = { qrDataUrl: string; secret: string };
 
-const MFA_REQUIRED_ROLES = ['ADMIN', 'DOCTOR'];
 
+// useSearchParams needs a Suspense boundary for static rendering
 export default function SetupTwoFactorPage() {
+  return (
+    <Suspense fallback={null}>
+      <SetupTwoFactor />
+    </Suspense>
+  );
+}
+
+function SetupTwoFactor() {
   const { user, isLoading: authLoading, refreshUser, logout } = useAuth();
   const { t } = useLanguage();
   const toast = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -82,12 +91,21 @@ export default function SetupTwoFactorPage() {
     URL.revokeObjectURL(url);
   };
 
+  // Opened from the security settings (Profile, or admin Settings): go back there; after sign-in: on to the dashboard
+  const from = searchParams.get('from');
+  const fromSettings = !!from && from.startsWith('/dashboard/');
+  const leave = () => router.push(fromSettings && from ? from : '/dashboard');
+
+  // Leave first: once the refreshed user shows 2FA on, the route guard sends anyone still here to the dashboard
   const finish = async () => {
+    leave();
     await refreshUser();
-    router.push('/dashboard');
   };
 
-  const required = MFA_REQUIRED_ROLES.includes(user?.role ?? '');
+  // Optional 2FA: leave without setting it up
+  const skip = leave;
+
+  const required = !!user?.mfaMandatory;
   const groupedSecret = enrollment?.secret.match(/.{1,4}/g)?.join(' ') ?? '';
   const step = recoveryCodes ? 3 : code.length === 6 ? 2 : 1;
   const card = 'bg-white dark:bg-gray-800 border border-line dark:border-gray-700 rounded-[20px] p-5 sm:p-6';
@@ -100,9 +118,17 @@ export default function SetupTwoFactorPage() {
       variant="mfa"
       wide
       topLeft={
-        <button type="button" onClick={logout} className="text-sm text-ink-muted dark:text-gray-400 hover:text-ink dark:hover:text-white rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-          {t('security.setup.logout')}
-        </button>
+        required ? (
+          <button type="button" onClick={logout} className="text-sm text-ink-muted dark:text-gray-400 hover:text-ink dark:hover:text-white rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            {t('security.setup.logout')}
+          </button>
+        ) : (
+          !recoveryCodes && (
+            <button type="button" onClick={skip} className="text-sm font-semibold text-ink-muted dark:text-gray-400 hover:text-ink dark:hover:text-white rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+              {fromSettings ? `← ${t('security.setup.back')}` : `${t('security.setup.skip')} →`}
+            </button>
+          )
+        )
       }
     >
       <div className="flex flex-col gap-5">
@@ -113,6 +139,7 @@ export default function SetupTwoFactorPage() {
             <span className="lg:hidden">{required ? t('security.setup.introRequired') : t('security.setup.introOptional')} </span>
             {t('security.setup.introApps')}
           </p>
+          {!required && !recoveryCodes && <p className="text-sm text-ink-muted dark:text-gray-400">{t('security.setup.laterHint')}</p>}
         </div>
 
         {/* Progress: scan → verify → recovery codes */}

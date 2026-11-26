@@ -13,7 +13,7 @@ import { useActingPatient } from '@/context/acting-patient-context';
 import { LogoMark } from '@/components/logo-mark';
 
 export function Header() {
-  const { user, logout } = useAuth();
+  const { user, logout, canAccess } = useAuth();
   const { t, tEnum } = useLanguage();
   const [showDropdown, setShowDropdown] = useState(false);
   // While acting for a relative the account's own pages are out of reach
@@ -111,6 +111,7 @@ export function Header() {
                     </svg>
                     {t('settings.profile')}
                   </a>
+                  {canAccess('/dashboard/settings') && (
                   <a
                     href="/dashboard/settings"
                     role="menuitem" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-ink dark:text-gray-300 hover:bg-canvas dark:hover:bg-gray-700"
@@ -131,6 +132,7 @@ export function Header() {
                     </svg>
                     {t('nav.settings')}
                   </a>
+                  )}
                   </>)}
                   <hr className="my-1 border-line dark:border-gray-700" />
                   <button

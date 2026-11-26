@@ -352,7 +352,7 @@ function OnCallCard() {
 
 /** Initials, name, role and the account menu (profile, settings, sign out) */
 function UserBlock({ collapsed }: { collapsed: boolean }) {
-  const { user, logout } = useAuth();
+  const { user, logout, canAccess } = useAuth();
   const { t, tEnum } = useLanguage();
   const { isActing } = useActingPatient();
   const [open, setOpen] = useState(false);
@@ -410,9 +410,12 @@ function UserBlock({ collapsed }: { collapsed: boolean }) {
               <Link role="menuitem" href="/dashboard/profile" onClick={() => setOpen(false)} className={menuItem}>
                 {t('settings.profile')}
               </Link>
-              <Link role="menuitem" href="/dashboard/settings" onClick={() => setOpen(false)} className={menuItem}>
-                {t('nav.settings')}
-              </Link>
+              {/* System settings are admin-only; everyone manages their password and 2FA in Profile */}
+              {canAccess('/dashboard/settings') && (
+                <Link role="menuitem" href="/dashboard/settings" onClick={() => setOpen(false)} className={menuItem}>
+                  {t('nav.settings')}
+                </Link>
+              )}
               <hr className="my-1 border-line dark:border-gray-700" />
             </>
           )}
