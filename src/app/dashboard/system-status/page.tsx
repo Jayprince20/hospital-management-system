@@ -148,7 +148,10 @@ export default function SystemStatusPage() {
   // Security
   const counts = status?.counts;
   const mfaShort =
-    typeof counts?.mfaEnrolled === 'number' && typeof counts?.mfaRequired === 'number' && counts.mfaEnrolled < counts.mfaRequired;
+    counts?.mfaMandatory !== false &&
+    typeof counts?.mfaEnrolled === 'number' &&
+    typeof counts?.mfaRequired === 'number' &&
+    counts.mfaEnrolled < counts.mfaRequired;
   const failedTone: Tone = (counts?.failedLoginsLast24h ?? 0) >= 20 ? 'critical' : (counts?.failedLoginsLast24h ?? 0) >= 5 ? 'warning' : 'neutral';
 
   const errors = status?.recentErrors ?? [];

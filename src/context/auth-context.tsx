@@ -15,7 +15,7 @@ import {
 } from '@/lib/rbac';
 
 // The session user also carries its two-factor state (from login, MFA verify and /auth/me)
-export type SessionUser = User & { mfaEnabled?: boolean; mfaSetupRequired?: boolean };
+export type SessionUser = User & { mfaEnabled?: boolean; mfaMandatory?: boolean; mfaSetupRequired?: boolean };
 
 /** What a password submission led to: signed in, or a verification code is needed first */
 export type LoginResult = { mfaRequired: false } | { mfaRequired: true; mfaToken: string };
@@ -160,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setMustChangePassword(true);
         router.push('/change-password');
       } else if (sessionUser.mfaSetupRequired) {
+        // Only when the server makes 2FA mandatory for the role; otherwise it is set up later in Profile > Security
         router.push('/setup-2fa');
       } else {
         router.push('/dashboard');

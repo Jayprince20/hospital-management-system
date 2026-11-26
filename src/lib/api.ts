@@ -154,6 +154,7 @@ interface LoginResponse {
     patientId?: string;
     mustChangePassword?: boolean;
     mfaEnabled?: boolean;
+    mfaMandatory?: boolean;
     mfaSetupRequired?: boolean;
   };
   tokens: {
@@ -228,6 +229,8 @@ interface SystemStatus {
     failedLoginsLast24h?: number;
     mfaEnrolled?: number;
     mfaRequired?: number;
+    /** False when 2FA is optional: the counts then cover all staff and a gap is not a warning */
+    mfaMandatory?: boolean;
   };
   recentErrors?: Array<{ time?: string; msg?: string; route?: string; requestId?: string }>;
 }
@@ -237,7 +240,7 @@ interface SystemStatusResponse {
   health?: SystemStatus['health'];
   restoreDrill?: SystemStatus['lastRestoreDrill'];
   counts?: { activeUsers?: number; patients?: number; auditEntries24h?: number; failedLogins24h?: number };
-  mfa?: { enrolled?: number; required?: number };
+  mfa?: { enrolled?: number; required?: number; mandatory?: boolean };
   recentErrors?: Array<{ time?: string; msg?: string; route?: string; requestId?: string; error?: { message?: string } }>;
 }
 
@@ -337,7 +340,8 @@ interface User {
   patientId?: string; // For patient users
   mustChangePassword?: boolean; // For force password change on first login
   mfaEnabled?: boolean; // Two-factor authentication active
-  mfaSetupRequired?: boolean; // Admin/doctor who must enrol before using the system
+  mfaMandatory?: boolean; // 2FA is mandatory for this role (MFA_REQUIRED_ROLES on the server)
+  mfaSetupRequired?: boolean; // Mandatory 2FA not set up yet: must enrol before using the system
 }
 
 // Patient types
@@ -3556,6 +3560,7 @@ class ApiClient {
           failedLoginsLast24h: counts?.failedLogins24h,
           mfaEnrolled: mfa?.enrolled,
           mfaRequired: mfa?.required,
+          mfaMandatory: mfa?.mandatory,
         },
       };
     }

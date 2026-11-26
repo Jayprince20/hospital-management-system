@@ -1,28 +1,29 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { useToast } from '@/components/toast';
 import { Modal } from '@/components/ui';
 import { api } from '@/lib/api';
 
-const MFA_REQUIRED_ROLES = ['ADMIN', 'DOCTOR'];
 
-/** Two-factor status for the signed-in user: set it up, or turn it off when the role allows */
+/** Two-factor status for the signed-in user: turn it on, or off again unless it is mandatory for the role */
 export function TwoFactorSettings() {
   const { user, refreshUser } = useAuth();
   const { t } = useLanguage();
   const toast = useToast();
   const router = useRouter();
+  const pathname = usePathname();
   const [showDisable, setShowDisable] = useState(false);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const enabled = !!user?.mfaEnabled;
-  const required = MFA_REQUIRED_ROLES.includes(user?.role ?? '');
+  // Mandatory only for roles the server lists in MFA_REQUIRED_ROLES; otherwise on and off at will
+  const required = !!user?.mfaMandatory;
 
   const disable = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +65,7 @@ export function TwoFactorSettings() {
         {!enabled ? (
           <button
             type="button"
-            onClick={() => router.push('/setup-2fa')}
+            onClick={() => router.push(`/setup-2fa?from=${encodeURIComponent(pathname ?? '/dashboard/profile')}`)}
             className="px-4 py-2 text-sm text-lime-600 border border-lime-600 rounded-lg hover:bg-lime-50 dark:hover:bg-lime-900/50"
           >
             {t('security.settings.setUp')}
