@@ -22,6 +22,7 @@ import {
 import { useOnCall } from '@/components/rosters/on-call';
 import { useIsBiologist } from '@/components/lab/ui';
 import { myDepartment, useRosterDepartments } from '@/components/rosters/ui';
+import { LogoMark } from '@/components/logo-mark';
 
 // Map navigation labels to translation keys
 const navTranslationKeys: Record<string, string> = {
@@ -128,13 +129,6 @@ function NavIcon({ d, className = 'w-5 h-5' }: { d: string; className?: string }
   );
 }
 
-function LogoMark({ className = 'w-10 h-10 text-[15px]' }: { className?: string }) {
-  return (
-    <span aria-hidden="true" className={`${className} rounded-xl bg-accent text-on-accent font-extrabold flex items-center justify-center shrink-0 tracking-tight`}>
-      BB
-    </span>
-  );
-}
 
 const focusRing = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-rail';
 

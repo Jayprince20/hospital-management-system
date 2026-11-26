@@ -10,6 +10,7 @@ import { ProfileSwitcher } from '@/components/family';
 import { OnCallButton } from '@/components/rosters/on-call';
 import { ConnectivityIndicator } from '@/components/offline/connectivity-indicator';
 import { useActingPatient } from '@/context/acting-patient-context';
+import { LogoMark } from '@/components/logo-mark';
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -24,7 +25,7 @@ export function Header() {
         {/* Search */}
         <div className="flex items-center gap-3 flex-1 min-w-0 max-w-lg">
           {/* Mobile: the brand mark stands in for the hidden sidebar */}
-          <span aria-hidden="true" className="lg:hidden w-9 h-9 rounded-xl bg-accent text-on-accent font-extrabold text-sm flex items-center justify-center shrink-0">BB</span>
+          <LogoMark className="lg:hidden w-9 h-9" />
           <div className="flex-1 min-w-0">
             <GlobalSearch />
           </div>
