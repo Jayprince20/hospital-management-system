@@ -277,8 +277,8 @@ export function surveyPayload(a: SurveyAnswers): Record<string, unknown> {
 
 // ---------- appointment confirmation ----------
 
-export type ConfirmationChannel = 'SMS_REPLY' | 'LINK' | 'PORTAL' | 'PHONE' | 'DESK';
-export const CONFIRMATION_CHANNELS: ConfirmationChannel[] = ['SMS_REPLY', 'LINK', 'PORTAL', 'PHONE', 'DESK'];
+export type ConfirmationChannel = 'SMS_REPLY' | 'LINK' | 'PORTAL' | 'PHONE' | 'DESK' | 'DOCTOR';
+export const CONFIRMATION_CHANNELS: ConfirmationChannel[] = ['SMS_REPLY', 'LINK', 'PORTAL', 'PHONE', 'DESK', 'DOCTOR'];
 
 export type ConfirmationBadgeKind = ConfirmationChannel | 'CONFIRMED' | 'UNCONFIRMED' | null;
 

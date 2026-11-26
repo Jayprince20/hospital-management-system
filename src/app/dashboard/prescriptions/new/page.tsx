@@ -169,9 +169,11 @@ function NewPrescriptionForm() {
     fetchData();
   }, [fetchData]);
 
+  // Accent-insensitive: "paracetamol" finds "Paracétamol"
+  const fold = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const filteredMedications = medications.filter(med =>
-    med.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    med.genericName.toLowerCase().includes(searchQuery.toLowerCase())
+    fold(med.name).includes(fold(searchQuery)) ||
+    fold(med.genericName).includes(fold(searchQuery))
   );
 
   const handleSelectMedication = (med: Medication) => {

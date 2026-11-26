@@ -8,8 +8,8 @@ import { useToast } from '@/components/toast';
 import { useConfirm } from '@/components/confirm-modal';
 import { useLanguage } from '@/context/language-context';
 import { TableSkeleton } from '@/components/ui';
-import { getStatusColorClasses } from '@/lib/formatters';
-import { ConfirmationBadge } from '@/components/confirmation';
+import { getStatusColorClasses, toLocalDateString } from '@/lib/formatters';
+import { ConfirmationBadge, ConfirmBookingButton, awaitsConfirmation } from '@/components/confirmation';
 import { PermissionGate } from '@/components/permission-gate';
 import { useAuth } from '@/context/auth-context';
 import { JoinTeleconsultButton } from '@/components/teleconsultation/join-button';
@@ -59,25 +59,23 @@ export default function AppointmentsPage() {
   const toast = useToast();
   const { confirm, ConfirmDialog } = useConfirm();
 
+  // Calendar days (YYYY-MM-DD): the API reads dateTo as the end of that day, so "today"
+  // stops at midnight instead of also catching tomorrow's appointments
   const getDateRange = useCallback(() => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const lastDay = new Date(today);
 
     switch (dateFilter) {
-      case 'today': {
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        return { dateFrom: today.toISOString(), dateTo: tomorrow.toISOString() };
-      }
+      case 'today':
+        return { dateFrom: toLocalDateString(today), dateTo: toLocalDateString(today) };
       case 'week': {
-        const endOfWeek = new Date(today);
-        endOfWeek.setDate(endOfWeek.getDate() + 7);
-        return { dateFrom: today.toISOString(), dateTo: endOfWeek.toISOString() };
+        lastDay.setDate(lastDay.getDate() + 6);
+        return { dateFrom: toLocalDateString(today), dateTo: toLocalDateString(lastDay) };
       }
       case 'month': {
-        const endOfMonth = new Date(today);
-        endOfMonth.setMonth(endOfMonth.getMonth() + 1);
-        return { dateFrom: today.toISOString(), dateTo: endOfMonth.toISOString() };
+        lastDay.setMonth(lastDay.getMonth() + 1);
+        lastDay.setDate(lastDay.getDate() - 1);
+        return { dateFrom: toLocalDateString(today), dateTo: toLocalDateString(lastDay) };
       }
       default:
         return {};
@@ -473,7 +471,15 @@ export default function AppointmentsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end items-center gap-2">
+                          {user?.role === 'DOCTOR' && appointment.doctor.id === user.doctorId && awaitsConfirmation(appointment) && (
+                            <ConfirmBookingButton
+                              appointmentId={appointment.id}
+                              patientName={`${appointment.patient.firstName} ${appointment.patient.lastName}`}
+                              onConfirmed={fetchAppointments}
+                              size="sm"
+                            />
+                          )}
                           <Link
                             href={`/dashboard/appointments/${appointment.id}`}
                             className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/50"

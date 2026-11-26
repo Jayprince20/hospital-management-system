@@ -3,6 +3,7 @@
 import { useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { ThemeToggle } from '@/context/theme-context';
 import { useLanguage } from '@/context/language-context';
+import { LogoMark } from '@/components/logo-mark';
 
 const benefitIcons = {
   security: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4',
@@ -71,7 +72,7 @@ export function AuthShell({
         <span aria-hidden="true" className="absolute -left-40 -bottom-52 w-[520px] h-[520px] rounded-full bg-white/[0.04]" />
 
         <div className="relative flex items-center gap-3">
-          <span aria-hidden="true" className="w-11 h-11 rounded-[14px] bg-accent text-on-accent font-extrabold text-lg flex items-center justify-center tracking-tight">BB</span>
+          <LogoMark className="w-11 h-11" />
           <span className="flex flex-col leading-tight">
             <span className="font-bold">{t('shell.brandName')}</span>
             <span className="text-xs text-[#B9CFBF]">{t('shell.brandSub')}</span>
@@ -115,7 +116,7 @@ export function AuthShell({
         <span aria-hidden="true" className="absolute -right-8 -top-8 w-[150px] h-[150px] rounded-full border border-lime-300/35" />
         <div className="relative flex items-center justify-between">
           <span className="flex items-center gap-2.5">
-            <span aria-hidden="true" className="w-10 h-10 rounded-xl bg-accent text-on-accent font-extrabold flex items-center justify-center">BB</span>
+            <LogoMark className="w-10 h-10" />
             <span className="font-bold text-[15px]">{t('shell.brandName')}</span>
           </span>
           <LanguageSwitch tone="dark" />

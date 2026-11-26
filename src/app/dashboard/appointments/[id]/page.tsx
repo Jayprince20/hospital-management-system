@@ -9,6 +9,7 @@ import { useToast } from '@/components/toast';
 import { useConfirm } from '@/components/confirm-modal';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
+import { ConfirmationBadge, ConfirmBookingButton, awaitsConfirmation } from '@/components/confirmation';
 
 export default function AppointmentDetailPage() {
   const params = useParams();
@@ -204,6 +205,9 @@ export default function AppointmentDetailPage() {
   }
 
   const nextStatuses = getNextStatuses(appointment.status);
+  // The doctor validates their own new bookings until the slot starts
+  const awaitsMyConfirmation = isDoctor && appointment.doctor.id === user?.doctorId && awaitsConfirmation(appointment);
+  const patientName = `${appointment.patient.firstName} ${appointment.patient.lastName}`;
   const typeInfo = typeLabels[appointment.type];
   const statusStyle = statusColors[appointment.status];
 
@@ -228,6 +232,7 @@ export default function AppointmentDetailPage() {
               <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusStyle.bg} ${statusStyle.text}`}>
                 {statusLabels[appointment.status]}
               </span>
+              <ConfirmationBadge appointment={appointment} />
             </div>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
               {formatDate(appointment.appointmentDate)} {t('appointmentForm.at')} {formatTime(appointment.startTime)}
@@ -404,6 +409,15 @@ export default function AppointmentDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Doctor: one-click confirmation of a new booking */}
+          {awaitsMyConfirmation && (
+            <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/20">
+              <p className="font-semibold text-amber-900 dark:text-amber-200">{t('conf.doctor.banner')}</p>
+              <p className="mt-1 mb-4 text-sm text-amber-800 dark:text-amber-300">{t('conf.doctor.bannerHelp')}</p>
+              <ConfirmBookingButton appointmentId={appointment.id} patientName={patientName} onConfirmed={fetchAppointment} size="lg" className="w-full" />
+            </div>
+          )}
+
           {/* Status Actions - only for staff, not patients */}
           {isStaff && nextStatuses.length > 0 && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
@@ -476,6 +490,23 @@ export default function AppointmentDetailPage() {
                     </p>
                   </div>
                 </div>
+
+                {appointment.confirmedAt && (
+                  <div className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <div className="w-3 h-3 rounded-full bg-green-600"></div>
+                      <div className="w-0.5 h-full bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div className="pb-4">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {t(`conf.badge.${appointment.confirmationChannel ?? 'CONFIRMED'}`)}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {formatDateTime(appointment.confirmedAt)}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {appointment.checkedInAt && (
                   <div className="flex gap-3">
